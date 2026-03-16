@@ -1,45 +1,88 @@
 const mongoose = require('mongoose');
-const bycrypt = require('bcryptjs');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-//create user schema
+// ─── User Schema ─────────────────────────────────────────────
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required:[true, 'Name is required'],
+    required: [true, 'Name is required'],
+    trim: true,
+    maxlength: [100, 'Name cannot exceed 100 characters'],
   },
-  email:{
+  email: {
     type: String,
-    required:[true, 'Email is required'],
+    required: [true, 'Email is required'],
     unique: true,
     lowercase: true,
-  },
-  password:{
-    type: String,
-    required:[true, 'Password is required'],
-    minlength: 8,
-    select:false,
     trim: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
   },
-  role:{
+  password: {
     type: String,
-    enum: ['user', 'admin', 'provider'],
+    required: [true, 'Password is required'],
+    minlength: [6, 'Password must be at least 6 characters'],
+    select: false,
+  },
+  role: {
+    type: String,
+    enum: ['user', 'provider', 'admin'],
     default: 'user',
   },
-  address:{
+  address: {
     type: String,
-    required:[true, 'Address is required'],
+    required: [true, 'Address is required'],
+    trim: true,
   },
-  phone: String,
-  avatar: String,
-  isVerified:{
+  phone: {
+    type: String,
+    trim: true,
+  },
+  avatar: {
+    type: String,
+    default: '',
+  },
+
+  // ─── Provider-specific fields ──────────────────────────────
+  isVerified: {
     type: Boolean,
     default: false,
+  },
+  kycStatus: {
+    type: String,
+    enum: ['pending', 'submitted', 'reviewing', 'verified', 'rejected'],
+    default: 'pending',
   },
   kycDocuments: {
     type: [String],
     default: [],
   },
+  kycExtractedData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  kycComparisonResult: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  kycRejectionReason: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+
+  // ─── Subscription & Quota (per DNA spec) ───────────────────
+  subscriptionPlan: {
+    type: String,
+    enum: ['Free', 'Pro', 'ProPlus'],
+    default: 'Free',
+  },
+  listingsCount: {
+    type: Number,
+    default: 0,
+  },
+
+  // ─── Token management ─────────────────────────────────────
   refreshToken: {
     type: String,
     select: false,
@@ -48,32 +91,70 @@ const userSchema = new mongoose.Schema({
     type: String,
     select: false,
   },
-  passwordResetExpires: Date,
-  createdAt:{
+  passwordResetExpires: {
     type: Date,
-    default: Date.now,
   },
+}, {
+  timestamps: true, // createdAt + updatedAt
 });
 
-//hash password before saving to database
-userSchema.pre('save', async function(next){
-  if(!this.isModified('password')) return next();
-  this.password = await bycrypt.hash(this.password, 12);
-  next();
+// ─── Indexes ─────────────────────────────────────────────────
+userSchema.index({ role: 1 });
+
+// ─── Pre-save hook: Hash password ────────────────────────────
+// CRITICAL: Must check isModified to avoid re-hashing on user updates
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  const salt = await bcrypt.genSalt(12);
+  this.password = await bcrypt.hash(this.password, salt);
 });
-//check passwrord method for login
-userSchema.methods.correctPassword = async function(candidatePassword, userPassword){
-  return await bycrypt.compare(candidatePassword, userPassword);
+
+// ─── Instance Methods ────────────────────────────────────────
+
+/**
+ * Compare candidate password with stored hashed password
+ */
+userSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
+  return await bcrypt.compare(candidatePassword, userPassword);
 };
 
+/**
+ * Generate a password reset token (hashed, stored in DB)
+ * Returns the raw (unhashed) token to send via email
+ */
 userSchema.methods.createPasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex');
   this.passwordResetToken = crypto
     .createHash('sha256')
     .update(resetToken)
     .digest('hex');
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
   return resetToken;
+};
+
+/**
+ * Check if user can create more listings based on subscription plan
+ * Free: 3 listings, Pro: 20 listings, ProPlus: unlimited
+ */
+userSchema.methods.canCreateListing = function () {
+  const limits = {
+    Free: 3,
+    Pro: 20,
+    ProPlus: Infinity,
+  };
+  return this.listingsCount < (limits[this.subscriptionPlan] || 0);
+};
+
+/**
+ * Get the maximum number of listings allowed for this user
+ */
+userSchema.methods.getListingLimit = function () {
+  const limits = {
+    Free: 3,
+    Pro: 20,
+    ProPlus: Infinity,
+  };
+  return limits[this.subscriptionPlan] || 0;
 };
 
 module.exports = mongoose.model('User', userSchema);

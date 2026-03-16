@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import { BedDouble, Bath, Ruler } from "lucide-react";
 import type { Property } from "@/types/property";
 
 interface RecommendationCardProps {
@@ -34,11 +35,11 @@ const RecommendationCard = React.forwardRef<HTMLDivElement, RecommendationCardPr
         <div className="pt-4 pb-2 px-1">
           <h3 className="font-semibold text-text-primary line-clamp-2 mb-2">{property.title}</h3>
           <p className="text-xs text-text-secondary mb-3 line-clamp-1">{property.address}</p>
-          <div className="flex gap-4 text-xs text-text-secondary">
-            {property.bedrooms !== undefined && <span>🛏️ {property.bedrooms}</span>}
-            {property.bathrooms !== undefined && <span>🚿 {property.bathrooms}</span>}
-            {property.area !== undefined && <span>📐 {property.area} m²</span>}
-          </div>
+           <div className="flex gap-4 text-xs text-text-secondary">
+             {property.bedrooms !== undefined && <span className="flex items-center gap-1"><BedDouble size={14} /> {property.bedrooms}</span>}
+             {property.bathrooms !== undefined && <span className="flex items-center gap-1"><Bath size={14} /> {property.bathrooms}</span>}
+             {property.area !== undefined && <span className="flex items-center gap-1"><Ruler size={14} /> {property.area} m²</span>}
+           </div>
         </div>
       </div>
     );

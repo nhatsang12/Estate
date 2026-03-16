@@ -1,4 +1,5 @@
 import React from "react";
+import { CheckCircle } from "lucide-react";
 import type { SubscriptionPlan } from "@/services/paymentService";
 
 interface PlanCardProps {
@@ -28,24 +29,25 @@ export default function PlanCard({
           : "border-boundary hover:border-primary-light/50 hover:shadow-sm"
       }`}
     >
-      {isCurrentPlan && (
-        <div className="bg-emerald-500/90 text-white px-4 py-2 text-sm font-semibold backdrop-blur-sm text-center">
-          ✓ Gói hiện tại
-        </div>
-      )}
+       {isCurrentPlan && (
+         <div className="bg-emerald-500/90 text-white px-4 py-2 text-sm font-semibold backdrop-blur-sm text-center flex items-center gap-2 justify-center">
+           <CheckCircle size={16} />
+           Gói hiện tại
+         </div>
+       )}
 
       <div className="p-6">
         <h3 className="text-xl font-bold text-text-primary mb-2">{name}</h3>
         <p className="text-3xl font-bold text-primary-dark mb-4">{price}</p>
 
-        <ul className="space-y-3 mb-6">
-          {features.map((feature, idx) => (
-            <li key={idx} className="flex items-start gap-2 text-sm text-text-secondary">
-              <span className="text-emerald-500 font-bold mt-0.5">✓</span>
-              <span>{feature}</span>
-            </li>
-          ))}
-        </ul>
+         <ul className="space-y-3 mb-6">
+           {features.map((feature, idx) => (
+             <li key={idx} className="flex items-start gap-2 text-sm text-text-secondary">
+               <CheckCircle size={18} className="text-emerald-500 mt-0.5 shrink-0" />
+               <span>{feature}</span>
+             </li>
+           ))}
+         </ul>
 
         <button
           onClick={() => onSelect(plan)}

@@ -5,6 +5,7 @@ import ProviderVerificationCard from "@/components/ProviderVerificationCard";
 import { adminService } from "@/services/adminService";
 import { useAuth } from "@/contexts/AuthContext";
 import type { User } from "@/types/user";
+import { CheckCircle } from "lucide-react";
 
 export default function AdminProvidersVerification() {
   const router = useRouter();
@@ -85,8 +86,8 @@ export default function AdminProvidersVerification() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Xác minh nhà cung cấp</h1>
-        <p className="text-gray-600 mb-8">Kiểm tra tài liệu KYC của nhà cung cấp và xác minh tài khoản</p>
+        <h1 className="text-3xl font-bold text-slate-900 mb-2">Xác minh nhà cung cấp</h1>
+        <p className="text-slate-600 mb-8">Kiểm tra tài liệu KYC của nhà cung cấp và xác minh tài khoản</p>
 
         {providers.length > 0 ? (
           <>
@@ -103,11 +104,11 @@ export default function AdminProvidersVerification() {
             </div>
 
             {/* Pagination */}
-            <div className="flex justify-center gap-2 mt-8">
+            <div className="flex justify-center gap-2 mt-8 flex-wrap">
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition"
+                className="px-4 py-2 glass-button text-slate-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ← Trước
               </button>
@@ -117,10 +118,10 @@ export default function AdminProvidersVerification() {
                   <button
                     key={p}
                     onClick={() => setPage(p)}
-                    className={`w-10 h-10 rounded-lg transition ${
+                    className={`w-10 h-10 rounded-xl transition-all ${
                       p === page
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+                        ? "glass-button-primary"
+                        : "glass-button text-slate-700"
                     }`}
                   >
                     {p}
@@ -131,15 +132,18 @@ export default function AdminProvidersVerification() {
               <button
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition"
+                className="px-4 py-2 glass-button text-slate-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Sau →
               </button>
             </div>
           </>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-600">✓ Không có nhà cung cấp chờ xác minh</p>
+          <div className="glass-panel text-center py-12">
+            <p className="text-slate-600 flex items-center justify-center gap-2">
+              <CheckCircle size={24} className="text-emerald-500" />
+              Không có nhà cung cấp chờ xác minh
+            </p>
           </div>
         )}
       </div>

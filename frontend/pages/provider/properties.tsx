@@ -5,6 +5,7 @@ import propertyService from "@/services/propertyService";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Property } from "@/types/property";
 import Link from "next/link";
+import { Plus, DollarSign, Ruler, BedDouble, CheckCircle, Clock, XCircle } from "lucide-react";
 
 export default function ProviderProperties() {
   const router = useRouter();
@@ -65,120 +66,122 @@ export default function ProviderProperties() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Quản lý bất động sản</h1>
-          <Link
-            href="/provider/properties/create"
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
-          >
-            + Tạo mới
-          </Link>
-        </div>
+       <div className="container mx-auto px-4 py-8 max-w-6xl">
+         <div className="flex justify-between items-center mb-8">
+           <h1 className="text-3xl font-bold text-slate-900">Quản lý bất động sản</h1>
+           <Link
+             href="/provider/properties/create"
+             className="glass-button-primary inline-flex gap-2"
+           >
+             <Plus size={18} />
+             Tạo mới
+           </Link>
+         </div>
 
-        {/* Filters */}
-        <div className="flex gap-2 mb-6">
-          {["all", "pending", "approved", "rejected"].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilter(status as typeof filter)}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                filter === status
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-900 hover:bg-gray-300"
-              }`}
-            >
-              {status === "all" && "Tất cả"}
-              {status === "pending" && "Đang chờ"}
-              {status === "approved" && "Đã phê duyệt"}
-              {status === "rejected" && "Bị từ chối"}
-            </button>
-          ))}
-        </div>
+         {/* Filters */}
+         <div className="flex gap-2 mb-6 flex-wrap">
+           {["all", "pending", "approved", "rejected"].map((status) => (
+             <button
+               key={status}
+               onClick={() => setFilter(status as typeof filter)}
+               className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                 filter === status
+                   ? "glass-button-primary"
+                   : "glass-button text-slate-600"
+               }`}
+             >
+               {status === "all" && "Tất cả"}
+               {status === "pending" && "Đang chờ"}
+               {status === "approved" && "Đã phê duyệt"}
+               {status === "rejected" && "Bị từ chối"}
+             </button>
+           ))}
+         </div>
 
-        {/* Properties List */}
-        {filteredProperties.length > 0 ? (
-          <div className="space-y-3">
-            {filteredProperties.map((property) => (
-              <div
-                key={property._id}
-                className="bg-white rounded-lg shadow-md p-4 border border-gray-200 hover:shadow-lg transition"
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg text-gray-900 mb-1">{property.title}</h3>
-                    <p className="text-sm text-gray-600 mb-2">{property.address}</p>
-                    <div className="flex gap-4 text-sm text-gray-700">
-                      <span>💰 {new Intl.NumberFormat("vi-VN", {
-                          style: "currency",
-                          currency: "VND",
-                        }).format(property.price)}</span>
-                      <span>📐 {property.area} m²</span>
-                      <span>🛏️ {property.bedrooms || 0} phòng</span>
-                    </div>
-                  </div>
+         {/* Properties List */}
+         {filteredProperties.length > 0 ? (
+           <div className="space-y-3">
+             {filteredProperties.map((property) => (
+               <div
+                 key={property._id}
+                 className="glass-panel border border-slate-200 p-4 hover:shadow-lg transition-all"
+               >
+                 <div className="flex justify-between items-start gap-4">
+                   <div className="flex-1">
+                     <h3 className="font-bold text-lg text-slate-900 mb-1">{property.title}</h3>
+                     <p className="text-sm text-slate-600 mb-2">{property.address}</p>
+                     <div className="flex gap-4 text-sm text-slate-700 flex-wrap">
+                       <span className="flex items-center gap-1"><DollarSign size={14} /> {new Intl.NumberFormat("vi-VN", {
+                           style: "currency",
+                           currency: "VND",
+                         }).format(property.price)}</span>
+                       <span className="flex items-center gap-1"><Ruler size={14} /> {property.area} m²</span>
+                       <span className="flex items-center gap-1"><BedDouble size={14} /> {property.bedrooms || 0} phòng</span>
+                     </div>
+                   </div>
 
-                  <div className="text-right">
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-3 ${
-                        property.status === "approved"
-                          ? "bg-green-100 text-green-700"
-                          : property.status === "pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {property.status === "approved" && "✓ Đã phê duyệt"}
-                      {property.status === "pending" && "⏳ Đang chờ"}
-                      {property.status === "rejected" && "✗ Bị từ chối"}
-                    </span>
+                   <div className="text-right">
+                     <span
+                       className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold mb-3 ${
+                         property.status === "approved"
+                           ? "bg-green-100 text-green-700"
+                           : property.status === "pending"
+                             ? "bg-yellow-100 text-yellow-700"
+                             : "bg-red-100 text-red-700"
+                       }`}
+                     >
+                       {property.status === "approved" && <><CheckCircle size={14} /> Đã phê duyệt</>}
+                       {property.status === "pending" && <><Clock size={14} /> Đang chờ</>}
+                       {property.status === "rejected" && <><XCircle size={14} /> Bị từ chối</>}
+                     </span>
 
-                    <div className="flex gap-2 justify-end">
-                      <Link
-                        href={`/properties/${property._id}`}
-                        className="text-blue-600 hover:text-blue-800 font-semibold text-sm"
-                      >
-                        Xem
-                      </Link>
-                      <Link
-                        href={`/provider/properties/${property._id}/edit`}
-                        className="text-green-600 hover:text-green-800 font-semibold text-sm"
-                      >
-                        Sửa
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(property._id)}
-                        className="text-red-600 hover:text-red-800 font-semibold text-sm"
-                      >
-                        Xóa
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                     <div className="flex gap-2 justify-end">
+                       <Link
+                         href={`/properties/${property._id}`}
+                         className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm interactive-link"
+                       >
+                         Xem
+                       </Link>
+                       <Link
+                         href={`/provider/properties/${property._id}/edit`}
+                         className="text-green-600 hover:text-green-800 font-semibold text-sm interactive-link"
+                       >
+                         Sửa
+                       </Link>
+                       <button
+                         onClick={() => handleDelete(property._id)}
+                         className="text-rose-600 hover:text-rose-800 font-semibold text-sm interactive-link"
+                       >
+                         Xóa
+                       </button>
+                     </div>
+                   </div>
+                 </div>
 
-                {property.rejectionReason && property.status === "rejected" && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
-                    <p className="text-sm text-red-700">
-                      <span className="font-semibold">Lý do từ chối:</span> {property.rejectionReason}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-600 mb-4">
-              Không có bất động sản {filter !== "all" ? `ở trạng thái '${filter}'` : ""}
-            </p>
-            <Link
-              href="/provider/properties/create"
-              className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              Tạo bất động sản đầu tiên
-            </Link>
-          </div>
-        )}
+                 {property.rejectionReason && property.status === "rejected" && (
+                   <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded">
+                     <p className="text-sm text-rose-700">
+                       <span className="font-semibold">Lý do từ chối:</span> {property.rejectionReason}
+                     </p>
+                   </div>
+                 )}
+               </div>
+             ))}
+           </div>
+         ) : (
+           <div className="text-center py-12">
+             <p className="text-slate-600 mb-4">
+               Không có bất động sản {filter !== "all" ? `ở trạng thái '${filter}'` : ""}
+             </p>
+             <Link
+               href="/provider/properties/create"
+               className="glass-button-primary inline-flex gap-2"
+             >
+               <Plus size={18} />
+               Tạo bất động sản đầu tiên
+             </Link>
+           </div>
+         )}
       </div>
     </Layout>
   );

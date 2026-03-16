@@ -1,80 +1,126 @@
 const mongoose = require('mongoose');
 
+// ─── Property Schema ─────────────────────────────────────────
 const propertySchema = new mongoose.Schema({
   title: {
     type: String,
     required: [true, 'A property must have a title'],
     trim: true,
+    maxlength: [200, 'Title cannot exceed 200 characters'],
   },
   description: {
     type: String,
     required: [true, 'A property must have a description'],
+    trim: true,
   },
   price: {
     type: Number,
     required: [true, 'A property must have a price'],
+    min: [0, 'Price cannot be negative'],
   },
   address: {
     type: String,
     required: [true, 'A property must have an address'],
+    trim: true,
   },
+
+  // ─── GeoJSON Location ─────────────────────────────────────
+  // CRITICAL: MongoDB requires coordinates as [longitude, latitude]
+  // Do NOT reverse to [lat, lng] — Leaflet conversion must happen on frontend
   location: {
-    // GeoJSON
     type: {
       type: String,
-      default: 'Point', 
+      default: 'Point',
       enum: ['Point'],
     },
-    coordinates: [Number], // [longitude, latitude]
-  },
-  amenities: [String],
-  images: [String], // Array of image URLs
-  
-  // Ownership Proof
-  ownershipDocuments: [String], // URLs to Property Deeds, Utility Bills, etc.
-
-  // Refactored to ownerId referencing a Provider
-  ownerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'A property must belong to a Provider (Owner)'],
-  },
-  
-  // Assigned Broker/Agent (Provider B)
-  agentId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    coordinates: {
+      type: [Number],
+      required: [true, 'Coordinates are required for geospatial queries'],
+      validate: {
+        validator: function (val) {
+          return val.length === 2 &&
+            val[0] >= -180 && val[0] <= 180 &&  // longitude
+            val[1] >= -90 && val[1] <= 90;        // latitude
+        },
+        message: 'Coordinates must be [longitude, latitude] with valid ranges',
+      },
+    },
   },
 
+  // ─── Property Details ──────────────────────────────────────
   type: {
     type: String,
     enum: ['apartment', 'house', 'villa', 'studio', 'office'],
     default: 'apartment',
   },
-  bedrooms: Number,
-  bathrooms: Number,
-  area: Number, // sqft or sqm
-  
-  // Updated Status Enum including Moderation & Availability
+  bedrooms: {
+    type: Number,
+    min: [0, 'Bedrooms cannot be negative'],
+  },
+  bathrooms: {
+    type: Number,
+    min: [0, 'Bathrooms cannot be negative'],
+  },
+  area: {
+    type: Number,
+    min: [0, 'Area cannot be negative'],
+  },
+  furnished: {
+    type: Boolean,
+    default: false,
+  },
+  yearBuilt: {
+    type: Number,
+  },
+  amenities: {
+    type: [String],
+    default: [],
+  },
+
+  // ─── Media ─────────────────────────────────────────────────
+  images: {
+    type: [String], // Cloudinary URLs
+    default: [],
+  },
+  ownershipDocuments: {
+    type: [String], // URLs to Property Deeds, Utility Bills, etc.
+    default: [],
+  },
+
+  // ─── Ownership & Agent ─────────────────────────────────────
+  ownerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'A property must belong to a Provider (Owner)'],
+  },
+  agentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
+
+  // ─── Moderation Status ─────────────────────────────────────
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected', 'available', 'rented', 'sold'],
     default: 'pending',
   },
-  
-  rejectionReason: String, // Reason if status is rejected
-
-  createdAt: {
-    type: Date,
-    default: Date.now,
+  rejectionReason: {
+    type: String,
+    trim: true,
   },
 }, {
+  timestamps: true,
   toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  toObject: { virtuals: true },
 });
 
-// Index for geo queries
+// ─── Indexes ─────────────────────────────────────────────────
+// CRUCIAL for map-based geospatial search ($geoWithin, $near)
 propertySchema.index({ location: '2dsphere' });
 propertySchema.index({ price: 1 });
+propertySchema.index({ status: 1 });
+propertySchema.index({ ownerId: 1 });
+propertySchema.index({ type: 1 });
+propertySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Property', propertySchema);

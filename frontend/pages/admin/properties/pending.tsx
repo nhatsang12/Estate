@@ -5,6 +5,7 @@ import PropertyModerationCard from "@/components/PropertyModerationCard";
 import { adminService } from "@/services/adminService";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Property } from "@/types/property";
+import { CheckCircle } from "lucide-react";
 
 export default function AdminPropertiesModeration() {
   const router = useRouter();
@@ -87,8 +88,8 @@ export default function AdminPropertiesModeration() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Duyệt bất động sản</h1>
-        <p className="text-gray-600 mb-8">Kiểm tra và phê duyệt hoặc từ chối các bất động sản chờ duyệt</p>
+        <h1 className="text-3xl font-bold text-slate-900 mb-2">Duyệt bất động sản</h1>
+        <p className="text-slate-600 mb-8">Kiểm tra và phê duyệt hoặc từ chối các bất động sản chờ duyệt</p>
 
         {properties.length > 0 ? (
           <>
@@ -105,11 +106,11 @@ export default function AdminPropertiesModeration() {
             </div>
 
             {/* Pagination */}
-            <div className="flex justify-center gap-2 mt-8">
+            <div className="flex justify-center gap-2 mt-8 flex-wrap">
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition"
+                className="px-4 py-2 glass-button text-slate-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ← Trước
               </button>
@@ -119,10 +120,10 @@ export default function AdminPropertiesModeration() {
                   <button
                     key={p}
                     onClick={() => setPage(p)}
-                    className={`w-10 h-10 rounded-lg transition ${
+                    className={`w-10 h-10 rounded-xl transition-all ${
                       p === page
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+                        ? "glass-button-primary"
+                        : "glass-button text-slate-700"
                     }`}
                   >
                     {p}
@@ -133,15 +134,18 @@ export default function AdminPropertiesModeration() {
               <button
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition"
+                className="px-4 py-2 glass-button text-slate-900 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Sau →
               </button>
             </div>
           </>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-600">✓ Không có bất động sản chờ duyệt</p>
+          <div className="glass-panel text-center py-12">
+            <p className="text-slate-600 flex items-center justify-center gap-2">
+              <CheckCircle size={24} className="text-emerald-500" />
+              Không có bất động sản chờ duyệt
+            </p>
           </div>
         )}
       </div>

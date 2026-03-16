@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
 import { paymentService, type SubscriptionPlan, type PaymentMethod } from "@/services/paymentService";
 import { useAuth } from "@/contexts/AuthContext";
+import { Lock } from "lucide-react";
 
 export default function SubscriptionCheckout() {
   const router = useRouter();
@@ -181,8 +182,11 @@ export default function SubscriptionCheckout() {
           </div>
 
           {/* Security Notice */}
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-            🔒 Giao dịch của bạn được bảo mật bằng mã hóa SSL. Chúng tôi không lưu trữ thông tin thẻ của bạn.
+          <div className="p-4 glass-panel border-indigo-200 text-sm text-indigo-800">
+            <span className="flex items-center gap-2">
+              <Lock size={18} />
+              Giao dịch của bạn được bảo mật bằng mã hóa SSL. Chúng tôi không lưu trữ thông tin thẻ của bạn.
+            </span>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 const Property = require('../models/Property');
+const User = require('../models/User');
 const APIFeatures = require('../utils/apiFeatures');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
@@ -97,6 +98,19 @@ exports.createProperty = async (req, res, next) => {
       req.body.ownerId = req.user.id;
     }
 
+    // ─── SUBSCRIPTION QUOTA CHECK (Critical DNA Hook) ────────
+    // Before creating a property, check User.listingsCount against
+    // the allowed quota of their User.subscriptionPlan
+    if (req.user.role !== 'admin') {
+      const owner = await User.findById(req.user.id);
+      if (!owner.canCreateListing()) {
+        return res.status(403).json({
+          status: 'error',
+          message: `Listing quota reached. Your "${owner.subscriptionPlan}" plan allows ${owner.getListingLimit()} listings. Please upgrade your plan.`,
+        });
+      }
+    }
+
     // Default status is 'pending' from Schema, but Admin can set to 'approved' directly
     if (req.user.role === 'admin' && req.body.status) {
         // Admin can set status
@@ -120,6 +134,11 @@ exports.createProperty = async (req, res, next) => {
     }
 
     const newProperty = await Property.create(req.body);
+
+    // ─── INCREMENT LISTINGS COUNT ────────────────────────────
+    if (req.user.role !== 'admin') {
+      await User.findByIdAndUpdate(req.user.id, { $inc: { listingsCount: 1 } });
+    }
 
     res.status(201).json({
       status: 'success',
@@ -167,6 +186,9 @@ exports.deleteProperty = async (req, res, next) => {
     if (!property) {
       return res.status(404).json({ status: 'error', message: 'No property found with that ID' });
     }
+
+    // Decrement the owner's listingsCount
+    await User.findByIdAndUpdate(property.ownerId, { $inc: { listingsCount: -1 } });
 
     res.status(204).json({
       status: 'success',

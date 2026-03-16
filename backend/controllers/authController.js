@@ -97,25 +97,20 @@ const createSendToken = async (user, statusCode, res) => {
 
 exports.signup = async (req, res, next) => {
   try {
-    const { value, error } = signupSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        status: 'error',
-        message: error.details[0].message,
-      });
-    }
+    // Use validated data from middleware
+    const { name, email, password, role, address, phone, kycDocuments } = req.validatedData || req.body;
 
     const filteredBody = {
-      name: value.name,
-      email: value.email,
-      password: value.password,
-      role: value.role,
-      address: value.address,
-      phone: value.phone,
+      name,
+      email,
+      password,
+      role: role || 'user',
+      address,
+      phone,
     };
 
-    if (value.role === 'provider') {
-      filteredBody.kycDocuments = value.kycDocuments;
+    if (role === 'provider' && kycDocuments && kycDocuments.length > 0) {
+      filteredBody.kycDocuments = kycDocuments;
     }
 
     const newUser = await User.create(filteredBody);
@@ -127,15 +122,9 @@ exports.signup = async (req, res, next) => {
 
 exports.login = async (req, res, next) => {
   try {
-    const { value, error } = loginSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        status: 'error',
-        message: error.details[0].message,
-      });
-    }
+    // Use validated data from middleware
+    const { email, password } = req.validatedData || req.body;
 
-    const { email, password } = value;
     const user = await User.findOne({ email }).select('+password');
 
     if (!user || !(await user.correctPassword(password, user.password))) {
@@ -149,6 +138,7 @@ exports.login = async (req, res, next) => {
     next(err);
   }
 };
+
 
 exports.protect = async (req, res, next) => {
   try {
@@ -243,15 +233,10 @@ exports.refreshToken = async (req, res, next) => {
 
 exports.forgotPassword = async (req, res, next) => {
   try {
-    const { value, error } = forgotPasswordSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        status: 'error',
-        message: error.details[0].message,
-      });
-    }
+    // Use validated data from middleware
+    const { email } = req.validatedData || req.body;
 
-    const user = await User.findOne({ email: value.email });
+    const user = await User.findOne({ email });
     if (!user) {
       return res
         .status(404)
@@ -277,13 +262,8 @@ exports.forgotPassword = async (req, res, next) => {
 
 exports.resetPassword = async (req, res, next) => {
   try {
-    const { value, error } = resetPasswordSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        status: 'error',
-        message: error.details[0].message,
-      });
-    }
+    // Use validated data from middleware
+    const { password } = req.validatedData || req.body;
 
     const resetToken = req.params.token || req.body.token;
     if (!resetToken) {
@@ -304,7 +284,7 @@ exports.resetPassword = async (req, res, next) => {
         .json({ status: 'error', message: 'Token is invalid or has expired' });
     }
 
-    user.password = value.password;
+    user.password = password;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     user.refreshToken = undefined;

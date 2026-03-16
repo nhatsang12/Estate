@@ -4,6 +4,7 @@ import Layout from "@/components/Layout";
 import { userService } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
+import { ArrowLeft, Lightbulb } from "lucide-react";
 
 interface ChangePasswordForm {
   currentPassword: string;
@@ -75,16 +76,16 @@ export default function ChangePassword() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Đổi mật khẩu</h1>
-        <p className="text-gray-600 mb-8">Cập nhật mật khẩu của bạn để bảo vệ tài khoản</p>
+        <h1 className="text-3xl font-bold text-slate-900 mb-2">Đổi mật khẩu</h1>
+        <p className="text-slate-600 mb-8">Cập nhật mật khẩu của bạn để bảo vệ tài khoản</p>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="glass-panel">
           {message && (
             <div
               className={`p-4 rounded-lg mb-6 ${
                 message.type === "success"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-700"
+                  ? "bg-emerald-100/80 text-emerald-700"
+                  : "bg-rose-100/80 text-rose-700"
               }`}
             >
               {message.text}
@@ -94,41 +95,41 @@ export default function ChangePassword() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Current Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Mật khẩu hiện tại</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Mật khẩu hiện tại</label>
               <input
                 type="password"
                 name="currentPassword"
                 value={formData.currentPassword}
                 onChange={handleChange}
-                className={`w-full px-4 py-2 rounded-lg border ${
-                  errors.currentPassword ? "border-red-500" : "border-gray-300"
-                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                className={`w-full px-4 py-2 rounded-xl border ${
+                  errors.currentPassword ? "border-rose-500" : "border-slate-200"
+                } glass-input-wrapper focus-within:border-indigo-400`}
                 placeholder="Nhập mật khẩu hiện tại"
               />
               {errors.currentPassword && (
-                <p className="text-red-500 text-sm mt-1">{errors.currentPassword}</p>
+                <p className="text-rose-500 text-sm mt-1">{errors.currentPassword}</p>
               )}
             </div>
 
             {/* New Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Mật khẩu mới</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Mật khẩu mới</label>
               <input
                 type="password"
                 name="newPassword"
                 value={formData.newPassword}
                 onChange={handleChange}
-                className={`w-full px-4 py-2 rounded-lg border ${
-                  errors.newPassword ? "border-red-500" : "border-gray-300"
-                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                className={`w-full px-4 py-2 rounded-xl border ${
+                  errors.newPassword ? "border-rose-500" : "border-slate-200"
+                } glass-input-wrapper focus-within:border-indigo-400`}
                 placeholder="Nhập mật khẩu mới"
               />
-              {errors.newPassword && <p className="text-red-500 text-sm mt-1">{errors.newPassword}</p>}
+              {errors.newPassword && <p className="text-rose-500 text-sm mt-1">{errors.newPassword}</p>}
             </div>
 
             {/* Confirm Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Xác nhận mật khẩu mới
               </label>
               <input
@@ -136,13 +137,13 @@ export default function ChangePassword() {
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className={`w-full px-4 py-2 rounded-lg border ${
-                  errors.confirmPassword ? "border-red-500" : "border-gray-300"
-                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                className={`w-full px-4 py-2 rounded-xl border ${
+                  errors.confirmPassword ? "border-rose-500" : "border-slate-200"
+                } glass-input-wrapper focus-within:border-indigo-400`}
                 placeholder="Xác nhận mật khẩu mới"
               />
               {errors.confirmPassword && (
-                <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+                <p className="text-rose-500 text-sm mt-1">{errors.confirmPassword}</p>
               )}
             </div>
 
@@ -150,21 +151,25 @@ export default function ChangePassword() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white rounded-lg py-2 font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="glass-button-primary w-full justify-center py-2"
             >
               {loading ? "Đang cập nhật..." : "Đổi mật khẩu"}
             </button>
 
             {/* Back Link */}
-            <Link href="/profile/settings" className="block text-center text-blue-600 hover:text-blue-800">
-              ← Quay lại cài đặt hồ sơ
+            <Link href="/profile/settings" className="block text-center text-indigo-600 hover:text-indigo-800 interactive-link">
+              <ArrowLeft size={16} className="inline mr-1" />
+              Quay lại cài đặt hồ sơ
             </Link>
           </form>
 
           {/* Security Tips */}
-          <div className="mt-8 pt-8 border-t">
-            <h3 className="font-semibold text-gray-900 mb-3">💡 Mẹo bảo mật</h3>
-            <ul className="space-y-2 text-sm text-gray-700">
+          <div className="mt-8 pt-8 border-t border-slate-200">
+            <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+              <Lightbulb size={18} className="text-amber-500" />
+              Mẹo bảo mật
+            </h3>
+            <ul className="space-y-2 text-sm text-slate-700">
               <li>• Sử dụng mật khẩu mạnh với ít nhất 8 ký tự</li>
               <li>• Kết hợp chữ hoa, chữ thường, số và ký tự đặc biệt</li>
               <li>• Không sử dụng cùng một mật khẩu cho nhiều tài khoản</li>

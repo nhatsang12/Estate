@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Image from "next/image";
+import { CheckCircle, XCircle } from "lucide-react";
 import type { Property } from "@/types/property";
 
 interface PropertyModerationCardProps {
@@ -101,56 +102,58 @@ export default function PropertyModerationCard({
           </div>
         )}
 
-        {/* Moderation Actions */}
-        <div className="border-t border-boundary pt-4 space-y-3 mt-4">
-          {!showRejectReason ? (
-            <div className="flex gap-3">
-              <button
-                onClick={onApprove}
-                disabled={isLoading}
-                className="flex-1 glass-button-primary justify-center bg-emerald-600 hover:bg-emerald-500"
-              >
-                ✓ Phê duyệt
-              </button>
-              <button
-                onClick={() => setShowRejectReason(true)}
-                disabled={isLoading}
-                className="flex-1 glass-button-primary justify-center bg-accent hover:bg-rose-400"
-              >
-                ✗ Từ chối
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Nhập lý do từ chối..."
-                rows={3}
-                className="w-full glass-input-wrapper resize-none py-2 px-3 text-sm text-text-primary"
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={handleReject}
-                  disabled={isLoading}
-                  className="flex-1 glass-button-primary justify-center bg-accent hover:bg-rose-400"
-                >
-                  Xác nhận từ chối
-                </button>
-                <button
-                  onClick={() => {
-                    setShowRejectReason(false);
-                    setRejectReason("");
-                  }}
-                  disabled={isLoading}
-                  className="flex-1 glass-button justify-center"
-                >
-                  Hủy
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+         {/* Moderation Actions */}
+         <div className="border-t border-boundary pt-4 space-y-3 mt-4">
+           {!showRejectReason ? (
+             <div className="flex gap-3">
+               <button
+                 onClick={onApprove}
+                 disabled={isLoading}
+                 className="flex-1 glass-button-primary justify-center gap-2 bg-emerald-600 hover:bg-emerald-500"
+               >
+                 <CheckCircle size={18} />
+                 Phê duyệt
+               </button>
+               <button
+                 onClick={() => setShowRejectReason(true)}
+                 disabled={isLoading}
+                 className="flex-1 glass-button-primary justify-center gap-2 bg-accent hover:bg-rose-400"
+               >
+                 <XCircle size={18} />
+                 Từ chối
+               </button>
+             </div>
+           ) : (
+             <div className="space-y-3">
+               <textarea
+                 value={rejectReason}
+                 onChange={(e) => setRejectReason(e.target.value)}
+                 placeholder="Nhập lý do từ chối..."
+                 rows={3}
+                 className="w-full glass-input-wrapper resize-none py-2 px-3 text-sm text-text-primary"
+               />
+               <div className="flex gap-3">
+                 <button
+                   onClick={handleReject}
+                   disabled={isLoading}
+                   className="flex-1 glass-button-primary justify-center bg-accent hover:bg-rose-400"
+                 >
+                   Xác nhận từ chối
+                 </button>
+                 <button
+                   onClick={() => {
+                     setShowRejectReason(false);
+                     setRejectReason("");
+                   }}
+                   disabled={isLoading}
+                   className="flex-1 glass-button justify-center"
+                 >
+                   Hủy
+                 </button>
+               </div>
+             </div>
+           )}
+         </div>
       </div>
     </div>
   );
