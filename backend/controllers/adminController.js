@@ -32,6 +32,8 @@ exports.getDashboardStats = async (req, res, next) => {
       approvedProperties,
       rejectedProperties,
       pendingProviders,
+      verifiedProviders,
+      rejectedProviders,
     ] = await Promise.all([
       User.countDocuments({ role: 'user' }),
       User.countDocuments({ role: 'provider' }),
@@ -39,7 +41,12 @@ exports.getDashboardStats = async (req, res, next) => {
       Property.countDocuments({ status: 'pending' }),
       Property.countDocuments({ status: 'approved' }),
       Property.countDocuments({ status: 'rejected' }),
-      User.countDocuments({ role: 'provider', isVerified: false }),
+      User.countDocuments({
+        role: 'provider',
+        kycStatus: { $in: ['pending', 'submitted', 'reviewing'] },
+      }),
+      User.countDocuments({ role: 'provider', kycStatus: 'verified' }),
+      User.countDocuments({ role: 'provider', kycStatus: 'rejected' }),
     ]);
 
     res.status(200).json({
@@ -49,6 +56,8 @@ exports.getDashboardStats = async (req, res, next) => {
           users: totalUsers,
           providers: totalProviders,
           pendingProviders,
+          verifiedProviders,
+          rejectedProviders,
           properties: {
             total: totalProperties,
             pending: pendingProperties,

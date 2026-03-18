@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
-import Layout from "@/components/Layout";
+import LuxuryNavbar from "@/components/LuxuryNavbar";
+import LuxuryFooter from "@/components/LuxuryFooter";
 import { userService } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { ArrowLeft, Lightbulb } from "lucide-react";
+import { ArrowLeft, Lightbulb, User as UserIcon, Lock, Shield, Key } from "lucide-react";
 
 interface ChangePasswordForm {
   currentPassword: string;
@@ -72,112 +73,200 @@ export default function ChangePassword() {
       setLoading(false);
     }
   };
-
   return (
-    <Layout>
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Đổi mật khẩu</h1>
-        <p className="text-slate-600 mb-8">Cập nhật mật khẩu của bạn để bảo vệ tài khoản</p>
+    <div className="estoria min-h-screen flex flex-col">
+      <LuxuryNavbar variant="light" onPostClick={() => router.push('/provider/properties/create')} />
+      <main className="flex-1 pt-32 pb-20 relative overflow-hidden" style={{ background: 'transparent' }}>
 
-        <div className="glass-panel">
-          {message && (
-            <div
-              className={`p-4 rounded-lg mb-6 ${
-                message.type === "success"
-                  ? "bg-emerald-100/80 text-emerald-700"
-                  : "bg-rose-100/80 text-rose-700"
-              }`}
-            >
-              {message.text}
-            </div>
-          )}
+        {/* Background Image Layer */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{
+            backgroundImage: 'url("https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed',
+            filter: 'sepia(0.1) saturate(1.2) brightness(0.85)',
+          }}
+        ></div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Current Password */}
+        {/* Soft Frost Blur Overlay */}
+        <div className="absolute inset-0 pointer-events-none z-0 bg-[var(--e-cream)]/70 backdrop-blur-[12px]"></div>
+
+        {/* Top/Bottom Gradient Fades */}
+        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[var(--e-cream)] to-transparent pointer-events-none z-0"></div>
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[var(--e-cream)] to-transparent pointer-events-none z-0"></div>
+
+        <div className="container mx-auto px-4 max-w-5xl relative z-10">
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '2rem', marginBottom: '3rem' }}>
+            <span style={{
+              fontFamily: 'var(--e-serif)',
+              fontSize: 'clamp(4rem, 7vw, 7rem)',
+              fontWeight: 200,
+              color: 'var(--e-beige)',
+              lineHeight: 1,
+              letterSpacing: '-0.04em',
+              userSelect: 'none',
+            }}>02</span>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Mật khẩu hiện tại</label>
-              <input
-                type="password"
-                name="currentPassword"
-                value={formData.currentPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-2 rounded-xl border ${
-                  errors.currentPassword ? "border-rose-500" : "border-slate-200"
-                } glass-input-wrapper focus-within:border-indigo-400`}
-                placeholder="Nhập mật khẩu hiện tại"
-              />
-              {errors.currentPassword && (
-                <p className="text-rose-500 text-sm mt-1">{errors.currentPassword}</p>
-              )}
+              <div className="e-section-label">Bảo Mật</div>
+              <h2 className="e-section-title text-[var(--e-charcoal)]" style={{ margin: 0 }}>
+                Đổi Mật Khẩu
+              </h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--e-muted)', marginTop: '0.3rem' }}>
+                Cập nhật mật khẩu để bảo vệ tài khoản của bạn
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+            {/* Left Column - Security Tips & Nav */}
+            <div className="md:col-span-4 space-y-6">
+
+              <div className="glass-panel text-center p-8 border border-[var(--e-beige)] bg-white rounded-2xl shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-[var(--e-cream)] border-[var(--e-beige)] mx-auto flex items-center justify-center mb-4 text-[var(--e-gold)]">
+                  <Shield size={32} strokeWidth={1.5} />
+                </div>
+                <h3 className="font-[var(--e-serif)] text-xl font-medium text-[var(--e-charcoal)] mb-1">
+                  Bảo Mật Cấp Cao
+                </h3>
+                <p className="text-[var(--e-muted)] text-[0.75rem] mb-6">
+                  Đảm bảo tài khoản Estoria luôn được an toàn.
+                </p>
+
+                <div className="text-left pt-6 border-t border-[var(--e-beige)]">
+                  <h4 className="font-semibold text-[var(--e-charcoal)] mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <Lightbulb size={16} className="text-[var(--e-gold)]" />
+                    Mẹo bảo mật
+                  </h4>
+                  <ul className="space-y-3 text-[0.75rem] text-[var(--e-muted)]">
+                    <li className="flex gap-2 items-start">
+                      <span className="text-[var(--e-gold)] mt-0.5">•</span>
+                      <span>Sử dụng mật khẩu mạnh với ít nhất 8 ký tự</span>
+                    </li>
+                    <li className="flex gap-2 items-start">
+                      <span className="text-[var(--e-gold)] mt-0.5">•</span>
+                      <span>Kết hợp cả chữ hoa, chữ thường, số đặc biệt</span>
+                    </li>
+                    <li className="flex gap-2 items-start">
+                      <span className="text-[var(--e-gold)] mt-0.5">•</span>
+                      <span>Không dùng lại mật khẩu cũ</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="glass-panel p-4 border border-[var(--e-beige)] bg-white rounded-2xl shadow-sm">
+                <Link href="/profile/settings" className="flex items-center gap-3 p-3 text-[var(--e-gold)] hover:bg-[var(--e-cream)] rounded-xl transition-all uppercase text-[0.75rem] font-bold tracking-wider">
+                  <ArrowLeft size={16} />
+                  Cài Đặt Hồ Sơ
+                </Link>
+              </div>
+
             </div>
 
-            {/* New Password */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Mật khẩu mới</label>
-              <input
-                type="password"
-                name="newPassword"
-                value={formData.newPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-2 rounded-xl border ${
-                  errors.newPassword ? "border-rose-500" : "border-slate-200"
-                } glass-input-wrapper focus-within:border-indigo-400`}
-                placeholder="Nhập mật khẩu mới"
-              />
-              {errors.newPassword && <p className="text-rose-500 text-sm mt-1">{errors.newPassword}</p>}
+            {/* Right Column - Form */}
+            <div className="md:col-span-8">
+              <div className="glass-panel p-8 border border-[var(--e-beige)] bg-white rounded-2xl shadow-sm h-full">
+                <h3 className="font-[var(--e-serif)] text-2xl font-medium text-[var(--e-charcoal)] mb-6 pb-4 border-b border-[var(--e-beige)]">An Toàn Tài Khoản</h3>
+
+                {message && (
+                  <div
+                    className={`p-4 rounded-xl mb-6 text-sm ${message.type === "success"
+                        ? "bg-emerald-50 border border-emerald-100 text-emerald-700"
+                        : "bg-rose-50 border border-rose-100 text-rose-700"
+                      }`}
+                  >
+                    {message.text}
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-6 max-w-xl">
+
+                  <div className="space-y-5">
+                    {/* Current Password */}
+                    <div className="relative group">
+                      <label className="block text-[0.65rem] font-bold uppercase tracking-widest text-[var(--e-muted)] mb-2 ml-1">Mật khẩu hiện tại</label>
+                      <div className="relative flex items-center">
+                        <div className="absolute left-4 text-[var(--e-gold)] opacity-70 transition-opacity group-focus-within:opacity-100">
+                          <Lock size={18} strokeWidth={2} />
+                        </div>
+                        <input
+                          type="password"
+                          name="currentPassword"
+                          value={formData.currentPassword}
+                          onChange={handleChange}
+                          className={`w-full pl-12 pr-4 py-3 bg-[var(--e-cream)] border rounded-xl text-[var(--e-charcoal)] placeholder-[var(--e-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--e-gold)] transition-all font-medium ${errors.currentPassword ? "border-rose-300 focus:border-rose-400 focus:ring-rose-400" : "border-[var(--e-beige)] focus:border-[var(--e-gold)]"
+                            }`}
+                          placeholder="Nhập mật khẩu đang dùng..."
+                        />
+                      </div>
+                      {errors.currentPassword && (
+                        <p className="text-rose-500 text-[0.7rem] mt-2 ml-1">{errors.currentPassword}</p>
+                      )}
+                    </div>
+
+                    {/* New Password */}
+                    <div className="relative group">
+                      <label className="block text-[0.65rem] font-bold uppercase tracking-widest text-[var(--e-muted)] mb-2 ml-1">Mật khẩu mới</label>
+                      <div className="relative flex items-center">
+                        <div className="absolute left-4 text-[var(--e-gold)] opacity-70 transition-opacity group-focus-within:opacity-100">
+                          <Key size={18} strokeWidth={2} />
+                        </div>
+                        <input
+                          type="password"
+                          name="newPassword"
+                          value={formData.newPassword}
+                          onChange={handleChange}
+                          className={`w-full pl-12 pr-4 py-3 bg-[var(--e-cream)] border rounded-xl text-[var(--e-charcoal)] placeholder-[var(--e-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--e-gold)] transition-all font-medium ${errors.newPassword ? "border-rose-300 focus:border-rose-400 focus:ring-rose-400" : "border-[var(--e-beige)] focus:border-[var(--e-gold)]"
+                            }`}
+                          placeholder="Mật khẩu mới an toàn..."
+                        />
+                      </div>
+                      {errors.newPassword && <p className="text-rose-500 text-[0.7rem] mt-2 ml-1">{errors.newPassword}</p>}
+                    </div>
+
+                    {/* Confirm Password */}
+                    <div className="relative group">
+                      <label className="block text-[0.65rem] font-bold uppercase tracking-widest text-[var(--e-muted)] mb-2 ml-1">Xác nhận mật khẩu mới</label>
+                      <div className="relative flex items-center">
+                        <div className="absolute left-4 text-[var(--e-gold)] opacity-70 transition-opacity group-focus-within:opacity-100">
+                          <Lock size={18} strokeWidth={2} />
+                        </div>
+                        <input
+                          type="password"
+                          name="confirmPassword"
+                          value={formData.confirmPassword}
+                          onChange={handleChange}
+                          className={`w-full pl-12 pr-4 py-3 bg-[var(--e-cream)] border rounded-xl text-[var(--e-charcoal)] placeholder-[var(--e-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--e-gold)] transition-all font-medium ${errors.confirmPassword ? "border-rose-300 focus:border-rose-400 focus:ring-rose-400" : "border-[var(--e-beige)] focus:border-[var(--e-gold)]"
+                            }`}
+                          placeholder="Nhập lại mật khẩu vừa tạo..."
+                        />
+                      </div>
+                      {errors.confirmPassword && (
+                        <p className="text-rose-500 text-[0.7rem] mt-2 ml-1">{errors.confirmPassword}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-6 border-t border-[var(--e-beige)] mt-8">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="e-btn-primary"
+                      style={{ padding: '0.9rem 2rem', fontSize: '0.8rem', minWidth: '180px' }}
+                    >
+                      {loading ? "Đang cập nhật..." : "Đổi mật khẩu"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Xác nhận mật khẩu mới
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-2 rounded-xl border ${
-                  errors.confirmPassword ? "border-rose-500" : "border-slate-200"
-                } glass-input-wrapper focus-within:border-indigo-400`}
-                placeholder="Xác nhận mật khẩu mới"
-              />
-              {errors.confirmPassword && (
-                <p className="text-rose-500 text-sm mt-1">{errors.confirmPassword}</p>
-              )}
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="glass-button-primary w-full justify-center py-2"
-            >
-              {loading ? "Đang cập nhật..." : "Đổi mật khẩu"}
-            </button>
-
-            {/* Back Link */}
-            <Link href="/profile/settings" className="block text-center text-indigo-600 hover:text-indigo-800 interactive-link">
-              <ArrowLeft size={16} className="inline mr-1" />
-              Quay lại cài đặt hồ sơ
-            </Link>
-          </form>
-
-          {/* Security Tips */}
-          <div className="mt-8 pt-8 border-t border-slate-200">
-            <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-              <Lightbulb size={18} className="text-amber-500" />
-              Mẹo bảo mật
-            </h3>
-            <ul className="space-y-2 text-sm text-slate-700">
-              <li>• Sử dụng mật khẩu mạnh với ít nhất 8 ký tự</li>
-              <li>• Kết hợp chữ hoa, chữ thường, số và ký tự đặc biệt</li>
-              <li>• Không sử dụng cùng một mật khẩu cho nhiều tài khoản</li>
-              <li>• Thay đổi mật khẩu định kỳ</li>
-            </ul>
           </div>
         </div>
-      </div>
-    </Layout>
+      </main>
+      <LuxuryFooter />
+    </div>
   );
 }

@@ -314,11 +314,10 @@ export default function AdminKycManagementPage() {
                       <tr
                         key={candidate._id}
                         onClick={() => setSelectedUserId(candidate._id)}
-                        className={`cursor-pointer rounded-2xl border transition-colors ${
-                          candidate._id === selectedUserId
+                        className={`cursor-pointer rounded-2xl border transition-colors ${candidate._id === selectedUserId
                             ? "border-slate-300 bg-slate-100/70"
                             : "border-white/70 bg-white/70 hover:bg-white"
-                        }`}
+                          }`}
                       >
                         <td className="rounded-l-2xl px-3 py-3">
                           <p className="font-semibold text-slate-900">{candidate.name}</p>

@@ -102,108 +102,114 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                     KYC Management
                   </Link>
                 ) : null}
-            </nav>
+              </nav>
+            </div>
           </div>
-        </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {!isAuthLoading && !user ? (
-                <>
-                  <button
-                    type="button"
-                    className="glass-button hidden sm:inline-flex"
-                    onClick={() => openAuthModal("login")}
-                  >
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    className="glass-button-primary hidden sm:inline-flex"
-                    onClick={() => openAuthModal("signup")}
-                  >
-                    Signup
-                  </button>
-                </>
-              ) : null}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {!isAuthLoading && !user ? (
+              <>
+                <button
+                  type="button"
+                  className="glass-button hidden sm:inline-flex"
+                  onClick={() => openAuthModal("login")}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  className="glass-button-primary hidden sm:inline-flex"
+                  onClick={() => openAuthModal("signup")}
+                >
+                  Signup
+                </button>
+              </>
+            ) : null}
 
-              {!isAuthLoading && user ? (
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    type="button"
-                    className="glass-button hidden max-w-[200px] sm:inline-flex"
-                    onClick={() => setProfileMenuOpen((prev) => !prev)}
-                  >
-                    <UserCircle2 size={18} />
-                    <span className="truncate">{user.name}</span>
-                    <ChevronDown size={16} />
-                  </button>
+            {!isAuthLoading && user ? (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  className="glass-button hidden max-w-[200px] sm:inline-flex"
+                  onClick={() => setProfileMenuOpen((prev) => !prev)}
+                >
+                  <UserCircle2 size={18} />
+                  <span className="truncate">{user.name}</span>
+                  <ChevronDown size={16} />
+                </button>
 
                 {profileMenuOpen ? (
-                   <div className="absolute right-0 mt-3 w-64 origin-top-right transform rounded-2xl border border-boundary bg-surface/80 p-2 shadow-xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2">
-                     <div className="px-3 py-3 border-b border-boundary mb-2">
-                       <p className="truncate text-sm font-semibold text-text-primary">{user.name}</p>
-                       <p className="truncate text-xs text-text-secondary">{user.email}</p>
-                     </div>
-                     <Link
-                       href="/profile/settings"
-                       className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-text-primary hover:bg-white/60"
-                     >
-                       Settings
-                     </Link>
-                     {user.role === "provider" && (
-                       <div className="space-y-1 mt-1">
-                         <Link
-                           href="/provider/dashboard"
-                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-primary-dark hover:bg-white/60"
-                         >
-                           Provider Dashboard
-                         </Link>
-                         <Link
-                           href="/provider/properties"
-                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-primary-dark hover:bg-white/60"
-                         >
-                           My Properties
-                         </Link>
-                       </div>
-                     )}
-                     {user.role === "admin" && (
-                       <div className="mt-1">
-                         <Link
-                           href="/admin/dashboard"
-                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-accent hover:bg-rose-50"
-                         >
-                           Admin Dashboard
-                         </Link>
-                       </div>
-                     )}
-                     {user.role === "user" && (
-                       <div className="mt-1">
-                         <Link
-                           href="/subscription/plans"
-                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-primary-light hover:bg-indigo-50"
-                         >
-                           Upgrade to Pro
-                         </Link>
-                       </div>
-                     )}
-                     <div className="mt-1">
-                       <Link
-                         href={user.role === "admin" ? "/admin/kyc-management" : "/profile/kyc"}
-                         className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-text-primary hover:bg-white/60"
-                       >
-                         KYC / Verification
-                       </Link>
-                     </div>
-                     <button
-                       type="button"
-                       className="interactive-link flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-accent hover:bg-rose-50 mt-2 border-t border-boundary pt-3"
-                       onClick={logout}
-                     >
-                       <LogOut size={16} />
-                       Logout
-                     </button>
-                   </div>
-                 ) : null}
+                  <div className="absolute right-0 mt-3 w-64 origin-top-right transform rounded-2xl border border-boundary bg-surface/80 p-2 shadow-xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2">
+                    <div className="px-3 py-3 border-b border-boundary mb-2">
+                      <p className="truncate text-sm font-semibold text-text-primary">{user.name}</p>
+                      <p className="truncate text-xs text-text-secondary">{user.email}</p>
+                    </div>
+                    <Link
+                      href="/profile/settings"
+                      className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-text-primary hover:bg-white/60"
+                    >
+                      Settings
+                    </Link>
+                    {user.role === "provider" && (
+                      <div className="space-y-1 mt-1">
+                        <Link
+                          href="/provider/dashboard"
+                          className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-primary-dark hover:bg-white/60"
+                        >
+                          Provider Dashboard
+                        </Link>
+                        <Link
+                          href="/provider/dashboard?view=properties"
+                          className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-primary-dark hover:bg-white/60"
+                        >
+                          My Properties
+                        </Link>
+                        <Link
+                          href="/provider/dashboard?view=plans"
+                          className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-primary-dark hover:bg-white/60"
+                        >
+                          Gói Dịch Vụ
+                        </Link>
+                      </div>
+                    )}
+                    {user.role === "admin" && (
+                      <div className="mt-1">
+                        <Link
+                          href="/admin/dashboard"
+                          className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-accent hover:bg-rose-50"
+                        >
+                          Admin Dashboard
+                        </Link>
+                      </div>
+                    )}
+                    {user.role === "user" && (
+                      <div className="mt-1">
+                        <Link
+                          href="/subscription/plans"
+                          className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-primary-light hover:bg-indigo-50"
+                        >
+                          Upgrade to Pro
+                        </Link>
+                      </div>
+                    )}
+                    <div className="mt-1">
+                      <Link
+                        href={user.role === "admin" ? "/admin/kyc-management" : user.role === "provider" ? "/provider/dashboard?view=kyc" : "/profile/kyc"}
+                        className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-text-primary hover:bg-white/60"
+                      >
+                        KYC / Verification
+                      </Link>
+                    </div>
+                    <button
+                      type="button"
+                      className="interactive-link flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-accent hover:bg-rose-50 mt-2 border-t border-boundary pt-3"
+                      onClick={logout}
+                    >
+                      <LogOut size={16} />
+                      Logout
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -218,64 +224,9 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
           </div>
         </div>
 
-        {mobileMenuOpen ? (
-          <div className="border-t border-white/50 bg-white/80 px-4 py-4 backdrop-blur-xl sm:hidden animate-in slide-in-from-top-2">
-            <nav className="flex flex-col gap-2">
-              <Link href="/" className="mobile-nav-link">
-                Home
-              </Link>
-              <Link href="/#listings" className="mobile-nav-link">
-                Listings
-              </Link>
-              <Link href="/#featured" className="mobile-nav-link">
-                Featured
-              </Link>
-              {user?.role === "provider" && (
-                <Link href="/provider/dashboard" className="mobile-nav-link text-blue-600 font-semibold">
-                  Provider Dashboard
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link href="/admin/dashboard" className="mobile-nav-link text-red-600 font-semibold">
-                  Admin Dashboard
-                </Link>
-              )}
-              {user && user.role === "user" && (
-                <Link href="/subscription/plans" className="mobile-nav-link text-purple-600 font-semibold">
-                  Upgrade
-                </Link>
-              )}
-              {user && user.role !== "admin" ? (
-                <Link href="/profile/kyc" className="mobile-nav-link">
-                  My KYC
-                </Link>
-              ) : null}
-              {user?.role === "admin" ? (
-                <Link href="/admin/kyc-management" className="mobile-nav-link">
-                  KYC Management
-                </Link>
-              ) : null}
-              {!user ? (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className="glass-button justify-center"
-                    onClick={() => openAuthModal("login")}
-                  >
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    className="glass-button-primary justify-center"
-                    onClick={() => openAuthModal("signup")}
-                  >
-                    Signup
-                  </button>
-                </div>
-              ) : null}
-            </nav>
-          </div>
-        ) : null}
+
+
+
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-3 sm:px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16 pt-6 sm:pt-8">

@@ -4,6 +4,7 @@ const authController = require('../controllers/authController');
 const { verifyOwnership, verifyProviderStatus } = require('../middleware/permissions');
 const upload = require('../middleware/upload');
 const { validateProperty } = require('../middleware/validator');
+const normalizePropertyPayload = require('../middleware/normalizePropertyPayload');
 
 const router = express.Router();
 
@@ -52,7 +53,7 @@ const router = express.Router();
  *         description: Unauthorized
  */
 router.route('/properties-within/:distance/center/:latlng/unit/:unit')
-  .get(propertyController.getPropertiesWithin);
+  .get(authController.optionalProtect, propertyController.getPropertiesWithin);
 
 /**
  * @swagger
@@ -77,7 +78,7 @@ router.route('/properties-within/:distance/center/:latlng/unit/:unit')
  *       401:
  *         description: Unauthorized
  */
-router.get('/:id/recommendations', propertyController.getRecommendations);
+router.get('/:id/recommendations', authController.optionalProtect, propertyController.getRecommendations);
 
 router
   .route('/')
@@ -146,8 +147,8 @@ router
    *                     type: object # Placeholder if $ref to schema is not globally defined
    *       401:
    *         description: Unauthorized
-   */
-  .get(propertyController.getAllProperties)
+  */
+  .get(authController.optionalProtect, propertyController.getAllProperties)
   /**
    * @swagger
    * /properties:
@@ -236,6 +237,7 @@ router
     authController.restrictTo('admin', 'provider'), // Updated role
     verifyProviderStatus, // Ensure provider is verified
     upload.fields([{ name: 'images', maxCount: 10 }, { name: 'ownershipDocuments', maxCount: 5 }]), // Allow Multiple Files
+    normalizePropertyPayload,
     validateProperty,
     propertyController.createProperty
   );
@@ -264,8 +266,8 @@ router
    *         description: Property not found
    *       401:
    *         description: Unauthorized
-   */
-  .get(propertyController.getProperty)
+  */
+  .get(authController.optionalProtect, propertyController.getProperty)
   /**
    * @swagger
    * /properties/{id}:
@@ -315,7 +317,8 @@ router
     authController.protect,
     authController.restrictTo('admin', 'provider'), // Updated role
     verifyOwnership, // Ensure user owns the property
-    upload.fields([{ name: 'images', maxCount: 10 }]), // Updates usually just images
+    upload.fields([{ name: 'images', maxCount: 10 }, { name: 'ownershipDocuments', maxCount: 5 }]), // Allow doc uploads on update
+    normalizePropertyPayload,
     propertyController.updateProperty
   )
   /**

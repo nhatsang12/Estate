@@ -26,8 +26,9 @@ exports.getAllProperties = async (req, res, next) => {
         // If the query specifically requests "my properties" (e.g., ?ownerId=ME), allow all statuses.
         // Otherwise (browsing marketplace), enforce status=approved.
         
-        if (req.query.ownerId && req.query.ownerId === req.user.id) {
+        if (req.query.ownerId && req.query.ownerId.toString() === req.user.id.toString()) {
             // Viewing own properties -> No status filter needed (can see pending/rejected)
+            filter.ownerId = req.query.ownerId;
         } else {
             // Browsing marketplace -> Approved only
             filter.status = 'approved';
@@ -37,11 +38,27 @@ exports.getAllProperties = async (req, res, next) => {
         filter.status = 'approved';
     }
 
+    const queryParams = { ...req.query };
+    const keyword = queryParams.search || queryParams.locationText;
+    if (keyword) {
+      const regex = new RegExp(keyword, 'i');
+      filter.$or = [
+        { title: regex },
+        { address: regex },
+        { description: regex },
+        { amenities: regex },
+        { type: regex },
+      ];
+    }
+    delete queryParams.search;
+    delete queryParams.locationText;
+    delete queryParams.ownerId; // ownerId already applied to filter above
+
     // Merge custom permission filter with query params
     // APIFeatures will handle the rest of req.query (like price, sort, etc.)
     // We pass the Model.find(filter) to start with our constraints
     
-    const features = new APIFeatures(Property.find(filter), req.query)
+    const features = new APIFeatures(Property.find(filter), queryParams)
       .filter()
       .sort()
       .limitFields()
@@ -153,10 +170,44 @@ exports.createProperty = async (req, res, next) => {
 
 exports.updateProperty = async (req, res, next) => {
   try {
+    // ── Handle existingImages: URLs the user wants to keep ──
+    let existingImages = null;
+    if (req.body.existingImages !== undefined) {
+      // Parse if it's a JSON string (from FormData)
+      if (typeof req.body.existingImages === 'string') {
+        try {
+          existingImages = JSON.parse(req.body.existingImages);
+        } catch {
+          existingImages = [];
+        }
+      } else if (Array.isArray(req.body.existingImages)) {
+        existingImages = req.body.existingImages;
+      }
+      delete req.body.existingImages;
+    }
+
+    // Upload new images if provided
+    let newImageUrls = [];
     if (req.files && req.files.images) {
         const imagePromises = req.files.images.map(file => uploadToCloudinary(file.buffer));
-        const imageUrls = await Promise.all(imagePromises);
-        req.body.$push = { images: { $each: imageUrls } };
+        newImageUrls = await Promise.all(imagePromises);
+    }
+
+    // Build final images array
+    if (existingImages !== null || newImageUrls.length > 0) {
+      // If existingImages was provided, use it as base; otherwise keep current images
+      const keptImages = existingImages !== null ? existingImages : undefined;
+      if (keptImages !== undefined) {
+        req.body.images = [...keptImages, ...newImageUrls];
+      } else if (newImageUrls.length > 0) {
+        req.body.$push = { ...(req.body.$push || {}), images: { $each: newImageUrls } };
+      }
+    }
+
+    if (req.files && req.files.ownershipDocuments) {
+        const docPromises = req.files.ownershipDocuments.map(file => uploadToCloudinary(file.buffer));
+        const docUrls = await Promise.all(docPromises);
+        req.body.$push = { ...(req.body.$push || {}), ownershipDocuments: { $each: docUrls } };
     }
 
     const property = await Property.findByIdAndUpdate(req.params.id, req.body, {
@@ -218,7 +269,7 @@ exports.getPropertiesWithin = async (req, res, next) => {
     status: 'success',
     results: properties.length,
     data: {
-      data: properties,
+      properties,
     },
   });
 };

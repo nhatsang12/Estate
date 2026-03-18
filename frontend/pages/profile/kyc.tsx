@@ -12,7 +12,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import Layout from "@/components/Layout";
+
 import KycStatusBadge from "@/components/KycStatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/services/apiClient";
@@ -25,24 +25,14 @@ const ACCEPTED_TYPES = ["image/jpeg", "image/png"];
 type DocumentSide = "front" | "back";
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
   return "Unable to process KYC action right now.";
 }
 
 function validateFile(file: File) {
-  if (!ACCEPTED_TYPES.includes(file.type)) {
-    return "Only JPG and PNG images are supported.";
-  }
-
-  if (file.size > MAX_FILE_SIZE) {
-    return "File size must be 5MB or less.";
-  }
-
+  if (!ACCEPTED_TYPES.includes(file.type)) return "Only JPG and PNG images are supported.";
+  if (file.size > MAX_FILE_SIZE) return "File size must be 5MB or less.";
   return null;
 }
 
@@ -56,56 +46,83 @@ interface UploadBoxProps {
 }
 
 function UploadBox({ title, file, preview, inputRef, onSelectFile, onClearFile }: UploadBoxProps) {
+  const [isDragging, setIsDragging] = useState(false);
+
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    setIsDragging(false);
     const droppedFile = event.dataTransfer.files?.[0];
-    if (droppedFile) {
-      onSelectFile(droppedFile);
-    }
+    if (droppedFile) onSelectFile(droppedFile);
   };
 
   return (
-    <div>
-      <p className="mb-2 text-sm font-semibold text-slate-700">{title}</p>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+      <p
+        style={{
+          fontFamily: "var(--e-sans)",
+          fontSize: "0.62rem",
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          color: "var(--e-gold)",
+          fontWeight: 600,
+        }}
+      >
+        {title}
+      </p>
+
       <div
         role="button"
         tabIndex={0}
         onClick={() => inputRef.current?.click()}
         onDrop={handleDrop}
-        onDragOver={(event) => event.preventDefault()}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            inputRef.current?.click();
-          }
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputRef.current?.click(); }}
+        style={{
+          border: `1px dashed ${isDragging ? "var(--e-gold)" : "var(--e-sand)"}`,
+          background: isDragging ? "rgba(140,110,63,0.04)" : "var(--e-cream)",
+          cursor: "pointer",
+          transition: "border-color 0.25s, background 0.25s",
+          position: "relative",
+          overflow: "hidden",
         }}
-        className="group cursor-pointer rounded-2xl border border-dashed border-slate-300 bg-white/70 p-4 transition-colors hover:border-slate-500 hover:bg-white"
       >
         <input
           ref={inputRef}
           type="file"
           accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-          className="hidden"
-          onChange={(event) => {
-            const selectedFile = event.target.files?.[0];
-            if (selectedFile) {
-              onSelectFile(selectedFile);
-            }
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onSelectFile(f);
           }}
         />
 
         {preview ? (
-          <div className="relative">
+          <div style={{ position: "relative" }}>
             <button
               type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                onClearFile();
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); onClearFile(); }}
+              style={{
+                position: "absolute",
+                top: "0.7rem",
+                right: "0.7rem",
+                zIndex: 10,
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "rgba(17,28,20,0.75)",
+                border: "none",
+                color: "#fff",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background 0.2s",
               }}
-              className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
               aria-label={`Remove ${title} image`}
             >
-              <X size={14} />
+              <X size={13} />
             </button>
             <Image
               src={preview}
@@ -113,21 +130,45 @@ function UploadBox({ title, file, preview, inputRef, onSelectFile, onClearFile }
               width={900}
               height={700}
               unoptimized
-              className="h-60 w-full rounded-xl object-cover"
+              style={{ width: "100%", height: 240, objectFit: "cover", display: "block" }}
             />
           </div>
         ) : (
-          <div className="flex h-60 flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 text-slate-500">
-            <UploadCloud size={28} />
-            <p className="text-sm font-medium text-slate-700">Drop image here or click to upload</p>
-            <p className="text-xs text-slate-500">JPG/PNG, up to 5MB</p>
+          <div
+            style={{
+              height: 240,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.6rem",
+              padding: "1.5rem",
+            }}
+          >
+            <UploadCloud size={26} color="var(--e-light-muted)" />
+            <p style={{ fontSize: "0.82rem", color: "var(--e-charcoal)", fontWeight: 500, textAlign: "center" }}>
+              Kéo thả hoặc nhấn để chọn ảnh
+            </p>
+            <p style={{ fontSize: "0.7rem", color: "var(--e-light-muted)" }}>JPG / PNG · Tối đa 5MB</p>
           </div>
         )}
       </div>
-      {file ? <p className="mt-2 truncate text-xs text-slate-500">{file.name}</p> : null}
+
+      {file && (
+        <p style={{ fontSize: "0.7rem", color: "var(--e-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {file.name}
+        </p>
+      )}
     </div>
   );
 }
+
+/* ─── Status colour map ─── */
+const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  pending: { label: "Chờ xét duyệt", color: "var(--e-gold)", bg: "rgba(140,110,63,0.07)", border: "rgba(140,110,63,0.3)" },
+  approved: { label: "Đã duyệt", color: "#2d7a4f", bg: "rgba(45,122,79,0.08)", border: "rgba(45,122,79,0.3)" },
+  rejected: { label: "Từ chối", color: "#b84a2a", bg: "rgba(184,74,42,0.07)", border: "rgba(184,74,42,0.3)" },
+};
 
 export default function UserKycPage() {
   const router = useRouter();
@@ -148,54 +189,36 @@ export default function UserKycPage() {
   const backInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!frontFile) {
-      setFrontPreview(null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(frontFile);
-    setFrontPreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
+    if (!frontFile) { setFrontPreview(null); return; }
+    const url = URL.createObjectURL(frontFile);
+    setFrontPreview(url);
+    return () => URL.revokeObjectURL(url);
   }, [frontFile]);
 
   useEffect(() => {
-    if (!backFile) {
-      setBackPreview(null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(backFile);
-    setBackPreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
+    if (!backFile) { setBackPreview(null); return; }
+    const url = URL.createObjectURL(backFile);
+    setBackPreview(url);
+    return () => URL.revokeObjectURL(url);
   }, [backFile]);
 
   useEffect(() => {
-    if (isAuthLoading) {
-      return;
-    }
+    if (isAuthLoading) return;
+    if (!user || !token) { void router.replace("/"); return; }
+    if (user.role === "admin") { void router.replace("/admin/kyc-management"); return; }
 
-    if (!user || !token) {
-      void router.replace("/");
-      return;
-    }
-
-    if (user.role === "admin") {
-      void router.replace("/admin/kyc-management");
-      return;
-    }
-
-    const loadProfile = async () => {
+    const load = async () => {
       setPageLoading(true);
       setErrorMessage(null);
       try {
-        const profileData = await userService.getMe(token);
-        setProfile(profileData);
-      } catch (error) {
-        setErrorMessage(getErrorMessage(error));
+        setProfile(await userService.getMe(token));
+      } catch (err) {
+        setErrorMessage(getErrorMessage(err));
       } finally {
         setPageLoading(false);
       }
     };
-
-    void loadProfile();
+    void load();
   }, [isAuthLoading, router, token, user]);
 
   const canSubmit = useMemo(
@@ -204,242 +227,478 @@ export default function UserKycPage() {
   );
 
   const handleSelectFile = (side: DocumentSide, file: File) => {
-    const validationError = validateFile(file);
-    if (validationError) {
-      setErrorMessage(validationError);
-      return;
-    }
-
+    const err = validateFile(file);
+    if (err) { setErrorMessage(err); return; }
     setErrorMessage(null);
     setSuccessMessage(null);
-
-    if (side === "front") {
-      setFrontFile(file);
-      return;
-    }
+    if (side === "front") { setFrontFile(file); return; }
     setBackFile(file);
-  };
-
-  const handleSubmit = async () => {
-    if (!token || !frontFile || !backFile) {
-      setErrorMessage("Please upload both front and back images before submitting.");
-      return;
-    }
-
-    setSubmitting(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    try {
-      const response = await userService.submitKycDocuments(
-        token,
-        frontFile,
-        backFile,
-        declaredIdNumber
-      );
-      const refreshed = await userService.getMe(token);
-      setProfile(refreshed);
-      setSuccessMessage(response.message || "KYC submission completed successfully.");
-      setFrontFile(null);
-      setBackFile(null);
-      setDeclaredIdNumber("");
-      await refreshProfile();
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const handleClearFile = (side: DocumentSide) => {
     setErrorMessage(null);
     setSuccessMessage(null);
-
     if (side === "front") {
       setFrontFile(null);
-      if (frontInputRef.current) {
-        frontInputRef.current.value = "";
-      }
+      if (frontInputRef.current) frontInputRef.current.value = "";
       return;
     }
-
     setBackFile(null);
-    if (backInputRef.current) {
-      backInputRef.current.value = "";
+    if (backInputRef.current) backInputRef.current.value = "";
+  };
+
+  const handleSubmit = async () => {
+    if (!token || !frontFile || !backFile) {
+      setErrorMessage("Vui lòng tải lên cả mặt trước và mặt sau.");
+      return;
+    }
+    setSubmitting(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const res = await userService.submitKycDocuments(token, frontFile, backFile, declaredIdNumber);
+      setProfile(await userService.getMe(token));
+      setSuccessMessage(res.message || "Nộp hồ sơ KYC thành công.");
+      setFrontFile(null);
+      setBackFile(null);
+      setDeclaredIdNumber("");
+      await refreshProfile();
+    } catch (err) {
+      setErrorMessage(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  /* ── Loading state ── */
   if (isAuthLoading || pageLoading) {
     return (
-      <Layout>
-        <div className="glass-panel flex items-center justify-center gap-2 py-12 text-slate-600">
-          <LoaderCircle size={18} className="animate-spin" />
-          Loading KYC profile...
-        </div>
-      </Layout>
+
+      <div className="estoria" style={{ padding: "5rem 5vw", display: "flex", alignItems: "center", gap: "0.6rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)", fontSize: "0.85rem" }}>
+        <LoaderCircle size={16} className="animate-spin" />
+        Đang tải hồ sơ KYC…
+      </div>
+
     );
   }
 
   if (!profile) {
     return (
-      <Layout>
-        <div className="glass-panel text-center">
-          <h1 className="text-xl font-semibold text-slate-900">KYC Profile Unavailable</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {errorMessage || "We could not load your KYC data. Please try again."}
-          </p>
-        </div>
-      </Layout>
+
+      <div className="estoria" style={{ padding: "5rem 5vw", textAlign: "center" }}>
+        <h1 style={{ fontFamily: "var(--e-serif)", fontSize: "1.8rem", fontWeight: 500, color: "var(--e-charcoal)" }}>
+          Không thể tải hồ sơ KYC
+        </h1>
+        <p style={{ marginTop: "0.8rem", fontSize: "0.85rem", color: "var(--e-muted)" }}>
+          {errorMessage || "Vui lòng thử lại sau."}
+        </p>
+      </div>
+
     );
   }
 
+  const statusKey = (profile.kycStatus ?? "pending").toLowerCase();
+  const statusMeta = STATUS_META[statusKey] ?? STATUS_META.pending;
+
   return (
-    <Layout>
-      <div className="space-y-6">
-        <section className="glass-panel">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Profile Verification</p>
-              <h1 className="text-3xl font-semibold text-slate-900">My KYC Submission</h1>
-            </div>
-            <KycStatusBadge status={profile.kycStatus} />
-          </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/70 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current Status</p>
-              <p className="mt-2 text-lg font-semibold text-slate-900">{profile.kycStatus || "pending"}</p>
+    <div className="estoria" style={{ background: "var(--e-cream)", minHeight: "100vh" }}>
+
+      {/* ── Page header strip (mirrors index section headers) ── */}
+      <div
+        style={{
+          background: "var(--e-charcoal)",
+          padding: "4rem 5vw 3rem",
+          borderBottom: "1px solid rgba(140,110,63,0.25)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "2rem" }}>
+          <span
+            style={{
+              fontFamily: "var(--e-serif)",
+              fontSize: "clamp(4rem, 7vw, 6rem)",
+              fontWeight: 200,
+              color: "rgba(255,255,255,0.12)",
+              lineHeight: 1,
+              letterSpacing: "-0.04em",
+              userSelect: "none",
+            }}
+          >
+            KYC
+          </span>
+          <div>
+            <div className="e-section-label" style={{ color: "var(--e-gold-light)" }}>
+              Xác Minh Danh Tính
             </div>
-            <div className="rounded-2xl border border-white/70 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verification</p>
-              <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-slate-900">
-                {profile.isVerified ? (
-                  <>
-                    <CheckCircle2 size={16} className="text-emerald-600" />
-                    Verified
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle size={16} className="text-amber-500" />
-                    Not Verified
-                  </>
-                )}
+            <h1
+              style={{
+                fontFamily: "var(--e-serif)",
+                fontSize: "clamp(1.8rem, 3vw, 2.6rem)",
+                fontWeight: 500,
+                color: "var(--e-white)",
+                lineHeight: 1.15,
+                margin: 0,
+              }}
+            >
+              Hồ Sơ <em style={{ fontStyle: "italic", fontWeight: 400, color: "rgba(255,255,255,0.45)" }}>Của Tôi</em>
+            </h1>
+          </div>
+        </div>
+
+        {/* Status cards row */}
+        <div
+          style={{
+            marginTop: "2.5rem",
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "1px",
+            background: "rgba(255,255,255,0.08)",
+          }}
+        >
+          {[
+            {
+              label: "Trạng thái",
+              value: (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    color: statusMeta.color,
+                    background: statusMeta.bg,
+                    border: `1px solid ${statusMeta.border}`,
+                    padding: "4px 10px",
+                  }}
+                >
+                  {statusMeta.label}
+                </span>
+              ),
+            },
+            {
+              label: "Xác minh",
+              value: profile.isVerified ? (
+                <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#5fc48a", fontSize: "0.9rem", fontWeight: 600 }}>
+                  <CheckCircle2 size={15} /> Đã xác minh
+                </span>
+              ) : (
+                <span style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.4)", fontSize: "0.9rem", fontWeight: 600 }}>
+                  <AlertTriangle size={15} /> Chưa xác minh
+                </span>
+              ),
+            },
+            {
+              label: "Vai trò",
+              value: (
+                <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--e-white)", textTransform: "capitalize" }}>
+                  {profile.role}
+                </span>
+              ),
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                padding: "1.2rem 1.5rem",
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: "var(--e-sans)",
+                  fontSize: "0.6rem",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.35)",
+                  fontWeight: 600,
+                  marginBottom: "0.6rem",
+                }}
+              >
+                {item.label}
               </p>
+              {item.value}
             </div>
-            <div className="rounded-2xl border border-white/70 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Account Role</p>
-              <p className="mt-2 text-lg font-semibold text-slate-900">{profile.role}</p>
-            </div>
+          ))}
+        </div>
+
+        {/* Rejection reason */}
+        {profile.kycRejectionReason && (
+          <div
+            style={{
+              marginTop: "1.5rem",
+              border: "1px solid rgba(184,74,42,0.4)",
+              background: "rgba(184,74,42,0.08)",
+              padding: "1rem 1.2rem",
+            }}
+          >
+            <p style={{ fontSize: "0.62rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "#e07a5f", fontWeight: 600, marginBottom: 6 }}>
+              Lý do từ chối
+            </p>
+            <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.65 }}>
+              {profile.kycRejectionReason}
+            </p>
           </div>
+        )}
+      </div>
 
-          {profile.kycRejectionReason ? (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-              <p className="font-semibold">Latest Rejection Reason</p>
-              <p className="mt-1">{profile.kycRejectionReason}</p>
-            </div>
-          ) : null}
-        </section>
+      {/* ── Main content ── */}
+      <div style={{ padding: "4rem 5vw", display: "grid", gap: "3rem" }}>
 
-        <section className="glass-panel">
-          <h2 className="text-xl font-semibold text-slate-900">Submit CCCD Documents</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Upload clear photos of your CCCD front and back side. Accepted formats: JPG, PNG. Maximum size
-            5MB per file. Ensure all text is readable and corners are visible.
+        {/* ── Section: Submit documents ── */}
+        <section
+          style={{
+            background: "var(--e-white)",
+            border: "1px solid var(--e-beige)",
+            padding: "2.5rem",
+          }}
+        >
+          {/* Section label */}
+          <div className="e-section-label" style={{ marginBottom: "0.6rem" }}>
+            Tải Lên Tài Liệu
+          </div>
+          <h2
+            style={{
+              fontFamily: "var(--e-serif)",
+              fontSize: "1.6rem",
+              fontWeight: 500,
+              color: "var(--e-charcoal)",
+              marginBottom: "0.5rem",
+            }}
+          >
+            Nộp Hồ Sơ <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>CCCD</em>
+          </h2>
+          <p style={{ fontSize: "0.82rem", color: "var(--e-muted)", lineHeight: 1.75, maxWidth: 560, marginBottom: "2rem" }}>
+            Tải ảnh chụp rõ nét mặt trước và mặt sau CCCD. Định dạng JPG, PNG. Tối đa 5MB/ảnh.
+            Đảm bảo chữ rõ ràng và 4 góc thẻ hiện đầy đủ.
           </p>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {/* Upload grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "1.5rem",
+              marginBottom: "1.8rem",
+            }}
+          >
             <UploadBox
-              title="CCCD Front"
+              title="CCCD — Mặt Trước"
               file={frontFile}
               preview={frontPreview}
               inputRef={frontInputRef}
-              onSelectFile={(file) => handleSelectFile("front", file)}
+              onSelectFile={(f) => handleSelectFile("front", f)}
               onClearFile={() => handleClearFile("front")}
             />
             <UploadBox
-              title="CCCD Back"
+              title="CCCD — Mặt Sau"
               file={backFile}
               preview={backPreview}
               inputRef={backInputRef}
-              onSelectFile={(file) => handleSelectFile("back", file)}
+              onSelectFile={(f) => handleSelectFile("back", f)}
               onClearFile={() => handleClearFile("back")}
             />
           </div>
 
-          <label className="mt-4 flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Declared ID Number (Optional)
+          {/* ID number input */}
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: 420 }}>
+            <span
+              style={{
+                fontFamily: "var(--e-sans)",
+                fontSize: "0.62rem",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                color: "var(--e-light-muted)",
+                fontWeight: 600,
+              }}
+            >
+              Số CCCD (Không bắt buộc)
             </span>
-            <span className="glass-input-wrapper">
-              <IdCard size={16} className="text-slate-500" />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.6rem",
+                border: "1px solid var(--e-beige)",
+                padding: "0 12px",
+                background: "var(--e-cream)",
+                transition: "border-color 0.2s",
+              }}
+            >
+              <IdCard size={15} color="var(--e-light-muted)" style={{ flexShrink: 0 }} />
               <input
                 type="text"
-                className="glass-input"
                 value={declaredIdNumber}
-                onChange={(event) => setDeclaredIdNumber(event.target.value)}
-                placeholder="Enter ID number to improve matching accuracy"
+                onChange={(e) => setDeclaredIdNumber(e.target.value)}
+                placeholder="Nhập số CCCD để tăng độ chính xác OCR"
+                style={{
+                  flex: 1,
+                  border: "none",
+                  background: "none",
+                  padding: "11px 0",
+                  fontFamily: "var(--e-sans)",
+                  fontSize: "0.85rem",
+                  color: "var(--e-charcoal)",
+                  outline: "none",
+                }}
+                onFocus={(e) => (e.currentTarget.parentElement!.style.borderColor = "var(--e-gold)")}
+                onBlur={(e) => (e.currentTarget.parentElement!.style.borderColor = "var(--e-beige)")}
               />
-            </span>
+            </div>
           </label>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
+          {/* Submit row */}
+          <div style={{ marginTop: "2rem", display: "flex", alignItems: "center", gap: "1.2rem", flexWrap: "wrap" }}>
             <button
               type="button"
-              className="glass-button-primary"
               disabled={!canSubmit}
               onClick={handleSubmit}
+              className="e-btn-primary"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                opacity: canSubmit ? 1 : 0.45,
+                cursor: canSubmit ? "pointer" : "not-allowed",
+              }}
             >
-              {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <FileUp size={16} />}
-              Submit for KYC
+              {submitting ? <LoaderCircle size={15} className="animate-spin" /> : <FileUp size={15} />}
+              {submitting ? "Đang xử lý…" : "Nộp Hồ Sơ KYC"}
             </button>
-            <span className="text-xs text-slate-500">Submission may take a few moments while OCR runs.</span>
+            <span style={{ fontSize: "0.72rem", color: "var(--e-light-muted)" }}>
+              OCR sẽ chạy tự động sau khi nộp.
+            </span>
           </div>
 
-          {errorMessage ? (
-            <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">
+          {/* Messages */}
+          {errorMessage && (
+            <div
+              style={{
+                marginTop: "1.2rem",
+                border: "1px solid rgba(184,74,42,0.35)",
+                background: "rgba(184,74,42,0.06)",
+                padding: "0.8rem 1rem",
+                fontSize: "0.82rem",
+                color: "#b84a2a",
+                lineHeight: 1.6,
+              }}
+            >
               {errorMessage}
-            </p>
-          ) : null}
-
-          {successMessage ? (
-            <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            </div>
+          )}
+          {successMessage && (
+            <div
+              style={{
+                marginTop: "1.2rem",
+                border: "1px solid rgba(45,122,79,0.3)",
+                background: "rgba(45,122,79,0.06)",
+                padding: "0.8rem 1rem",
+                fontSize: "0.82rem",
+                color: "#2d7a4f",
+                lineHeight: 1.6,
+              }}
+            >
               {successMessage}
-            </p>
-          ) : null}
+            </div>
+          )}
         </section>
 
-        <section className="glass-panel">
-          <h2 className="inline-flex items-center gap-2 text-xl font-semibold text-slate-900">
-            <ShieldCheck size={18} />
-            Uploaded KYC Documents
+        {/* ── Section: Uploaded documents ── */}
+        <section
+          style={{
+            background: "var(--e-white)",
+            border: "1px solid var(--e-beige)",
+            padding: "2.5rem",
+          }}
+        >
+          <div className="e-section-label" style={{ marginBottom: "0.6rem" }}>
+            Tài Liệu Đã Nộp
+          </div>
+          <h2
+            style={{
+              fontFamily: "var(--e-serif)",
+              fontSize: "1.6rem",
+              fontWeight: 500,
+              color: "var(--e-charcoal)",
+              marginBottom: "0.4rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+            }}
+          >
+            <ShieldCheck size={20} color="var(--e-gold)" style={{ flexShrink: 0 }} />
+            Hồ Sơ <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>Đã Tải Lên</em>
           </h2>
 
           {profile.kycDocuments?.length ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {profile.kycDocuments.map((documentUrl, index) => (
+            <div
+              style={{
+                marginTop: "1.8rem",
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "2px",
+                background: "var(--e-beige)",
+              }}
+            >
+              {profile.kycDocuments.map((docUrl, idx) => (
                 <a
-                  key={`${documentUrl}-${index}`}
-                  href={documentUrl}
+                  key={`${docUrl}-${idx}`}
+                  href={docUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="group overflow-hidden rounded-2xl border border-white/70 bg-white/75"
+                  style={{ display: "block", overflow: "hidden", background: "var(--e-dark)", position: "relative" }}
                 >
                   <Image
-                    src={documentUrl}
-                    alt={`KYC document ${index + 1}`}
+                    src={docUrl}
+                    alt={`KYC document ${idx + 1}`}
                     width={900}
                     height={700}
                     unoptimized
-                    className="h-52 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    style={{
+                      width: "100%",
+                      height: 220,
+                      objectFit: "cover",
+                      display: "block",
+                      transition: "transform 0.6s var(--e-ease)",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.04)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
                   />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      padding: "1rem",
+                      background: "linear-gradient(to top, rgba(17,28,20,0.75) 0%, transparent 100%)",
+                    }}
+                  >
+                    <p style={{ fontSize: "0.62rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold-light)", fontWeight: 600 }}>
+                      Tài liệu {idx + 1}
+                    </p>
+                  </div>
                 </a>
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-sm text-slate-600">No KYC documents uploaded yet.</p>
+            <div
+              style={{
+                marginTop: "1.5rem",
+                padding: "3rem 2rem",
+                textAlign: "center",
+                border: "1px dashed var(--e-sand)",
+                background: "var(--e-cream)",
+              }}
+            >
+              <p style={{ fontFamily: "var(--e-serif)", fontSize: "1.1rem", fontWeight: 400, color: "var(--e-muted)", fontStyle: "italic" }}>
+                Chưa có tài liệu nào được tải lên
+              </p>
+            </div>
           )}
         </section>
       </div>
-    </Layout>
+    </div>
+
   );
 }

@@ -1,8 +1,10 @@
 import "@/styles/globals.css";
+import "leaflet/dist/leaflet.css";
 import type { AppProps } from "next/app";
 import Head from "next/head";
 import { AuthProvider } from "@/contexts/AuthContext";
-
+import '@/styles/estoria.css'
+import '@/styles/estoria-land.css'
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>

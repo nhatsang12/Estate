@@ -1,153 +1,352 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import Layout from "@/components/Layout";
-import PlanCard from "@/components/PlanCard";
-import { paymentService, type SubscriptionPlan } from "@/services/paymentService";
+import React, { useState } from "react";
+import type { SubscriptionPlan } from "@/types/user";
 import { useAuth } from "@/contexts/AuthContext";
-import type { User } from "@/types/user";
-import { CheckCircle } from "lucide-react";
 
-export default function SubscriptionPlans() {
-  const router = useRouter();
-  const { user, isAuthLoading } = useAuth();
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
-  const [loading, setLoading] = useState(true);
+// ── PlanCard component ────────────────────────────────────────
+interface PlanCardProps {
+  plan: SubscriptionPlan;
+  name: string;
+  price: string;
+  priceUnit?: string;
+  features: string[];
+  onSelect: (plan: SubscriptionPlan) => void;
+  isSelected?: boolean;
+  isCurrentPlan?: boolean;
+}
 
-  useEffect(() => {
-    if (!isAuthLoading) {
-      setLoading(false);
-    }
-  }, [isAuthLoading]);
+function PlanCard({
+  plan, name, price, priceUnit = "/ tháng", features,
+  onSelect, isSelected = false, isCurrentPlan = false,
+}: PlanCardProps) {
+  const cardClass = [
+    'e-plan-card',
+    isSelected ? 'selected' : '',
+    isCurrentPlan ? 'current' : '',
+  ].filter(Boolean).join(' ');
 
-  const handleSelectPlan = (plan: SubscriptionPlan) => {
-    setSelectedPlan(plan);
-    router.push(`/subscription/checkout?plan=${plan}`);
-  };
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex justify-center items-center min-h-screen">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-700">Đang tải...</p>
-          </div>
+  return (
+    <div className={cardClass}>
+      {isCurrentPlan && (
+        <div className="e-plan-current-badge">
+          <span>✦</span> Gói Hiện Tại
         </div>
-      </Layout>
-    );
+      )}
+      <div className="e-plan-body">
+        <div className="e-plan-name">{name}</div>
+        <div className="e-plan-price">{price}</div>
+        <div className="e-plan-price-unit">{priceUnit}</div>
+        <div className="e-plan-divider" />
+        <ul className="e-plan-features">
+          {features.map((f, i) => (
+            <li key={i} className="e-plan-feature">
+              <span className="e-plan-feature-icon">✓</span>
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+        <button
+          className={`e-plan-btn${isSelected || isCurrentPlan ? ' primary' : ''}`}
+          onClick={() => onSelect(plan)}
+          disabled={isCurrentPlan}
+        >
+          {isCurrentPlan ? 'Gói Hiện Tại' : 'Chọn Gói Này'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Plan definitions ─────────────────────────────────────────
+const PLANS = [
+  {
+    plan: 'Free' as SubscriptionPlan,
+    name: 'Free',
+    price: '0₫',
+    priceUnit: 'mãi mãi',
+    features: [
+      'Tối đa 3 tin đăng',
+      'Hình ảnh cơ bản',
+      'Hiển thị trên bản đồ',
+      'Hỗ trợ email',
+    ],
+  },
+  {
+    plan: 'Pro' as SubscriptionPlan,
+    name: 'Pro',
+    price: '299,000₫',
+    priceUnit: '/ tháng',
+    features: [
+      'Tối đa 20 tin đăng',
+      'Ưu tiên duyệt tin',
+      'Thống kê lượt xem',
+      'Hỗ trợ ưu tiên',
+      'Badge xác minh',
+    ],
+  },
+  {
+    plan: 'ProPlus' as SubscriptionPlan,
+    name: 'Pro Plus',
+    price: '599,000₫',
+    priceUnit: '/ tháng',
+    features: [
+      'Tin đăng không giới hạn',
+      'Duyệt tin tức thì',
+      'Hiển thị nổi bật',
+      'Phân tích chi tiết',
+      'Hỗ trợ 24/7',
+      'API tích hợp',
+    ],
+  },
+];
+
+const PLAN_LIMITS: Record<string, number | string> = {
+  Free: 3,
+  Pro: 20,
+  ProPlus: '∞',
+};
+
+// ── Main PlansPage ────────────────────────────────────────────
+interface PlansPageProps {
+  onCheckout?: (plan: SubscriptionPlan, method: 'VNPay' | 'PayPal') => void;
+}
+
+export default function PlansPage({ onCheckout }: PlansPageProps) {
+  const { user } = useAuth();
+  const [selected, setSelected] = useState<SubscriptionPlan | null>(null);
+  const [payMethod, setPayMethod] = useState<'VNPay' | 'PayPal'>('VNPay');
+
+  const currentPlan: SubscriptionPlan = user?.subscription?.plan ?? 'Free';
+  const listingsUsed = user?.listingsCount ?? 0;
+  const listingsLimit = PLAN_LIMITS[currentPlan];
+
+  function handleSelect(plan: SubscriptionPlan) {
+    if (plan === currentPlan) return;
+    setSelected(plan);
+  }
+
+  function handleCheckout() {
+    if (!selected) return;
+    onCheckout?.(selected, payMethod);
   }
 
   return (
-    <Layout>
-       <div className="container mx-auto px-4 py-8 max-w-6xl">
-         <div className="text-center mb-12">
-           <h1 className="text-4xl font-bold text-slate-900 mb-4">Các gói dịch vụ</h1>
-           <p className="text-lg text-slate-600">
-             Nâng cấp gói để mở khóa các tính năng vượt trội
-           </p>
-         </div>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '260px 1fr',
+      gap: 2,
+      background: 'var(--e-beige)',
+      alignItems: 'stretch',  // ✅ fix: stretch thay vì start
+      minHeight: '100vh',     // ✅ fix: 100vh thay vì 60vh
+    }}>
 
-         {/* Current Plan Info */}
-         {user && (
-           <div className="glass-panel mb-8 border-indigo-200">
-             <p className="text-slate-900">
-               <span className="font-semibold">Gói hiện tại:</span>{" "}
-               <span className="text-lg font-bold text-indigo-800">
-                 {user.subscription?.plan || "Free"}
-               </span>
-             </p>
-           </div>
-         )}
+      {/* ── Sidebar trái ── */}
+      <aside style={{
+        background: 'var(--e-charcoal)',
+        padding: '2rem 1.6rem',
+        // ✅ fix: bỏ position sticky/top, thêm minHeight 100%
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.8rem',
+        minHeight: '100%',
+      }}>
+        {/* Header */}
+        <div>
+          <div style={{
+            fontSize: '0.6rem', letterSpacing: '0.2em', textTransform: 'uppercase',
+            color: 'var(--e-gold-light)', fontWeight: 700, marginBottom: 8,
+          }}>
+            Gói Dịch Vụ
+          </div>
+          <div style={{
+            fontFamily: 'var(--e-serif)', fontSize: '1.2rem',
+            fontWeight: 500, color: 'var(--e-white)', lineHeight: 1.3,
+          }}>
+            Nâng cấp<br />
+            <em style={{ fontStyle: 'italic', color: 'var(--e-gold-light)', fontWeight: 400 }}>tài khoản</em>
+          </div>
+        </div>
 
-         {/* Plans Grid */}
-         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
-           {/* Free Plan */}
-           <div className="glass-panel rounded-lg border-2 border-slate-300 overflow-hidden">
-             <div className="p-6">
-               <h3 className="text-xl font-bold text-slate-900 mb-2">Miễn phí</h3>
-               <p className="text-3xl font-bold text-slate-400 mb-4">0₫</p>
+        {/* Current plan info */}
+        <div style={{
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: '1.2rem',
+        }}>
+          <div style={{ fontSize: '0.6rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>
+            Gói hiện tại
+          </div>
+          <div style={{
+            fontFamily: 'var(--e-serif)', fontSize: '1.4rem',
+            fontWeight: 500, color: 'var(--e-white)', marginBottom: 8,
+          }}>
+            {currentPlan}
+          </div>
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.35)' }}>Tin đã đăng</span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--e-gold-light)' }}>
+                {listingsUsed} / {listingsLimit}
+              </span>
+            </div>
+            <div style={{ height: 2, background: 'rgba(255,255,255,0.1)' }}>
+              <div style={{
+                height: '100%',
+                background: 'var(--e-gold)',
+                width: listingsLimit === '∞' ? '30%'
+                  : `${Math.min(100, (listingsUsed / (listingsLimit as number)) * 100)}%`,
+                transition: 'width 0.4s var(--e-ease)',
+              }} />
+            </div>
+          </div>
+        </div>
 
-               <ul className="space-y-3 mb-6">
-                 <li className="flex items-start gap-2 text-sm text-slate-700">
-                   <CheckCircle size={18} className="text-green-500 mt-0.5 shrink-0" />
-                   <span>Đăng tối đa 3 bất động sản</span>
-                 </li>
-                 <li className="flex items-start gap-2 text-sm text-slate-700">
-                   <CheckCircle size={18} className="text-green-500 mt-0.5 shrink-0" />
-                   <span>Tìm kiếm cơ bản</span>
-                 </li>
-                 <li className="flex items-start gap-2 text-sm text-slate-700">
-                   <CheckCircle size={18} className="text-green-500 mt-0.5 shrink-0" />
-                   <span>Hỗ trợ email</span>
-                 </li>
-               </ul>
+        {/* Payment method */}
+        {selected && selected !== currentPlan && (
+          <div>
+            <div style={{
+              fontSize: '0.6rem', letterSpacing: '0.14em', textTransform: 'uppercase',
+              color: 'rgba(255,255,255,0.35)', marginBottom: 10,
+            }}>
+              Phương thức thanh toán
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(255,255,255,0.05)' }}>
+              {(['VNPay', 'PayPal'] as const).map(m => (
+                <button key={m} type="button"
+                  onClick={() => setPayMethod(m)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.7rem',
+                    padding: '10px 12px',
+                    background: payMethod === m ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    border: 'none',
+                    borderLeft: `2px solid ${payMethod === m ? 'var(--e-gold)' : 'transparent'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <span style={{ fontSize: '1rem' }}>{m === 'VNPay' ? '' : ''}</span>
+                  <span style={{
+                    fontSize: '0.75rem', fontWeight: 500,
+                    color: payMethod === m ? 'var(--e-white)' : 'rgba(255,255,255,0.4)',
+                  }}>
+                    {m}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-               <button
-                 disabled={!user || user.subscription?.plan === "Free"}
-                 className="glass-button w-full py-2 rounded-lg font-semibold text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-               >
-                 {user?.subscription?.plan === "Free" ? "Gói hiện tại" : "Gói miễn phí"}
-               </button>
-             </div>
-           </div>
+        {/* Selected plan summary */}
+        {selected && selected !== currentPlan && (
+          <div style={{ marginTop: 'auto' }}>
+            <div style={{
+              border: '1px solid rgba(140,110,63,0.3)',
+              padding: '1rem',
+              background: 'rgba(140,110,63,0.08)',
+              marginBottom: '1rem',
+            }}>
+              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 5 }}>
+                Đang chọn
+              </div>
+              <div style={{ fontFamily: 'var(--e-serif)', fontSize: '1rem', color: 'var(--e-white)', marginBottom: 3 }}>
+                {PLANS.find(p => p.plan === selected)?.name}
+              </div>
+              <div style={{ fontFamily: 'var(--e-serif)', fontSize: '1.2rem', color: 'var(--e-gold-light)' }}>
+                {PLANS.find(p => p.plan === selected)?.price}
+              </div>
+            </div>
+            <button
+              onClick={handleCheckout}
+              style={{
+                width: '100%', padding: '13px',
+                background: 'var(--e-gold)', color: 'var(--e-white)',
+                border: 'none', cursor: 'pointer',
+                fontFamily: 'var(--e-sans)', fontSize: '0.72rem',
+                fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase',
+                transition: 'background 0.25s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--e-gold-light)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'var(--e-gold)')}
+            >
+              Thanh Toán Ngay →
+            </button>
+          </div>
+        )}
 
-           {/* Pro Plan */}
-           <PlanCard
-             plan="Pro"
-             name={paymentService.SUBSCRIPTION_PLANS.Pro.name}
-             price={paymentService.SUBSCRIPTION_PLANS.Pro.pricingDisplay}
-             features={paymentService.SUBSCRIPTION_PLANS.Pro.features}
-             onSelect={handleSelectPlan}
-             isSelected={selectedPlan === "Pro"}
-             isCurrentPlan={user?.subscription?.plan === "Pro"}
-           />
+        {/* Benefits */}
+        <div style={{
+          borderTop: '1px solid rgba(255,255,255,0.07)',
+          paddingTop: '1.2rem',
+          marginTop: selected && selected !== currentPlan ? 0 : 'auto',
+        }}>
+          {[
+            'Nâng cấp / hạ cấp bất kỳ lúc nào',
+            'Thanh toán an toàn qua VNPay, PayPal',
+            'Hoàn tiền trong 7 ngày',
+          ].map((t, i) => (
+            <div key={i} style={{
+              display: 'flex', gap: 8, marginBottom: 8,
+              fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5,
+            }}>
+              <span style={{ color: 'var(--e-gold)', flexShrink: 0 }}>✓</span>
+              {t}
+            </div>
+          ))}
+        </div>
+      </aside>
 
-           {/* Pro Plus Plan */}
-           <PlanCard
-             plan="ProPlus"
-             name={paymentService.SUBSCRIPTION_PLANS.ProPlus.name}
-             price={paymentService.SUBSCRIPTION_PLANS.ProPlus.pricingDisplay}
-             features={paymentService.SUBSCRIPTION_PLANS.ProPlus.features}
-             onSelect={handleSelectPlan}
-             isSelected={selectedPlan === "ProPlus"}
-             isCurrentPlan={user?.subscription?.plan === "ProPlus"}
-           />
-         </div>
+      {/* ── Plan cards phải ── */}
+      <div style={{ background: 'var(--e-cream)', padding: '2.5rem' }}>
+        <div style={{ marginBottom: '2rem' }}>
+          <div className="e-section-label" style={{ marginBottom: '0.5rem' }}>Chọn Gói</div>
+          <h2 style={{
+            fontFamily: 'var(--e-serif)',
+            fontSize: 'clamp(1.6rem, 2.5vw, 2.2rem)',
+            fontWeight: 500, color: 'var(--e-charcoal)',
+            lineHeight: 1.2,
+          }}>
+            Gói phù hợp với<br />
+            <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--e-muted)' }}>nhu cầu của bạn</em>
+          </h2>
+        </div>
 
-         {/* FAQ Section */}
-         <div className="glass-panel">
-           <h2 className="text-2xl font-bold text-slate-900 mb-6">Câu hỏi thường gặp</h2>
+        <div className="e-plan-grid">
+          {PLANS.map(p => (
+            <PlanCard
+              key={p.plan}
+              {...p}
+              onSelect={handleSelect}
+              isSelected={selected === p.plan}
+              isCurrentPlan={currentPlan === p.plan}
+            />
+          ))}
+        </div>
 
-           <div className="space-y-6">
-             <div>
-               <h3 className="font-semibold text-slate-900 mb-2">Tôi có thể nâng cấp hoặc hạ cấp bất kỳ lúc nào không?</h3>
-               <p className="text-slate-700">Có, bạn có thể thay đổi gói dịch vụ của mình bất kỳ lúc nào.</p>
-             </div>
-
-             <div>
-               <h3 className="font-semibold text-slate-900 mb-2">Thanh toán như thế nào?</h3>
-               <p className="text-slate-700">
-                 Chúng tôi hỗ trợ hai phương thức thanh toán: VNPay (chuyển khoản ngân hàng) và PayPal.
-               </p>
-             </div>
-
-             <div>
-               <h3 className="font-semibold text-slate-900 mb-2">Tôi có thể hủy đăng ký không?</h3>
-               <p className="text-slate-700">
-                 Có, bạn có thể hủy đăng ký của mình bất kỳ lúc nào. Bạn sẽ mất quyền truy cập vào các tính năng được thanh toán
-                 từ ngày hủy.
-               </p>
-             </div>
-
-             <div>
-               <h3 className="font-semibold text-slate-900 mb-2">Còn các bất động sản của tôi thì sao?</h3>
-               <p className="text-slate-700">
-                 Các bất động sản của bạn vẫn được lưu giữ. Nếu bạn hạ cấp về Free, bạn chỉ có thể hiển thị 3 bất động sản công khai.
-               </p>
-             </div>
-           </div>
-         </div>
+        <div style={{
+          marginTop: '2.5rem',
+          borderTop: '1px solid var(--e-beige)',
+          paddingTop: '2rem',
+        }}>
+          <div style={{
+            fontSize: '0.68rem', letterSpacing: '0.18em', textTransform: 'uppercase',
+            color: 'var(--e-light-muted)', fontWeight: 600, marginBottom: '1.2rem',
+          }}>
+            Câu Hỏi Thường Gặp
+          </div>
+          {[
+            { q: 'Tôi có thể hủy gói bất kỳ lúc nào không?', a: 'Có, bạn có thể hủy bất kỳ lúc nào. Gói sẽ còn hiệu lực đến hết chu kỳ thanh toán.' },
+            { q: 'Tin đăng có bị xóa khi hạ cấp không?', a: 'Không, tin đăng hiện tại sẽ được giữ nguyên. Bạn chỉ không thể tạo thêm khi vượt giới hạn.' },
+          ].map((faq, i) => (
+            <div key={i} style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: 4 }}>
+                {faq.q}
+              </div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--e-muted)', lineHeight: 1.7, fontWeight: 300 }}>
+                {faq.a}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    </Layout>
+    </div>
   );
 }

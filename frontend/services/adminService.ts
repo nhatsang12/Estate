@@ -17,6 +17,25 @@ interface DashboardStatsResponse {
   };
 }
 
+interface DashboardStatsApiResponse {
+  status: string;
+  data: {
+    stats: {
+      users: number;
+      providers: number;
+      pendingProviders: number;
+      verifiedProviders?: number;
+      rejectedProviders?: number;
+      properties: {
+        total: number;
+        pending: number;
+        approved: number;
+        rejected: number;
+      };
+    };
+  };
+}
+
 interface PendingPropertiesResponse {
   status: string;
   results: number;
@@ -65,9 +84,31 @@ interface AdminVerifyResponse {
 
 export const adminService = {
   async getDashboardStats() {
-    return requestJson<DashboardStatsResponse>("/admin/dashboard", {
+    const response = await requestJson<DashboardStatsApiResponse>("/admin/dashboard", {
       method: "GET",
     });
+
+    const stats = response.data.stats;
+    const totalProviders = stats.providers ?? 0;
+    const totalPendingProviders = stats.pendingProviders ?? 0;
+    const totalVerifiedProviders =
+      stats.verifiedProviders ?? Math.max(totalProviders - totalPendingProviders, 0);
+    const totalRejectedProviders = stats.rejectedProviders ?? 0;
+
+    return {
+      status: response.status,
+      data: {
+        totalUsers: stats.users ?? 0,
+        totalProviders,
+        totalProperties: stats.properties?.total ?? 0,
+        totalPropertyApprovals: stats.properties?.approved ?? 0,
+        totalPropertyRejections: stats.properties?.rejected ?? 0,
+        totalVerifiedProviders,
+        totalPendingProviders,
+        totalRejectedProviders,
+        pendingPropertiesCount: stats.properties?.pending ?? 0,
+      },
+    } as DashboardStatsResponse;
   },
 
   async getPendingProperties(page: number = 1, limit: number = 20) {
@@ -93,14 +134,14 @@ export const adminService = {
   async moderateProperty(propertyId: string, payload: ModeratePropertyPayload) {
     return requestJson<AdminModerateResponse>(`/admin/properties/${propertyId}/moderate`, {
       method: "PATCH",
-      body: JSON.stringify(payload),
+      body: payload,
     });
   },
 
   async verifyProvider(providerId: string, payload: VerifyProviderPayload) {
     return requestJson<AdminVerifyResponse>(`/admin/providers/${providerId}/verify`, {
       method: "PATCH",
-      body: JSON.stringify(payload),
+      body: payload,
     });
   },
 };

@@ -2,6 +2,7 @@ export type UserRole = "user" | "provider" | "admin";
 
 export type KycStatus = "pending" | "submitted" | "reviewing" | "verified" | "rejected";
 
+export type SubscriptionPlan = 'Free' | 'Pro' | 'ProPlus';
 export interface KycExtractedData {
   front?: Record<string, unknown> | null;
   back?: Record<string, unknown> | null;
@@ -21,13 +22,15 @@ export interface KycComparisonResult {
 }
 
 export interface SubscriptionInfo {
-  plan: "Free" | "Pro" | "ProPlus";
+  plan: SubscriptionPlan;
   expiryDate?: string;
   isActive?: boolean;
   createdAt?: string;
+
 }
 
 export interface User {
+
   _id: string;
   name: string;
   email: string;

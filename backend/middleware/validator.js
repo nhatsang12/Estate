@@ -11,6 +11,7 @@ const validator = (schema) => (req, res, next) => {
     }
     // Attach validated data to request for use in handler
     req.validatedData = value;
+    req.body = value;
     next();
   } catch (err) {
     return res.status(400).json({
