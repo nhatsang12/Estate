@@ -1,195 +1,252 @@
 const STATS = [
-    { num: '2,400', sup: '+', label: 'Bất Động Sản Đang Rao', desc: 'cập nhật mỗi ngày' },
-    { num: '12,000', sup: '+', label: 'Khách Hàng Hài Lòng', desc: 'trên toàn quốc' },
-    { num: '63', sup: '', label: 'Tỉnh Thành Phủ Sóng', desc: 'từ Bắc vào Nam' },
-    { num: '98', sup: '%', label: 'Tỷ Lệ Xác Minh', desc: 'pháp lý minh bạch' },
+    { num: '2,400', sup: '+', label: 'Bất Động Sản', desc: 'Đang rao bán · cập nhật mỗi ngày' },
+    { num: '12,000', sup: '+', label: 'Khách Hàng Hài Lòng', desc: 'Trên toàn quốc' },
+    { num: '63', sup: '', label: 'Tỉnh Thành Phủ Sóng', desc: 'Từ Bắc vào Nam' },
+    { num: '98', sup: '%', label: 'Tỷ Lệ Xác Minh', desc: 'Pháp lý minh bạch' },
 ];
 
 export default function StatsSection() {
     return (
-        <section className="e-stats e-reveal" style={{ padding: '0', position: 'relative', overflow: 'hidden' }}>
+        <section style={{ position: 'relative', overflow: 'hidden' }}>
+            <style>{`
+                /* ═══════════════════════════════════════
+                   STATS SECTION — Pure White
+                   Sits between Editorial(dark forest)
+                   and Footer(dark) as a bright break
+                ═══════════════════════════════════════ */
+                .st-root {
+                    background: #ffffff;
+                    position: relative;
+                    overflow: hidden;
+                    border-top: 1px solid rgba(212,175,55,0.18);
+                }
 
-            {/* ══════════════════════════════════════
-                ORGANIC CURVE BACKGROUND PATTERNS
-            ══════════════════════════════════════ */}
+                /* Subtle grain */
+                .st-root::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
+                    pointer-events: none;
+                    z-index: 0;
+                }
 
-            {/* Layer 1 — Large sweeping gold curves, top-right */}
-            <svg
-                aria-hidden="true"
-                style={{
-                    position: 'absolute',
-                    top: '-10%', right: '-5%',
-                    width: '65%', height: 'auto',
-                    opacity: 0.045,
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                }}
-                viewBox="0 0 600 500" fill="none" xmlns="http://www.w3.org/2000/svg"
-            >
-                <path d="M580 20 C480 60, 360 40, 280 120 C200 200, 160 300, 80 360 C20 400, -20 440, -40 500" stroke="#C8A84B" strokeWidth="1" />
-                <path d="M600 80 C500 110, 380 90, 300 170 C220 250, 180 350, 100 410 C40 450, 0 490, -20 550" stroke="#C8A84B" strokeWidth="1" />
-                <path d="M560 -20 C460 20, 340 0, 260 80 C180 160, 140 260, 60 320 C0 360, -40 400, -60 460" stroke="#C8A84B" strokeWidth="1" />
-                <path d="M540 140 C440 160, 320 140, 240 220 C160 300, 120 400, 40 460 C-20 500, -60 530, -80 590" stroke="#C8A84B" strokeWidth="0.7" />
-                <path d="M520 200 C420 210, 300 190, 220 270 C140 350, 100 450, 20 510" stroke="#C8A84B" strokeWidth="0.7" />
-            </svg>
+                /* Large ghost text watermark — charcoal outlined, very faint */
+                .st-root::after {
+                    content: 'ESTORIA';
+                    position: absolute;
+                    bottom: -0.25em;
+                    left: -0.02em;
+                    font-family: var(--e-serif);
+                    font-size: clamp(6rem, 14vw, 16rem);
+                    font-weight: 300;
+                    color: transparent;
+                    -webkit-text-stroke: 1px rgba(37,45,54,0.04);
+                    line-height: 1;
+                    letter-spacing: -0.04em;
+                    pointer-events: none;
+                    user-select: none;
+                    z-index: 0;
+                    white-space: nowrap;
+                }
 
-            {/* Layer 2 — Tighter contour lines, bottom-left */}
-            <svg
-                aria-hidden="true"
-                style={{
-                    position: 'absolute',
-                    bottom: '-5%', left: '-8%',
-                    width: '55%', height: 'auto',
-                    opacity: 0.038,
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                }}
-                viewBox="0 0 550 420" fill="none" xmlns="http://www.w3.org/2000/svg"
-            >
-                <path d="M-20 380 C60 320, 140 260, 220 200 C300 140, 380 100, 460 60 C520 30, 560 10, 580 -10" stroke="white" strokeWidth="1" />
-                <path d="M-20 340 C60 280, 140 220, 220 160 C300 100, 380 60, 460 20 C520 -10, 560 -30, 580 -50" stroke="white" strokeWidth="1" />
-                <path d="M-20 300 C60 240, 140 180, 220 120 C300 60, 380 20, 460 -20" stroke="white" strokeWidth="1" />
-                <path d="M-20 420 C80 360, 160 300, 240 240 C320 180, 400 140, 480 100 C540 70, 570 50, 590 30" stroke="white" strokeWidth="0.7" />
-                <path d="M-20 260 C60 200, 140 140, 220 80 C300 20, 380 -20, 460 -60" stroke="white" strokeWidth="0.7" />
-                <path d="M-20 460 C80 400, 160 340, 240 280 C320 220, 400 180, 480 140" stroke="white" strokeWidth="0.5" />
-            </svg>
+                /* ── Top label bar ── */
+                .st-topbar {
+                    position: relative;
+                    z-index: 1;
+                    padding: 2rem 5vw;
+                    border-bottom: 1px solid rgba(37,45,54,0.06);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    flex-wrap: wrap;
+                    gap: 1rem;
+                }
 
-            {/* Layer 3 — Center subtle blob ellipses */}
-            <svg
-                aria-hidden="true"
-                style={{
-                    position: 'absolute',
-                    top: '30%', left: '35%',
-                    width: '40%', height: 'auto',
-                    opacity: 0.025,
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                }}
-                viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg"
-            >
-                <ellipse cx="200" cy="150" rx="180" ry="90" stroke="white" strokeWidth="1" />
-                <ellipse cx="200" cy="150" rx="150" ry="70" stroke="white" strokeWidth="1" />
-                <ellipse cx="200" cy="150" rx="120" ry="52" stroke="white" strokeWidth="1" />
-                <ellipse cx="200" cy="150" rx="90" ry="36" stroke="white" strokeWidth="0.8" />
-                <ellipse cx="200" cy="150" rx="60" ry="22" stroke="white" strokeWidth="0.8" />
-                <ellipse cx="200" cy="150" rx="30" ry="10" stroke="white" strokeWidth="0.6" />
-            </svg>
+                .st-topbar-eyebrow {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.7rem;
+                    font-family: var(--e-sans);
+                    font-size: 0.68rem;
+                    font-weight: 600;
+                    letter-spacing: 0.22em;
+                    text-transform: uppercase;
+                    color: var(--e-gold, #D4AF37);
+                }
+                .st-topbar-line {
+                    width: 28px;
+                    height: 1px;
+                    background: var(--e-gold, #D4AF37);
+                }
+                .st-topbar-quote {
+                    font-family: var(--e-serif);
+                    font-size: 0.88rem;
+                    font-style: italic;
+                    color: rgba(37,45,54,0.3);
+                    font-weight: 300;
+                }
 
-            {/* Layer 4 — Vermilion accent arcs, top-left */}
-            <svg
-                aria-hidden="true"
-                style={{
-                    position: 'absolute',
-                    top: 0, left: 0,
-                    width: '30%', height: 'auto',
-                    opacity: 0.06,
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                }}
-                viewBox="0 0 300 250" fill="none" xmlns="http://www.w3.org/2000/svg"
-            >
-                <path d="M-30 250 C20 180, 80 120, 150 80 C220 40, 280 20, 330 0" stroke="#C94B2A" strokeWidth="1.5" />
-                <path d="M-30 210 C20 140, 80 80, 150 40 C220 0, 280 -20, 330 -40" stroke="#C94B2A" strokeWidth="1.2" />
-                <path d="M-30 290 C20 220, 80 160, 150 120 C220 80, 280 60, 330 40" stroke="#C94B2A" strokeWidth="1" />
-            </svg>
+                /* ── Stats grid ── */
+                .st-grid {
+                    position: relative;
+                    z-index: 1;
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                }
 
-            {/* ══════════════════════════════════════
-                CONTENT
-            ══════════════════════════════════════ */}
+                .st-item {
+                    padding: 5rem 2.8rem 5.5rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.2rem;
+                    position: relative;
+                    cursor: default;
+                    transition: background 0.3s;
+                }
+                .st-item:first-child { padding-left: 5vw; }
+                .st-item:last-child  { padding-right: 5vw; }
+                .st-item:hover { background: rgba(212,175,55,0.03); }
 
-            {/* Top label bar */}
-            <div style={{
-                position: 'relative',
-                zIndex: 1,
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
-                padding: '1.4rem 5vw',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-            }}>
-                <div className="e-section-label" style={{ marginBottom: 0 }}>
-                    Con Số Thực Tế
+                /* Vertical divider — thin, gold */
+                .st-item::after {
+                    content: '';
+                    position: absolute;
+                    right: 0; top: 3rem; bottom: 3rem;
+                    width: 1px;
+                    background: linear-gradient(to bottom,
+                        transparent,
+                        rgba(212,175,55,0.22) 25%,
+                        rgba(212,175,55,0.22) 75%,
+                        transparent
+                    );
+                }
+                .st-item:last-child::after { display: none; }
+
+                /* Index tag */
+                .st-idx {
+                    font-family: var(--e-sans);
+                    font-size: 0.58rem;
+                    font-weight: 700;
+                    letter-spacing: 0.22em;
+                    text-transform: uppercase;
+                    color: rgba(212,175,55,0.55);
+                }
+
+                /* Big number — charcoal on white = maximum contrast */
+                .st-num {
+                    font-family: var(--e-serif);
+                    font-weight: 300;
+                    color: var(--e-charcoal, #252D36);
+                    line-height: 1;
+                    letter-spacing: -0.04em;
+                    font-size: clamp(3.5rem, 6vw, 5.5rem);
+                }
+                .st-num sup {
+                    font-size: 0.38em;
+                    vertical-align: super;
+                    color: var(--e-gold, #D4AF37);
+                    letter-spacing: 0;
+                    font-weight: 400;
+                }
+
+                /* Gold underline accent */
+                .st-num-line {
+                    width: 40px;
+                    height: 2px;
+                    background: linear-gradient(90deg, var(--e-gold, #D4AF37), transparent);
+                    margin-top: 0.6rem;
+                    transition: width 0.4s ease;
+                }
+                .st-item:hover .st-num-line { width: 64px; }
+
+                /* Label */
+                .st-label {
+                    font-family: var(--e-sans);
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    color: var(--e-charcoal, #252D36);
+                    line-height: 1.3;
+                }
+
+                /* Desc */
+                .st-desc {
+                    font-family: var(--e-serif);
+                    font-size: 0.82rem;
+                    font-style: italic;
+                    color: rgba(37,45,54,0.38);
+                    line-height: 1.5;
+                }
+
+                /* Bottom accent: thin gold-to-charcoal line */
+                .st-bottom-bar {
+                    position: relative;
+                    z-index: 1;
+                    height: 2px;
+                    background: linear-gradient(90deg,
+                        var(--e-gold, #D4AF37) 0%,
+                        rgba(37,45,54,0.15) 50%,
+                        transparent 100%
+                    );
+                }
+
+                /* Responsive */
+                @media (max-width: 900px) {
+                    .st-grid { grid-template-columns: 1fr 1fr; }
+                    .st-item:nth-child(2)::after { display: none; }
+                    .st-item:nth-child(1), .st-item:nth-child(2) {
+                        border-bottom: 1px solid rgba(212,175,55,0.1);
+                    }
+                }
+                @media (max-width: 480px) {
+                    .st-grid { grid-template-columns: 1fr 1fr; }
+                    .st-item { padding: 3.5rem 1.5rem; }
+                    .st-item:first-child { padding-left: 1.5rem; }
+                    .st-item:last-child  { padding-right: 1.5rem; }
+                }
+            `}</style>
+
+            <div className="st-root">
+
+                {/* ── Top label bar ── */}
+                <div className="st-topbar">
+                    <span className="st-topbar-eyebrow">
+                        <span className="st-topbar-line" />
+                        Con Số Thực Tế
+                    </span>
+                    <span className="st-topbar-quote">"Minh bạch — Tin cậy — Bền vững"</span>
                 </div>
-                <span style={{
-                    fontFamily: 'var(--e-serif)',
-                    fontSize: '0.82rem',
-                    fontStyle: 'italic',
-                    color: 'rgba(255,255,255,0.20)',
-                    fontWeight: 300,
-                }}>
-                    "Minh bạch — Tin cậy — Bền vững"
-                </span>
-            </div>
 
-            {/* Stats grid */}
-            <div className="e-stats-grid" style={{ marginTop: 0 }}>
-                {STATS.map((s, i) => (
-                    <div key={s.label} className="e-stat-item" style={{
-                        padding: '3rem 2.5rem 3rem',
-                        paddingLeft: i === 0 ? '5vw' : undefined,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        gap: '1rem',
-                        position: 'relative',
-                    }}>
-                        {/* Gold gradient divider line (matching footer style) */}
-                        {i < STATS.length - 1 && (
-                            <div style={{
-                                position: 'absolute',
-                                top: 0, right: 0,
-                                width: '1px',
-                                height: '100%',
-                                background: 'linear-gradient(to bottom, transparent 0%, rgba(200,168,75,0.18) 35%, rgba(200,168,75,0.18) 65%, transparent 100%)',
-                                pointerEvents: 'none',
-                            }} />
-                        )}
+                {/* ── Stats grid ── */}
+                <div className="st-grid">
+                    {STATS.map((s, i) => (
+                        <div key={s.label} className="st-item">
 
-                        {/* Index number */}
-                        <span style={{
-                            fontFamily: 'var(--e-sans)',
-                            fontSize: '0.58rem',
-                            letterSpacing: '0.20em',
-                            color: 'var(--e-gold)',
-                            fontWeight: 700,
-                        }}>
-                            0{i + 1}
-                        </span>
+                            <span className="st-idx">0{i + 1}</span>
 
-                        {/* Big number */}
-                        <div className="e-stat-num" style={{
-                            fontSize: 'clamp(2.6rem, 4.5vw, 4rem)',
-                            marginTop: `${i * 0.5}rem`,
-                        }}>
-                            {s.num}
-                            {s.sup && <sup>{s.sup}</sup>}
-                        </div>
-
-                        {/* Label + desc */}
-                        <div>
-                            <div className="e-stat-label">{s.label}</div>
-                            <div style={{
-                                fontFamily: 'var(--e-sans)',
-                                fontSize: '0.70rem',
-                                color: 'rgba(255,255,255,0.18)',
-                                marginTop: '4px',
-                                fontWeight: 400,
-                                fontStyle: 'italic',
-                            }}>
-                                {s.desc}
+                            <div>
+                                <div className="st-num">
+                                    {s.num}
+                                    {s.sup && <sup>{s.sup}</sup>}
+                                </div>
+                                <div className="st-num-line" />
                             </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
 
-            {/* Bottom gold accent line */}
-            <div style={{
-                position: 'relative',
-                zIndex: 1,
-                height: '3px',
-                background: 'linear-gradient(to right, var(--e-gold) 0%, transparent 60%)',
-            }} />
+                            <div>
+                                <div className="st-label">{s.label}</div>
+                                <div className="st-desc">{s.desc}</div>
+                            </div>
+
+                        </div>
+                    ))}
+                </div>
+
+                {/* ── Bottom accent ── */}
+                <div className="st-bottom-bar" />
+
+            </div>
         </section>
     );
 }

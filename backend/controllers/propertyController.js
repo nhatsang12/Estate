@@ -4,38 +4,22 @@ const APIFeatures = require('../utils/apiFeatures');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
 exports.getAllProperties = async (req, res, next) => {
+   console.log('>>> getAllProperties v2 - có total'); 
   try {
     let filter = {};
 
-    // Permission Logic:
-    // 1. Admin: Can see ALL (status is not restricted by default).
-    // 2. Provider: Can see ALL 'approved' + THEIR OWN 'pending'/'rejected' (handled via ?ownerId query usually, or we enforce strict view here).
-    // 3. Public/User: Can ONLY see 'approved'.
-
-    // Determine Role (req.user might be undefined if public route)
     const role = req.user ? req.user.role : 'public';
 
     if (role === 'admin') {
-        // Admin sees everything, no status filter enforced implicitly.
-        // They can filter manually via ?status=pending
+      // Admin sees everything
     } else if (role === 'provider') {
-        // Provider Logic is tricky in a single GET list.
-        // Usually, the "My Properties" dashboard uses ?ownerId=ME.
-        // The Public Listing page should only show 'approved'.
-        
-        // If the query specifically requests "my properties" (e.g., ?ownerId=ME), allow all statuses.
-        // Otherwise (browsing marketplace), enforce status=approved.
-        
-        if (req.query.ownerId && req.query.ownerId.toString() === req.user.id.toString()) {
-            // Viewing own properties -> No status filter needed (can see pending/rejected)
-            filter.ownerId = req.query.ownerId;
-        } else {
-            // Browsing marketplace -> Approved only
-            filter.status = 'approved';
-        }
-    } else {
-        // Public / User -> Approved only
+      if (req.query.ownerId && req.query.ownerId.toString() === req.user.id.toString()) {
+        filter.ownerId = req.query.ownerId;
+      } else {
         filter.status = 'approved';
+      }
+    } else {
+      filter.status = 'approved';
     }
 
     const queryParams = { ...req.query };
@@ -51,13 +35,10 @@ exports.getAllProperties = async (req, res, next) => {
       ];
     }
     delete queryParams.search;
-    delete queryParams.locationText;
-    delete queryParams.ownerId; // ownerId already applied to filter above
+    // ✅ Đếm tổng TRƯỚC khi paginate — dùng cùng filter
+    const countFeatures = new APIFeatures(Property.find(filter), queryParams).filter();
+    const total = await countFeatures.query.countDocuments();
 
-    // Merge custom permission filter with query params
-    // APIFeatures will handle the rest of req.query (like price, sort, etc.)
-    // We pass the Model.find(filter) to start with our constraints
-    
     const features = new APIFeatures(Property.find(filter), queryParams)
       .filter()
       .sort()
@@ -65,9 +46,15 @@ exports.getAllProperties = async (req, res, next) => {
       .paginate();
     const properties = await features.query;
 
+    const limit = parseInt(queryParams.limit) || 10;
+    const page  = parseInt(queryParams.page)  || 1;
+
     res.status(200).json({
       status: 'success',
-      results: properties.length,
+      results: properties.length,        // số item trang hiện tại
+      total,                             // ✅ tổng thực sự (vd: 10)
+      totalPages: Math.ceil(total / limit), // ✅ tổng số trang (vd: 2)
+      currentPage: page,
       data: {
         properties,
       },
@@ -87,21 +74,16 @@ exports.getProperty = async (req, res, next) => {
       return res.status(404).json({ status: 'error', message: 'No property found with that ID' });
     }
 
-    // Permission Check for Detail View
-    // Public/User can only see 'approved' property details.
-    // Owner/Admin can see pending/rejected.
     const role = req.user ? req.user.role : 'public';
     const isOwner = req.user && property.ownerId._id.toString() === req.user.id;
 
     if (property.status !== 'approved' && role !== 'admin' && !isOwner) {
-         return res.status(404).json({ status: 'error', message: 'Property is not available.' }); // Hide unapproved from public
+      return res.status(404).json({ status: 'error', message: 'Property is not available.' });
     }
 
     res.status(200).json({
       status: 'success',
-      data: {
-        property,
-      },
+      data: { property },
     });
   } catch (err) {
     next(err);
@@ -110,14 +92,10 @@ exports.getProperty = async (req, res, next) => {
 
 exports.createProperty = async (req, res, next) => {
   try {
-    // Assign ownerId to current user (Provider)
     if (req.user.role !== 'admin') {
       req.body.ownerId = req.user.id;
     }
 
-    // ─── SUBSCRIPTION QUOTA CHECK (Critical DNA Hook) ────────
-    // Before creating a property, check User.listingsCount against
-    // the allowed quota of their User.subscriptionPlan
     if (req.user.role !== 'admin') {
       const owner = await User.findById(req.user.id);
       if (!owner.canCreateListing()) {
@@ -128,40 +106,33 @@ exports.createProperty = async (req, res, next) => {
       }
     }
 
-    // Default status is 'pending' from Schema, but Admin can set to 'approved' directly
     if (req.user.role === 'admin' && req.body.status) {
-        // Admin can set status
+      // Admin can set status
     } else {
-        // Provider -> Pending
-        req.body.status = 'pending';
+      req.body.status = 'pending';
     }
 
-    // Handle Image Upload
     if (req.files && req.files.images) {
-        const imagePromises = req.files.images.map(file => uploadToCloudinary(file.buffer));
-        const imageUrls = await Promise.all(imagePromises);
-        req.body.images = imageUrls;
+      const imagePromises = req.files.images.map(file => uploadToCloudinary(file.buffer));
+      const imageUrls = await Promise.all(imagePromises);
+      req.body.images = imageUrls;
     }
 
-    // Handle Ownership Documents Upload
     if (req.files && req.files.ownershipDocuments) {
-        const docPromises = req.files.ownershipDocuments.map(file => uploadToCloudinary(file.buffer));
-        const docUrls = await Promise.all(docPromises);
-        req.body.ownershipDocuments = docUrls;
+      const docPromises = req.files.ownershipDocuments.map(file => uploadToCloudinary(file.buffer));
+      const docUrls = await Promise.all(docPromises);
+      req.body.ownershipDocuments = docUrls;
     }
 
     const newProperty = await Property.create(req.body);
 
-    // ─── INCREMENT LISTINGS COUNT ────────────────────────────
     if (req.user.role !== 'admin') {
       await User.findByIdAndUpdate(req.user.id, { $inc: { listingsCount: 1 } });
     }
 
     res.status(201).json({
       status: 'success',
-      data: {
-        property: newProperty,
-      },
+      data: { property: newProperty },
     });
   } catch (err) {
     next(err);
@@ -170,10 +141,8 @@ exports.createProperty = async (req, res, next) => {
 
 exports.updateProperty = async (req, res, next) => {
   try {
-    // ── Handle existingImages: URLs the user wants to keep ──
     let existingImages = null;
     if (req.body.existingImages !== undefined) {
-      // Parse if it's a JSON string (from FormData)
       if (typeof req.body.existingImages === 'string') {
         try {
           existingImages = JSON.parse(req.body.existingImages);
@@ -186,16 +155,13 @@ exports.updateProperty = async (req, res, next) => {
       delete req.body.existingImages;
     }
 
-    // Upload new images if provided
     let newImageUrls = [];
     if (req.files && req.files.images) {
-        const imagePromises = req.files.images.map(file => uploadToCloudinary(file.buffer));
-        newImageUrls = await Promise.all(imagePromises);
+      const imagePromises = req.files.images.map(file => uploadToCloudinary(file.buffer));
+      newImageUrls = await Promise.all(imagePromises);
     }
 
-    // Build final images array
     if (existingImages !== null || newImageUrls.length > 0) {
-      // If existingImages was provided, use it as base; otherwise keep current images
       const keptImages = existingImages !== null ? existingImages : undefined;
       if (keptImages !== undefined) {
         req.body.images = [...keptImages, ...newImageUrls];
@@ -205,9 +171,9 @@ exports.updateProperty = async (req, res, next) => {
     }
 
     if (req.files && req.files.ownershipDocuments) {
-        const docPromises = req.files.ownershipDocuments.map(file => uploadToCloudinary(file.buffer));
-        const docUrls = await Promise.all(docPromises);
-        req.body.$push = { ...(req.body.$push || {}), ownershipDocuments: { $each: docUrls } };
+      const docPromises = req.files.ownershipDocuments.map(file => uploadToCloudinary(file.buffer));
+      const docUrls = await Promise.all(docPromises);
+      req.body.$push = { ...(req.body.$push || {}), ownershipDocuments: { $each: docUrls } };
     }
 
     const property = await Property.findByIdAndUpdate(req.params.id, req.body, {
@@ -221,9 +187,7 @@ exports.updateProperty = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        property,
-      },
+      data: { property },
     });
   } catch (err) {
     next(err);
@@ -238,7 +202,6 @@ exports.deleteProperty = async (req, res, next) => {
       return res.status(404).json({ status: 'error', message: 'No property found with that ID' });
     }
 
-    // Decrement the owner's listingsCount
     await User.findByIdAndUpdate(property.ownerId, { $inc: { listingsCount: -1 } });
 
     res.status(204).json({
@@ -253,24 +216,21 @@ exports.deleteProperty = async (req, res, next) => {
 exports.getPropertiesWithin = async (req, res, next) => {
   const { distance, latlng, unit } = req.params;
   const [lat, lng] = latlng.split(',');
-
   const radius = unit === 'mi' ? distance / 3963.2 : distance / 6378.1;
 
   if (!lat || !lng) {
-    return res.status(400).json({ message: 'Please provide latitutde and longitude in the format lat,lng.' });
+    return res.status(400).json({ message: 'Please provide latitude and longitude in the format lat,lng.' });
   }
 
   const properties = await Property.find({
     location: { $geoWithin: { $centerSphere: [[lng, lat], radius] } },
-    status: 'approved' // Geo search should mostly be for public finding homes
+    status: 'approved',
   });
 
   res.status(200).json({
     status: 'success',
     results: properties.length,
-    data: {
-      properties,
-    },
+    data: { properties },
   });
 };
 
@@ -286,18 +246,40 @@ exports.getRecommendations = async (req, res, next) => {
     const recommendations = await Property.find({
       _id: { $ne: propertyId },
       type: currentProperty.type,
-      status: 'approved', // Only recommend approved properties
-      price: { 
-          $gte: currentProperty.price * 0.7, 
-          $lte: currentProperty.price * 1.3 
-      }
+      status: 'approved',
+      price: {
+        $gte: currentProperty.price * 0.7,
+        $lte: currentProperty.price * 1.3,
+      },
     }).limit(3);
 
     res.status(200).json({
       status: 'success',
-      data: {
-        recommendations
-      }
+      data: { recommendations },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getFilterOptions = async (req, res, next) => {
+  try {
+    const filters = {
+      types: [
+        { value: 'apartment', label: 'Căn hộ' },
+        { value: 'villa', label: 'Biệt thự' },
+        { value: 'house', label: 'Nhà phố' },
+        { value: 'studio', label: 'Studio' },
+        { value: 'office', label: 'Văn phòng' },
+      ],
+      tabs: ['Cho Thuê', 'Mua Bán', 'Dự Án Mới', 'Thương Mại'],
+      bedrooms: ['1', '2', '3', '4', '5+'],
+      bathrooms: ['1', '2', '3', '4', '5+']
+    };
+
+    res.status(200).json({
+      status: 'success',
+      data: { filters }
     });
   } catch (err) {
     next(err);

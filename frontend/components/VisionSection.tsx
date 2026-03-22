@@ -104,7 +104,7 @@ export default function VisionSection() {
                             lineHeight: 1,
                             letterSpacing: '-0.04em',
                             userSelect: 'none',
-                        }}>03</span>
+                        }}></span>
                         <div>
                             <div style={{
                                 fontSize: '0.65rem',

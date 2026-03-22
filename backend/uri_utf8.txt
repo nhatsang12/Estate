@@ -1,0 +1,1 @@
+mongodb://ac-n3gurxk-shard-00-00.cslurct.mongodb.net:27017,ac-n3gurxk-shard-00-01.cslurct.mongodb.net:27017,ac-n3gurxk-shard-00-02.cslurct.mongodb.net:27017/?authSource=admin&replicaSet=atlas-1115qo-shard-0

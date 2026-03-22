@@ -4,6 +4,9 @@ import type { Property, PropertyFilters } from "@/types/property";
 interface PropertiesResponse {
   status: string;
   results: number;
+  total?: number;
+  totalPages?: number;
+  currentPage?: number;
   data: {
     properties: Property[];
   };
@@ -126,11 +129,20 @@ function buildPropertiesQuery(filters?: PropertyFilters) {
   if (filters.type) {
     params.set("type", filters.type);
   }
+  if (filters.types && filters.types.length > 0) {
+    filters.types.forEach(t => params.append("type", t));
+  }
   if (filters.bedrooms !== undefined) {
     params.set("bedrooms", String(filters.bedrooms));
   }
+  if (filters.bedroomsGte !== undefined) {
+    params.set("bedrooms[gte]", String(filters.bedroomsGte));
+  }
   if (filters.bathrooms !== undefined) {
     params.set("bathrooms", String(filters.bathrooms));
+  }
+  if (filters.bathroomsGte !== undefined) {
+    params.set("bathrooms[gte]", String(filters.bathroomsGte));
   }
   if (filters.furnished !== undefined) {
     params.set("furnished", String(filters.furnished));
@@ -232,6 +244,20 @@ interface RecommendationsResponse {
   };
 }
 
+export interface FilterOptionsData {
+  types: { value: string; label: string }[];
+  tabs: string[];
+  bedrooms: string[];
+  bathrooms: string[];
+}
+
+interface FilterOptionsResponse {
+  status: string;
+  data: {
+    filters: FilterOptionsData;
+  };
+}
+
 export const propertyService = {
   async getAllProperties(filters?: PropertyFilters) {
     const query = buildPropertiesQuery(filters);
@@ -242,9 +268,17 @@ export const propertyService = {
     return {
       ...response,
       data: {
+        ...response.data,
         properties: applyClientSideKeywordFilter(response.data.properties, filters),
       },
     };
+  },
+
+  async getFilterOptions() {
+    const response = await requestJson<FilterOptionsResponse>("/properties/filters", {
+      method: "GET",
+    });
+    return response.data.filters;
   },
 
   async getPropertyById(id: string) {

@@ -460,8 +460,8 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                   <span style={{ fontSize: "1rem" }}>{property.address}</span>
                 </div>
                 {hasMapCoords ? (
-                  <div style={{ height: "450px", background: "var(--e-cream)", border: "none", borderRadius: "0", overflow: "hidden", margin: "0 -2px" }}>
-                    <AddressMap lat={coords[1]} lng={coords[0]} interactive={false} />
+                  <div style={{ height: "320px", background: "var(--e-cream)", border: "none", borderRadius: "0", overflow: "hidden", margin: "0 -2px" }}>
+                    <AddressMap lat={coords[1]} lng={coords[0]} interactive={false}  />
                   </div>
                 ) : (
                   <div style={{ height: "200px", background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--e-beige)", color: "var(--e-muted)" }}>

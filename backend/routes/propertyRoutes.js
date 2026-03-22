@@ -8,6 +8,8 @@ const normalizePropertyPayload = require('../middleware/normalizePropertyPayload
 
 const router = express.Router();
 
+router.get('/filters', propertyController.getFilterOptions);
+
 /**
  * @swagger
  * tags:

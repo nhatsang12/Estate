@@ -1,18 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import {
-    Search, MapPin, SlidersHorizontal, X,
-    Bed, Bath, LayoutGrid, Check, ChevronDown,
-    Sparkles,
-} from 'lucide-react';
+import { Search, MapPin, SlidersHorizontal, X, Check, Building2 } from 'lucide-react';
+import { propertyService, FilterOptionsData } from '@/services/propertyService';
 
 /* ══════════════════════════════════════════
    TYPES
 ══════════════════════════════════════════ */
-const TABS = ['Cho Thuê', 'Mua Bán', 'Dự Án Mới', 'Thương Mại'] as const;
-type Tab = (typeof TABS)[number];
-
 export interface SearchParams {
-    tab: Tab;
+    tab: string; // Keep for backward compatibility
     location: string;
     types: string[];
     priceMin: number;
@@ -26,32 +20,17 @@ export interface SearchParams {
 interface SearchSectionProps {
     onSearch?: (params: SearchParams) => void;
     loading?: boolean;
+    compact?: boolean; // hides heading + reduces padding when embedded inside listings
 }
 
 /* ══════════════════════════════════════════
    CONSTANTS
 ══════════════════════════════════════════ */
-const PROPERTY_TYPES = [
-    { label: 'Căn Hộ', value: 'apartment' },
-    { label: 'Biệt Thự', value: 'villa' },
-    { label: 'Nhà Phố', value: 'house' },
-    { label: 'Studio', value: 'studio' },
-    { label: 'Văn Phòng', value: 'office' },
-    { label: 'Đất Nền', value: 'land' },
-    { label: 'Shophouse', value: 'shophouse' },
-    { label: 'Penthouse', value: 'penthouse' },
-];
-
-const BEDROOM_OPTS = ['1', '2', '3', '4', '5+'];
-const BATHROOM_OPTS = ['1', '2', '3', '4+'];
-const QUICK_TAGS = ['Penthouse Quận 1', 'Biệt thự Riviera', 'Căn hộ view sông', 'Shophouse mặt tiền'];
-
-const PRICE_BUY_MARKS = [0, 2, 5, 10, 20, 50];   // tỷ
-const PRICE_RENT_MARKS = [0, 5, 15, 30, 60, 100]; // triệu
+const PRICE_MARKS = [0, 2, 5, 10, 20, 50];   // tỷ
 const AREA_MARKS = [0, 30, 60, 100, 200, 500]; // m²
 
 /* ══════════════════════════════════════════
-   DUAL RANGE SLIDER
+   DUAL RANGE SLIDER (Native Theme)
 ══════════════════════════════════════════ */
 function DualRange({
     marks, valueMin, valueMax, formatTick, onChange,
@@ -102,26 +81,26 @@ function DualRange({
     }, [getVal, onChange, valueMin, valueMax]);
 
     return (
-        <div>
+        <div style={{ paddingBottom: '1rem' }}>
             {/* Value display */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
                 <div>
-                    <div style={{ fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '.14em', color: 'var(--e-light-muted)', fontWeight: 600, marginBottom: 3, fontFamily: 'var(--e-sans)' }}>Từ</div>
-                    <div style={{ fontFamily: 'var(--e-serif)', fontSize: '1.3rem', fontWeight: 500, color: 'var(--e-charcoal)' }}>{formatTick(valueMin)}</div>
+                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--e-muted)', fontWeight: 600, marginBottom: 4, fontFamily: 'var(--e-sans)' }}>Từ</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>{formatTick(valueMin)}</div>
                 </div>
-                <div style={{ width: 24, height: 1, background: 'var(--e-beige)', margin: '0 8px', alignSelf: 'center' }} />
+                <div style={{ width: 16, height: 1, background: 'var(--e-beige)', margin: '0 8px', alignSelf: 'center' }} />
                 <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '.14em', color: 'var(--e-light-muted)', fontWeight: 600, marginBottom: 3, fontFamily: 'var(--e-sans)' }}>Đến</div>
-                    <div style={{ fontFamily: 'var(--e-serif)', fontSize: '1.3rem', fontWeight: 500, color: 'var(--e-charcoal)' }}>
+                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--e-muted)', fontWeight: 600, marginBottom: 4, fontFamily: 'var(--e-sans)' }}>Đến</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>
                         {valueMax >= max ? `${formatTick(max)}+` : formatTick(valueMax)}
                     </div>
                 </div>
             </div>
 
             {/* Track */}
-            <div ref={trackRef} style={{ position: 'relative', height: 3, background: 'var(--e-beige)', borderRadius: 2, margin: '0 9px 14px', cursor: 'pointer' }}>
+            <div ref={trackRef} style={{ position: 'relative', height: 4, background: 'var(--e-beige)', borderRadius: 4, margin: '0 8px 24px', cursor: 'pointer' }}>
                 <div style={{
-                    position: 'absolute', height: '100%', background: 'var(--e-gold)', borderRadius: 2,
+                    position: 'absolute', height: '100%', background: 'var(--e-charcoal)', borderRadius: 4,
                     left: `${pct(valueMin)}%`, width: `${pct(valueMax) - pct(valueMin)}%`,
                 }} />
                 {(['min', 'max'] as const).map(side => (
@@ -132,33 +111,28 @@ function DualRange({
                             position: 'absolute', top: '50%',
                             left: `${pct(side === 'min' ? valueMin : valueMax)}%`,
                             transform: 'translate(-50%,-50%)',
-                            width: 18, height: 18, borderRadius: '50%',
-                            background: '#fff', border: '2px solid var(--e-gold)',
+                            width: 20, height: 20, borderRadius: '50%',
+                            background: 'var(--e-white)', border: '2px solid var(--e-charcoal)',
                             cursor: 'grab', touchAction: 'none',
-                            boxShadow: '0 1px 8px rgba(140,110,63,.3)', zIndex: 2,
+                            boxShadow: '0 2px 6px rgba(0,0,0,.15)', zIndex: 2,
                             transition: 'transform .1s',
                         }}
-                        onMouseEnter={e => e.currentTarget.style.transform = 'translate(-50%,-50%) scale(1.2)'}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'translate(-50%,-50%) scale(1.1)'}
                         onMouseLeave={e => e.currentTarget.style.transform = 'translate(-50%,-50%) scale(1)'}
                     />
                 ))}
             </div>
 
-            {/* Tick marks */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
+            {/* Tick snap areas */}
+            <div style={{ position: 'relative', height: 8, margin: '0 8px' }}>
                 {marks.map(m => (
-                    <button key={m} onClick={() => {
-                        const dMin = Math.abs(m - valueMin), dMax = Math.abs(m - valueMax);
-                        if (dMin <= dMax) onChange(Math.min(m, valueMax), valueMax);
-                        else onChange(valueMin, Math.max(m, valueMin));
-                    }} style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '0.62rem', color: (m >= valueMin && m <= valueMax) ? 'var(--e-gold)' : 'var(--e-light-muted)',
-                        fontWeight: (m >= valueMin && m <= valueMax) ? 600 : 400,
-                        fontFamily: 'var(--e-sans)', padding: '4px 0', transition: 'color .2s',
-                    }}>
-                        {formatTick(m)}
-                    </button>
+                    <div key={m} style={{
+                        position: 'absolute', left: `${pct(m)}%`, transform: 'translateX(-50%)',
+                        width: 4, height: 4, borderRadius: '50%',
+                        background: (m >= valueMin && m <= valueMax) ? 'var(--e-charcoal)' : 'var(--e-beige)',
+                        opacity: 0.5,
+                        top: 2
+                    }} />
                 ))}
             </div>
         </div>
@@ -166,46 +140,148 @@ function DualRange({
 }
 
 /* ══════════════════════════════════════════
-   CHIP
+   CHIP (Native Theme)
 ══════════════════════════════════════════ */
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
     return (
         <button onClick={onClick} style={{
-            padding: '7px 15px',
-            borderRadius: 2,
+            padding: '8px 16px',
+            borderRadius: 0,
             border: `1px solid ${active ? 'var(--e-charcoal)' : 'var(--e-beige)'}`,
             background: active ? 'var(--e-charcoal)' : 'transparent',
-            color: active ? 'var(--e-white)' : 'var(--e-muted)',
-            fontSize: '0.72rem', fontWeight: active ? 600 : 400,
-            cursor: 'pointer', fontFamily: 'var(--e-sans)',
-            transition: 'all .18s',
+            color: active ? 'var(--e-white)' : 'var(--e-charcoal)',
+            fontSize: '0.85rem', fontWeight: active ? 500 : 400,
+            cursor: 'pointer',
+            transition: 'all .2s ease',
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            letterSpacing: '.03em',
+            fontFamily: 'var(--e-sans)'
         }}
-            onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--e-charcoal)'; e.currentTarget.style.color = 'var(--e-charcoal)'; } }}
-            onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--e-beige)'; e.currentTarget.style.color = 'var(--e-muted)'; } }}
+            onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--e-gold)'; e.currentTarget.style.color = 'var(--e-gold)'; } }}
+            onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--e-beige)'; e.currentTarget.style.color = 'var(--e-charcoal)'; } }}
         >
-            {active && <Check size={11} strokeWidth={3} />}
+            {active && <Check size={14} strokeWidth={2.5} />}
             {label}
         </button>
     );
 }
 
 /* ══════════════════════════════════════════
-   SECTION TITLE inside drawer
+   ADVANCED FILTER MODAL (shared)
 ══════════════════════════════════════════ */
-function DrawerSection({ title, children }: { title: string; children: React.ReactNode }) {
+function AdvancedModal({
+    advancedRef, onClose, onSearch, onReset,
+    safeTypes, safeBedrooms, safeBathrooms,
+    types, setTypes, bedrooms, setBedrooms, bathrooms, setBathrooms,
+    priceMin, priceMax, setPriceMin, setPriceMax,
+    areaMin, areaMax, setAreaMin, setAreaMax,
+    fmtPrice, fmtArea, toggleArr,
+}: any) {
     return (
-        <div style={{ marginBottom: '2rem' }}>
-            <div style={{
-                fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '.2em',
-                color: 'var(--e-gold)', fontWeight: 700, fontFamily: 'var(--e-sans)',
-                marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-                <span style={{ display: 'block', width: 20, height: 1, background: 'var(--e-gold)' }} />
-                {title}
+        <div style={{
+            position: 'fixed',
+            top: 0, left: 0, width: '100vw', height: '100vh',
+            background: 'rgba(26, 23, 20, 0.4)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem'
+        }} onClick={onClose}>
+            <div
+                ref={advancedRef}
+                onClick={e => e.stopPropagation()}
+                style={{
+                    width: '100%', maxWidth: 1000,
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    background: 'var(--e-white)',
+                    border: '1px solid var(--e-beige)',
+                    boxShadow: '0 30px 60px -12px rgba(0,0,0,0.25)',
+                    padding: '3rem',
+                    position: 'relative',
+                    animation: 'modalScale 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+            >
+                <button
+                    onClick={onClose}
+                    style={{
+                        position: 'absolute', top: '1.5rem', right: '1.5rem',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--e-muted)', transition: 'color 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--e-charcoal)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--e-muted)'}
+                >
+                    <X size={24} />
+                </button>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '4rem' }}>
+                    {/* Left Col */}
+                    <div>
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Loại Bất Động Sản</h4>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: '3rem' }}>
+                            {safeTypes.map((pt: any) => (
+                                <Chip key={pt.value} label={pt.label} active={types.includes(pt.value)} onClick={() => toggleArr(types, pt.value, setTypes)} />
+                            ))}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                            <div>
+                                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Phòng Ngủ</h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                    {safeBedrooms.map((b: string) => (
+                                        <Chip key={b} label={b} active={bedrooms.includes(b)} onClick={() => toggleArr(bedrooms, b, setBedrooms)} />
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Phòng Tắm</h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                    {safeBathrooms.map((b: string) => (
+                                        <Chip key={b} label={b} active={bathrooms.includes(b)} onClick={() => toggleArr(bathrooms, b, setBathrooms)} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Col */}
+                    <div>
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Khoảng Giá (Tỷ VNĐ)</h4>
+                        <DualRange
+                            marks={PRICE_MARKS} valueMin={priceMin} valueMax={priceMax}
+                            formatTick={fmtPrice} onChange={(a: number, b: number) => { setPriceMin(a); setPriceMax(b); }}
+                        />
+                        <div style={{ height: '3rem' }} />
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Diện Tích (m²)</h4>
+                        <DualRange
+                            marks={AREA_MARKS} valueMin={areaMin} valueMax={areaMax}
+                            formatTick={fmtArea} onChange={(a: number, b: number) => { setAreaMin(a); setAreaMax(b); }}
+                        />
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--e-beige)'
+                }}>
+                    <button onClick={onReset} style={{
+                        background: 'transparent', border: 'none', color: 'var(--e-muted)',
+                        fontSize: '0.85rem', fontWeight: 500, cursor: 'pointer',
+                        fontFamily: 'var(--e-sans)', textDecoration: 'underline', textUnderlineOffset: 4
+                    }}>Xóa bộ lọc</button>
+                    <button onClick={onSearch} style={{
+                        padding: '12px 48px', background: 'var(--e-charcoal)', color: 'var(--e-white)',
+                        border: '1px solid var(--e-charcoal)', fontSize: '0.85rem', fontWeight: 600,
+                        cursor: 'pointer', fontFamily: 'var(--e-sans)', letterSpacing: '0.1em', textTransform: 'uppercase',
+                        transition: 'all 0.2s ease'
+                    }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--e-gold)'; e.currentTarget.style.borderColor = 'var(--e-gold)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--e-charcoal)'; e.currentTarget.style.borderColor = 'var(--e-charcoal)'; }}
+                    >Áp dụng bộ lọc</button>
+                </div>
             </div>
-            {children}
         </div>
     );
 }
@@ -213,411 +289,356 @@ function DrawerSection({ title, children }: { title: string; children: React.Rea
 /* ══════════════════════════════════════════
    MAIN COMPONENT
 ══════════════════════════════════════════ */
-export default function SearchSection({ onSearch, loading }: SearchSectionProps) {
-    const [tab, setTab] = useState<Tab>('Mua Bán');
+export default function SearchSection({ onSearch, loading, compact = false }: SearchSectionProps) {
+    const [filterData, setFilterData] = useState<FilterOptionsData | null>(null);
+
+    useEffect(() => {
+        propertyService.getFilterOptions()
+            .then(data => setFilterData(data))
+            .catch(console.error);
+    }, []);
+
+    const safeTypes = filterData?.types || [];
+    const safeBedrooms = filterData?.bedrooms || [];
+    const safeBathrooms = filterData?.bathrooms || [];
+
     const [location, setLocation] = useState('');
     const [types, setTypes] = useState<string[]>([]);
     const [bedrooms, setBedrooms] = useState<string[]>([]);
     const [bathrooms, setBathrooms] = useState<string[]>([]);
-    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
-    const isRent = tab === 'Cho Thuê';
-    const priceMarks = isRent ? PRICE_RENT_MARKS : PRICE_BUY_MARKS;
-    const [priceMin, setPriceMin] = useState(priceMarks[0]);
-    const [priceMax, setPriceMax] = useState(priceMarks[priceMarks.length - 1]);
+    const [priceMin, setPriceMin] = useState(PRICE_MARKS[0]);
+    const [priceMax, setPriceMax] = useState(PRICE_MARKS[PRICE_MARKS.length - 1]);
     const [areaMin, setAreaMin] = useState(AREA_MARKS[0]);
     const [areaMax, setAreaMax] = useState(AREA_MARKS[AREA_MARKS.length - 1]);
 
-    const drawerRef = useRef<HTMLDivElement>(null);
+    const advancedRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Close advanced on outside click
     useEffect(() => {
-        setPriceMin(priceMarks[0]);
-        setPriceMax(priceMarks[priceMarks.length - 1]);
-    }, [tab]);
-
-    // Close drawer on outside click
-    useEffect(() => {
-        if (!drawerOpen) return;
+        if (!isAdvancedOpen) return;
         const fn = (e: MouseEvent) => {
-            if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) setDrawerOpen(false);
+            if (advancedRef.current && !advancedRef.current.contains(e.target as Node)) setIsAdvancedOpen(false);
         };
         const t = setTimeout(() => document.addEventListener('mousedown', fn), 0);
         return () => { clearTimeout(t); document.removeEventListener('mousedown', fn); };
-    }, [drawerOpen]);
-
-    // Close on Escape
-    useEffect(() => {
-        const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false); };
-        document.addEventListener('keydown', fn);
-        return () => document.removeEventListener('keydown', fn);
-    }, []);
+    }, [isAdvancedOpen]);
 
     const toggleArr = (arr: string[], val: string, set: (v: string[]) => void) =>
         set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
 
     const reset = () => {
         setTypes([]); setBedrooms([]); setBathrooms([]);
-        setPriceMin(priceMarks[0]); setPriceMax(priceMarks[priceMarks.length - 1]);
+        setPriceMin(PRICE_MARKS[0]); setPriceMax(PRICE_MARKS[PRICE_MARKS.length - 1]);
         setAreaMin(AREA_MARKS[0]); setAreaMax(AREA_MARKS[AREA_MARKS.length - 1]);
     };
 
     const activeCount =
         types.length + bedrooms.length + bathrooms.length +
-        (priceMin > priceMarks[0] || priceMax < priceMarks[priceMarks.length - 1] ? 1 : 0) +
+        (priceMin > PRICE_MARKS[0] || priceMax < PRICE_MARKS[PRICE_MARKS.length - 1] ? 1 : 0) +
         (areaMin > AREA_MARKS[0] || areaMax < AREA_MARKS[AREA_MARKS.length - 1] ? 1 : 0);
 
+    // ─── EXACT SAME logic as original ───
     const handleSearch = () => {
-        setDrawerOpen(false);
-        onSearch?.({ tab, location, types, priceMin, priceMax, areaMin, areaMax, bedrooms, bathrooms });
+        setIsAdvancedOpen(false);
+        onSearch?.({ tab: "Mua Bán", location, types, priceMin, priceMax, areaMin, areaMax, bedrooms, bathrooms });
     };
 
-    const fmtPrice = (v: number) => isRent ? `${v} tr` : `${v} tỷ`;
+    const fmtPrice = (v: number) => `${v} tỷ`;
     const fmtArea = (v: number) => `${v} m²`;
 
-    /* Active filter summary tags for bar */
-    const summaryTags: string[] = [
-        ...types.map(t => PROPERTY_TYPES.find(p => p.value === t)?.label ?? t),
-        ...(bedrooms.length > 0 ? [`${bedrooms.join('/')} PN`] : []),
-        ...(priceMin > priceMarks[0] || priceMax < priceMarks[priceMarks.length - 1]
-            ? [`${fmtPrice(priceMin)}–${priceMax >= priceMarks[priceMarks.length - 1] ? fmtPrice(priceMax) + '+' : fmtPrice(priceMax)}`] : []),
-        ...(areaMin > AREA_MARKS[0] || areaMax < AREA_MARKS[AREA_MARKS.length - 1]
-            ? [`${fmtArea(areaMin)}–${areaMax >= AREA_MARKS[AREA_MARKS.length - 1] ? fmtArea(areaMax) + '+' : fmtArea(areaMax)}`] : []),
-    ];
+    const typeLabel = types.length === 0 ? 'Tất cả loại BĐS'
+        : types.length === 1 ? safeTypes.find(t => t.value === types[0])?.label
+            : `${types.length} loại BĐS`;
 
-    return (
-        <>
-            <section id="search" style={{
-                background: '#fff',
-                borderTop: '1px solid var(--e-beige)',
-                borderBottom: '1px solid var(--e-beige)',
-                padding: '3.5rem 5vw 4rem',
-            }}>
-                {/* Heading */}
-                <div className="e-reveal" style={{ marginBottom: '2rem' }}>
+    /* ─── Shared modal props ─── */
+    const modalProps = {
+        advancedRef, onClose: () => setIsAdvancedOpen(false),
+        onSearch: handleSearch, onReset: reset,
+        safeTypes, safeBedrooms, safeBathrooms,
+        types, setTypes, bedrooms, setBedrooms, bathrooms, setBathrooms,
+        priceMin, priceMax, setPriceMin, setPriceMax,
+        areaMin, areaMax, setAreaMin, setAreaMax,
+        fmtPrice, fmtArea, toggleArr,
+    };
+
+    /* ════════════════════════════════════════════════
+       COMPACT MODE — search bar only, no heading/section
+       Used when embedded inside listings section
+    ════════════════════════════════════════════════ */
+    if (compact) {
+        return (
+            <>
+                <div style={{ marginBottom: '0.25rem' }}>
                     <div style={{
-                        fontSize: '0.58rem', fontWeight: 600, letterSpacing: '.22em',
-                        textTransform: 'uppercase', color: 'var(--e-gold)',
-                        fontFamily: 'var(--e-sans)', marginBottom: '0.5rem',
-                        display: 'flex', alignItems: 'center', gap: '0.8rem',
+                        background: 'var(--e-white)',
+                        border: '1px solid var(--e-beige)',
+                        display: 'flex',
+                        alignItems: 'stretch',
+                        position: 'relative',
+                        zIndex: 20,
+                        boxShadow: '0 8px 30px -8px rgba(26,23,20,0.07)'
                     }}>
-                        <span style={{ display: 'block', width: '1.5rem', height: '1.5px', background: 'var(--e-gold)' }} />
-                        Tìm Kiếm
-                    </div>
-                    <h2 style={{
-                        fontFamily: 'var(--e-serif)', fontSize: 'clamp(1.5rem,2.5vw,2rem)',
-                        fontWeight: 700, color: 'var(--e-charcoal)', lineHeight: 1.1, margin: 0,
-                    }}>
-                        Tìm Bất Động Sản{' '}
-                        <em style={{ fontStyle: 'italic', fontWeight: 400, opacity: .55 }}>Phù Hợp</em>
-                    </h2>
-                </div>
-
-                <div className="e-reveal">
-                    {/* Tabs */}
-                    <div style={{ display: 'flex', gap: 0, marginBottom: '1.5rem', width: 'fit-content', border: '1px solid rgba(140,110,63,.35)' }}>
-                        {TABS.map(t => (
-                            <button key={t} onClick={() => setTab(t)} style={{
-                                padding: '9px 22px',
-                                background: tab === t ? 'var(--e-charcoal)' : 'transparent',
-                                color: tab === t ? 'var(--e-white)' : 'var(--e-muted)',
-                                border: 'none',
-                                borderRight: t !== 'Thương Mại' ? '1px solid rgba(140,110,63,.25)' : 'none',
-                                cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600,
-                                letterSpacing: '.1em', textTransform: 'uppercase',
-                                fontFamily: 'var(--e-sans)', transition: 'all .2s',
-                            }}>
-                                {t}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Search bar */}
-                    <div style={{ display: 'flex', border: '1px solid var(--e-beige)' }}>
                         {/* Location */}
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0 1.25rem', borderRight: '1px solid var(--e-beige)', minWidth: 0 }}>
-                            <MapPin size={16} style={{ flexShrink: 0, color: 'var(--e-gold)' }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: '0.56rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.14em', color: 'var(--e-light-muted)', marginBottom: 3, fontFamily: 'var(--e-sans)' }}>Địa Điểm</div>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1.4rem', borderRight: '1px solid var(--e-beige)' }}>
+                            <MapPin size={18} color="var(--e-gold)" />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Địa điểm</div>
                                 <input
                                     ref={inputRef}
                                     type="text"
-                                    placeholder="Khu vực, dự án, từ khoá..."
+                                    placeholder="Nhập khu vực, dự án..."
                                     value={location}
                                     onChange={e => setLocation(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
                                     style={{
                                         width: '100%', border: 'none', background: 'transparent',
-                                        outline: 'none', fontSize: '0.88rem', fontWeight: 500,
-                                        color: 'var(--e-charcoal)', fontFamily: 'var(--e-sans)',
-                                        padding: '12px 0',
+                                        outline: 'none', fontSize: '0.95rem', fontWeight: 500,
+                                        color: 'var(--e-charcoal)', padding: 0, fontFamily: 'var(--e-serif)'
                                     }}
                                 />
                             </div>
                             {location && (
-                                <button onClick={() => setLocation('')} style={{ background: 'var(--e-cream)', border: 'none', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--e-muted)', fontSize: '0.7rem', flexShrink: 0 }}>
-                                    ✕
+                                <button onClick={() => setLocation('')} style={{ background: 'var(--e-cream)', border: 'none', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--e-muted)' }}>
+                                    <X size={11} />
                                 </button>
                             )}
                         </div>
 
-                        {/* Active summary chips */}
-                        {summaryTags.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRight: '1px solid var(--e-beige)', overflow: 'hidden', maxWidth: 280 }}>
-                                {summaryTags.slice(0, 3).map((tag, i) => (
-                                    <span key={i} style={{ padding: '4px 10px', background: 'var(--e-cream)', border: '1px solid var(--e-beige)', fontSize: '0.68rem', color: 'var(--e-charcoal)', fontWeight: 500, whiteSpace: 'nowrap', fontFamily: 'var(--e-sans)' }}>
-                                        {tag}
-                                    </span>
-                                ))}
-                                {summaryTags.length > 3 && (
-                                    <span style={{ fontSize: '0.68rem', color: 'var(--e-muted)', whiteSpace: 'nowrap', fontFamily: 'var(--e-sans)' }}>+{summaryTags.length - 3}</span>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Filter button */}
-                        <button
-                            onClick={() => setDrawerOpen(true)}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '0 22px', background: 'transparent',
-                                border: 'none', borderRight: '1px solid var(--e-beige)',
-                                cursor: 'pointer', color: 'var(--e-charcoal)',
-                                fontFamily: 'var(--e-sans)', fontSize: '0.72rem', fontWeight: 600,
-                                letterSpacing: '.1em', textTransform: 'uppercase',
-                                transition: 'background .15s', position: 'relative', whiteSpace: 'nowrap',
-                            }}
+                        {/* Type */}
+                        <div
+                            onClick={() => setIsAdvancedOpen(true)}
+                            style={{ flex: 0.55, display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.4rem', cursor: 'pointer', borderRight: '1px solid var(--e-beige)', transition: 'background 0.2s' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--e-cream)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'var(--e-white)'}
                         >
-                            <SlidersHorizontal size={14} />
+                            <Building2 size={18} color="var(--e-gold)" />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Loại BĐS</div>
+                                <div style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>{typeLabel}</div>
+                            </div>
+                        </div>
+
+                        {/* Advanced toggle */}
+                        <button
+                            onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 7,
+                                padding: '0 1.6rem', background: 'var(--e-cream)',
+                                border: 'none', cursor: 'pointer', color: 'var(--e-charcoal)',
+                                fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                                fontFamily: 'var(--e-sans)', transition: 'background 0.2s',
+                                position: 'relative', whiteSpace: 'nowrap'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--e-beige)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'var(--e-cream)'}
+                        >
+                            <SlidersHorizontal size={16} color="var(--e-gold)" />
                             Bộ Lọc
                             {activeCount > 0 && (
                                 <span style={{
-                                    position: 'absolute', top: 10, right: 8,
-                                    width: 16, height: 16, borderRadius: '50%',
-                                    background: 'var(--e-gold)', color: '#fff',
-                                    fontSize: '0.55rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontFamily: 'var(--e-sans)',
+                                    marginLeft: 3, width: 18, height: 18, borderRadius: '50%',
+                                    background: 'var(--e-gold)', color: 'var(--e-charcoal)',
+                                    fontSize: '0.65rem', fontWeight: 700,
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                                 }}>{activeCount}</span>
                             )}
                         </button>
 
-                        {/* Search btn */}
+                        {/* Search */}
                         <button
                             onClick={handleSearch}
                             disabled={loading}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '0 32px', background: 'var(--e-charcoal)',
-                                color: 'var(--e-white)', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                                fontFamily: 'var(--e-sans)', fontSize: '0.72rem', fontWeight: 700,
-                                letterSpacing: '.14em', textTransform: 'uppercase',
-                                transition: 'background .2s', opacity: loading ? .7 : 1,
+                                display: 'flex', alignItems: 'center', gap: 8, padding: '0 2rem',
+                                background: 'var(--e-charcoal)', color: 'var(--e-white)', border: 'none',
+                                cursor: loading ? 'not-allowed' : 'pointer',
+                                fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                                fontFamily: 'var(--e-sans)', transition: 'background 0.2s', opacity: loading ? .8 : 1,
+                                whiteSpace: 'nowrap'
                             }}
                             onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--e-gold)'; }}
-                            onMouseLeave={e => e.currentTarget.style.background = 'var(--e-charcoal)'}
+                            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--e-charcoal)'; }}
                         >
-                            {loading
-                                ? <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'ss-spin .8s linear infinite' }} />
-                                : <Search size={14} />
-                            }
-                            Tìm
+                            {loading ? <span className="spinner" /> : <Search size={16} />}
+                            Tìm Kiếm
                         </button>
                     </div>
-
-                    {/* Bottom quick tags */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: .6 }}>
-                            <Sparkles size={11} style={{ color: 'var(--e-gold)' }} />
-                            <span style={{ fontSize: '0.6rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.16em', color: 'var(--e-muted)', fontFamily: 'var(--e-sans)' }}>Đề xuất</span>
-                        </div>
-                        {QUICK_TAGS.map(tag => (
-                            <button key={tag} onClick={() => { setLocation(tag); handleSearch(); }} style={{
-                                background: 'none', border: 'none', padding: 0,
-                                fontSize: '0.74rem', color: 'var(--e-muted)',
-                                textDecoration: 'underline', textUnderlineOffset: 3,
-                                cursor: 'pointer', fontFamily: 'var(--e-sans)',
-                                transition: 'color .2s',
-                            }}
-                                onMouseEnter={e => e.currentTarget.style.color = 'var(--e-gold)'}
-                                onMouseLeave={e => e.currentTarget.style.color = 'var(--e-muted)'}
-                            >{tag}</button>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ══════════════════════════════════════════
-                FILTER DRAWER (bottom sheet)
-            ══════════════════════════════════════════ */}
-
-            {/* Backdrop */}
-            <div style={{
-                position: 'fixed', inset: 0, zIndex: 200,
-                background: 'rgba(26,23,20,.45)',
-                opacity: drawerOpen ? 1 : 0,
-                pointerEvents: drawerOpen ? 'auto' : 'none',
-                transition: 'opacity .3s',
-                backdropFilter: drawerOpen ? 'blur(3px)' : 'none',
-            }} />
-
-            {/* Drawer panel */}
-            <div ref={drawerRef} style={{
-                position: 'fixed', bottom: 0, left: 0, right: 0,
-                zIndex: 201,
-                background: 'var(--e-white)',
-                borderTop: '1px solid var(--e-beige)',
-                boxShadow: '0 -24px 80px rgba(26,23,20,.18)',
-                transform: drawerOpen ? 'translateY(0)' : 'translateY(100%)',
-                transition: 'transform .38s cubic-bezier(0.22,1,0.36,1)',
-                maxHeight: '88vh',
-                display: 'flex', flexDirection: 'column',
-                borderRadius: '16px 16px 0 0',
-            }}>
-                {/* Drag handle */}
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 0' }}>
-                    <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--e-beige)' }} />
                 </div>
 
-                {/* Drawer header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 2rem 16px', borderBottom: '1px solid var(--e-beige)', flexShrink: 0 }}>
-                    <div>
-                        <div style={{ fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '.2em', color: 'var(--e-gold)', fontWeight: 700, fontFamily: 'var(--e-sans)', marginBottom: 3 }}>
-                            Bộ Lọc Nâng Cao
-                        </div>
-                        <h3 style={{ fontFamily: 'var(--e-serif)', fontSize: '1.2rem', fontWeight: 500, color: 'var(--e-charcoal)', margin: 0 }}>
-                            Tinh Chỉnh Kết Quả
-                        </h3>
+                {isAdvancedOpen && <AdvancedModal {...modalProps} />}
+
+                <style>{`
+                    @keyframes modalScale { from { opacity:0;transform:scale(0.95); } to { opacity:1;transform:scale(1); } }
+                    .spinner { width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:ss-spin .8s linear infinite; }
+                    @keyframes ss-spin { to { transform: rotate(360deg); } }
+                `}</style>
+            </>
+        );
+    }
+
+    /* ════════════════════════════════════════════════
+       FULL MODE — original layout with heading
+    ════════════════════════════════════════════════ */
+    return (
+        <section style={{
+            position: 'relative',
+            background: 'var(--e-white)',
+            padding: '4rem 5vw 5rem',
+            borderBottom: '1px solid var(--e-beige)'
+        }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+
+                {/* Heading */}
+                <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+                    <div style={{
+                        fontSize: '0.6rem', fontWeight: 600, letterSpacing: '.22em',
+                        textTransform: 'uppercase', color: 'var(--e-gold)',
+                        fontFamily: 'var(--e-sans)', marginBottom: '1rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem',
+                    }}>
+                        <span style={{ display: 'block', width: '2rem', height: '1.5px', background: 'var(--e-gold)' }} />
+                        Bộ Lọc
+                        <span style={{ display: 'block', width: '2rem', height: '1.5px', background: 'var(--e-gold)' }} />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {activeCount > 0 && (
-                            <button onClick={reset} style={{
-                                background: 'none', border: '1px solid var(--e-beige)', padding: '6px 14px',
-                                fontSize: '0.68rem', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase',
-                                color: 'var(--e-muted)', cursor: 'pointer', fontFamily: 'var(--e-sans)',
-                                transition: 'all .15s',
-                            }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--e-charcoal)'; e.currentTarget.style.color = 'var(--e-charcoal)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--e-beige)'; e.currentTarget.style.color = 'var(--e-muted)'; }}
-                            >
-                                Đặt Lại {activeCount > 0 ? `(${activeCount})` : ''}
+
+                    <h2 style={{
+                        fontSize: '2.5rem', fontWeight: 700, color: 'var(--e-charcoal)',
+                        fontFamily: 'var(--e-serif)', margin: '0 0 1rem 0'
+                    }}>
+                        Tìm Kiếm Bất Động Sản Hoàn Mỹ
+                    </h2>
+                    <p style={{ color: 'var(--e-muted)', fontSize: '1.1rem', maxWidth: 600, margin: '0 auto', fontFamily: 'var(--e-sans)' }}>
+                        Khám phá bộ sưu tập bất động sản cao cấp, được tinh tuyển dành riêng cho bạn.
+                    </p>
+                </div>
+
+                {/* Primary Search Bar — exact same as original */}
+                <div style={{
+                    background: 'var(--e-white)',
+                    border: '1px solid var(--e-beige)',
+                    display: 'flex',
+                    alignItems: 'stretch',
+                    position: 'relative',
+                    zIndex: 20,
+                    boxShadow: '0 20px 40px -10px rgba(26, 23, 20, 0.05)'
+                }}>
+
+                    {/* Location Input */}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.5rem', borderRight: '1px solid var(--e-beige)' }}>
+                        <MapPin size={20} color="var(--e-gold)" />
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Địa điểm</div>
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                placeholder="Nhập khu vực, dự án..."
+                                value={location}
+                                onChange={e => setLocation(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                                style={{
+                                    width: '100%', border: 'none', background: 'transparent',
+                                    outline: 'none', fontSize: '1.1rem', fontWeight: 500,
+                                    color: 'var(--e-charcoal)', padding: 0, fontFamily: 'var(--e-serif)'
+                                }}
+                            />
+                        </div>
+                        {location && (
+                            <button onClick={() => setLocation('')} style={{ background: 'var(--e-cream)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--e-muted)' }}>
+                                <X size={12} />
                             </button>
                         )}
-                        <button onClick={() => setDrawerOpen(false)} style={{ background: 'var(--e-cream)', border: '1px solid var(--e-beige)', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', color: 'var(--e-charcoal)' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--e-beige)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'var(--e-cream)'}
-                        >
-                            <X size={16} />
-                        </button>
                     </div>
-                </div>
 
-                {/* Drawer body — scrollable */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '2rem 2rem 1rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 3rem' }}>
-
-                        {/* Left column */}
-                        <div>
-                            {/* Property type */}
-                            <DrawerSection title="Loại Bất Động Sản">
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                    {PROPERTY_TYPES.map(pt => (
-                                        <Chip
-                                            key={pt.value}
-                                            label={pt.label}
-                                            active={types.includes(pt.value)}
-                                            onClick={() => toggleArr(types, pt.value, setTypes)}
-                                        />
-                                    ))}
-                                </div>
-                            </DrawerSection>
-
-                            {/* Bedrooms */}
-                            <DrawerSection title="Số Phòng Ngủ">
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                    {BEDROOM_OPTS.map(b => (
-                                        <Chip
-                                            key={b}
-                                            label={b}
-                                            active={bedrooms.includes(b)}
-                                            onClick={() => toggleArr(bedrooms, b, setBedrooms)}
-                                        />
-                                    ))}
-                                </div>
-                            </DrawerSection>
-
-                            {/* Bathrooms */}
-                            <DrawerSection title="Số Phòng Tắm">
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                    {BATHROOM_OPTS.map(b => (
-                                        <Chip
-                                            key={b}
-                                            label={b}
-                                            active={bathrooms.includes(b)}
-                                            onClick={() => toggleArr(bathrooms, b, setBathrooms)}
-                                        />
-                                    ))}
-                                </div>
-                            </DrawerSection>
-                        </div>
-
-                        {/* Right column */}
-                        <div>
-                            {/* Price range */}
-                            <DrawerSection title={isRent ? 'Giá Thuê (Triệu/Tháng)' : 'Khoảng Giá (Tỷ Đồng)'}>
-                                <DualRange
-                                    marks={priceMarks}
-                                    valueMin={priceMin}
-                                    valueMax={priceMax}
-                                    formatTick={fmtPrice}
-                                    onChange={(a, b) => { setPriceMin(a); setPriceMax(b); }}
-                                />
-                            </DrawerSection>
-
-                            {/* Area range */}
-                            <DrawerSection title="Diện Tích (m²)">
-                                <DualRange
-                                    marks={AREA_MARKS}
-                                    valueMin={areaMin}
-                                    valueMax={areaMax}
-                                    formatTick={fmtArea}
-                                    onChange={(a, b) => { setAreaMin(a); setAreaMax(b); }}
-                                />
-                            </DrawerSection>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Drawer footer */}
-                <div style={{ padding: '1.2rem 2rem', borderTop: '1px solid var(--e-beige)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--e-white)' }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--e-muted)', fontFamily: 'var(--e-sans)' }}>
-                        {activeCount > 0
-                            ? <><span style={{ fontWeight: 700, color: 'var(--e-charcoal)' }}>{activeCount}</span> bộ lọc đang áp dụng</>
-                            : 'Chưa có bộ lọc nào'}
-                    </div>
-                    <button onClick={handleSearch} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 9,
-                        padding: '13px 32px', background: 'var(--e-charcoal)', color: '#fff',
-                        border: '1px solid var(--e-charcoal)', cursor: 'pointer',
-                        fontFamily: 'var(--e-sans)', fontSize: '0.72rem', fontWeight: 700,
-                        letterSpacing: '.14em', textTransform: 'uppercase', transition: 'all .2s',
-                    }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--e-gold)'; e.currentTarget.style.borderColor = 'var(--e-gold)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--e-charcoal)'; e.currentTarget.style.borderColor = 'var(--e-charcoal)'; }}
+                    {/* Property Type Toggle */}
+                    <div
+                        onClick={() => setIsAdvancedOpen(true)}
+                        style={{
+                            flex: 0.6, display: 'flex', alignItems: 'center', gap: '1rem',
+                            padding: '1rem 1.5rem', cursor: 'pointer', borderRight: '1px solid var(--e-beige)',
+                            transition: 'background 0.2s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--e-cream)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'var(--e-white)'}
                     >
-                        <Search size={14} /> Áp Dụng & Tìm Kiếm
+                        <Building2 size={20} color="var(--e-gold)" />
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Loại BĐS</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 500, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>
+                                {typeLabel}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Advanced Filters Toggle */}
+                    <button
+                        onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '0 2rem', background: 'var(--e-cream)',
+                            border: 'none', cursor: 'pointer', color: 'var(--e-charcoal)',
+                            fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+                            fontFamily: 'var(--e-sans)', transition: 'background 0.2s',
+                            position: 'relative'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--e-beige)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'var(--e-cream)'}
+                    >
+                        <SlidersHorizontal size={18} color="var(--e-gold)" />
+                        Bộ Lọc Nâng Cao
+                        {activeCount > 0 && (
+                            <span style={{
+                                position: 'absolute', top: 12, right: 15,
+                                width: 18, height: 18, borderRadius: '50%',
+                                background: 'var(--e-auth-primary)', color: 'var(--e-white)',
+                                fontSize: '0.7rem', fontWeight: 600,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>{activeCount}</span>
+                        )}
+                    </button>
+
+                    {/* Search Button */}
+                    <button
+                        onClick={handleSearch}
+                        disabled={loading}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '0 3rem', background: 'var(--e-charcoal)',
+                            color: 'var(--e-white)', border: 'none',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+                            fontFamily: 'var(--e-sans)', transition: 'background 0.2s', opacity: loading ? .8 : 1
+                        }}
+                        onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--e-gold)'; }}
+                        onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--e-charcoal)'; }}
+                    >
+                        {loading ? <span className="spinner" /> : <Search size={18} />}
+                        Tìm Kiếm
                     </button>
                 </div>
+
+                {isAdvancedOpen && <AdvancedModal {...modalProps} />}
             </div>
 
             <style>{`
+                @keyframes modalScale {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+                .spinner {
+                    width: 16px; height: 16px;
+                    border: 2px solid rgba(255,255,255,.3);
+                    border-top-color: #fff;
+                    border-radius: 50%;
+                    animation: ss-spin .8s linear infinite;
+                }
                 @keyframes ss-spin { to { transform: rotate(360deg); } }
                 @media (max-width: 768px) {
-                    .ss-drawer-grid { grid-template-columns: 1fr !important; }
+                    /* Add responsive layout if needed */
                 }
             `}</style>
-        </>
+        </section>
     );
 }
