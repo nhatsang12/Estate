@@ -681,6 +681,7 @@ const FORM_CSS = `
   .pf-page {
     font-family: var(--e-sans);
     -webkit-font-smoothing: antialiased;
+
   }
 
   /* ── Header ── */
@@ -713,10 +714,17 @@ const FORM_CSS = `
   .pf-progress-bar   { height: 100%; background: linear-gradient(90deg, var(--e-gold), var(--e-gold-light)); transition: width 0.5s cubic-bezier(0.34,1.56,0.64,1); }
 
   /* ── Layout ── */
+  
   .pf-layout {
     display: grid; grid-template-columns: 240px 1fr;
     gap: 1.5rem; align-items: flex-start;
-  }
+    overflow: clip;
+}
+ 
+.pf-sidebar {
+  min-width: 0;
+  min-height: 1px;
+}
 
   /* ── Sidebar ── */
   .pf-sidebar-sticky {
@@ -803,6 +811,7 @@ const FORM_CSS = `
     border-radius: 16px;
     padding: 2.2rem 2.5rem;
     box-shadow: 0 4px 24px rgba(0,0,0,0.05);
+   
   }
 
   .pf-section-head {
@@ -812,8 +821,9 @@ const FORM_CSS = `
   }
   .pf-big-num {
     font-family: var(--e-serif); font-size: 3.5rem; font-weight: 200;
-    color: rgba(154,124,69,0.2); line-height: 1; letter-spacing: -0.04em;
-    user-select: none; margin-top: -4px; flex-shrink: 0;
+    color: rgba(154,124,69,0.2); line-height: 1; letter-spacing: 0;
+    user-select: none; margin-top: 0px; flex-shrink: 0;
+    min-width: 72px;
   }
   .pf-section-sub { font-size: 0.78rem; color: var(--e-light-muted); margin: 4px 0 0; }
 

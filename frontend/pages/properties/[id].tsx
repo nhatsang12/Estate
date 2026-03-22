@@ -86,14 +86,49 @@ const GLOBAL_STYLE = `
   .e-stats-bar-label { font-size:0.57rem; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--e-muted); opacity:0.65; }
   .e-stats-bar-value { font-family:var(--e-serif); font-size:1rem; font-weight:500; color:var(--e-charcoal); }
   .e-stats-bar-gold { color:var(--e-gold) !important; }
+
+  /* Thumbnail strip — ẩn scrollbar */
+  .e-thumb-strip {
+    display:flex; gap:6px; overflow-x:auto; max-width:340px;
+    scrollbar-width:none; -ms-overflow-style:none;
+  }
+  .e-thumb-strip::-webkit-scrollbar { display:none; }
+
+  /* ── Crossfade + Ken Burns slideshow ── */
+  .e-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    /* fade duration */
+    transition: opacity 1.4s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
+  }
+  /* Ken Burns: zoom in slowly while visible */
+  .e-slide img {
+    transition: transform 4s ease-out;
+    transform: scale(1.08);
+  }
+  .e-slide.active {
+    opacity: 1;
+  }
+  .e-slide.active img {
+    transform: scale(1);
+  }
+  /* outgoing slide: keep fading out smoothly */
+  .e-slide.leaving {
+    opacity: 0;
+    transition: opacity 1.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 `;
 
 export default function PropertyDetailPage({ property, errorMessage, recommendations }: PropertyDetailPageProps) {
   const router = useRouter();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [prevImageIndex, setPrevImageIndex] = useState<number | null>(null);
   const [contactSent, setContactSent] = useState(false);
   const reveals = useRef<(HTMLDivElement | null)[]>([]);
 
+  // Scroll reveal
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => entries.forEach((e) => e.isIntersecting && e.target.classList.add("visible")),
@@ -102,6 +137,33 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
     reveals.current.forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
   }, []);
+
+  const images = property?.images?.length ? property.images : [];
+
+  // Auto-advance + track previous for "leaving" class
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveImageIndex((prev) => {
+        setPrevImageIndex(prev);
+        return (prev + 1) % images.length;
+      });
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [images.length]);
+
+  // Clear "leaving" state after transition ends (1.4s)
+  useEffect(() => {
+    if (prevImageIndex === null) return;
+    const t = setTimeout(() => setPrevImageIndex(null), 1500);
+    return () => clearTimeout(t);
+  }, [prevImageIndex]);
+
+  const handleSetIndex = (i: number) => {
+    if (i === activeImageIndex) return;
+    setPrevImageIndex(activeImageIndex);
+    setActiveImageIndex(i);
+  };
 
   const handlePostClick = () => {
     const token = typeof window !== "undefined" ? window.localStorage.getItem("estate_manager_token") : null;
@@ -126,7 +188,6 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
     );
   }
 
-  const images = property.images?.length ? property.images : [];
   const owner = isPopulatedOwner(property.ownerId) ? property.ownerId : null;
   const pricePerSqm = property.area && property.area > 0 ? Math.round(property.price / property.area) : null;
   const coords = property.location?.coordinates ?? [];
@@ -147,16 +208,35 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
         <LuxuryNavbar onPostClick={handlePostClick} />
 
         {/* 01 HERO */}
-        <section style={{ position: "relative", height: "100vh", minHeight: "620px" }}>
+        <section style={{ position: "relative", height: "100vh", minHeight: "620px", overflow: "hidden" }}>
+
+          {/* Crossfade + Ken Burns image stack */}
           <div style={{ position: "absolute", inset: 0 }}>
             {images.length > 0 ? (
-              <Image src={images[activeImageIndex]} alt={property.title} fill priority unoptimized style={{ objectFit: "cover" }} />
+              images.map((src: string, i: number) => {
+                const isActive = i === activeImageIndex;
+                const isLeaving = i === prevImageIndex;
+                const cls = ["e-slide", isActive ? "active" : "", isLeaving ? "leaving" : ""].filter(Boolean).join(" ");
+                return (
+                  <div key={i} className={cls}>
+                    <Image
+                      src={src}
+                      alt={property.title}
+                      fill
+                      priority={i === 0}
+                      unoptimized
+                      style={{ objectFit: "cover" }}
+                    />
+                  </div>
+                );
+              })
             ) : (
               <div style={{ width: "100%", height: "100%", background: "var(--e-charcoal)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Building2 size={80} color="var(--e-gold)" opacity={0.2} />
               </div>
             )}
           </div>
+
           <div className="e-hero-overlay" style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 
           {/* Hero text */}
@@ -193,12 +273,26 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                 </div>
               ))}
             </div>
+
+            {/* Thumbnail strip — scrollbar ẩn */}
             {images.length > 1 && (
-              <div style={{ display: "flex", gap: "6px", overflowX: "auto", maxWidth: "340px" }}>
+              <div className="e-thumb-strip">
                 {images.map((img: string, i: number) => (
-                  <button key={i} onClick={() => setActiveImageIndex(i)} style={{ position: "relative", width: "64px", height: "42px", flexShrink: 0, padding: 0, borderRadius: "3px", cursor: "pointer", overflow: "hidden", border: `2px solid ${activeImageIndex === i ? "var(--e-gold)" : "rgba(255,255,255,0.2)"}`, outline: "none", background: "none", boxShadow: "none" }}>
+                  <button
+                    key={i}
+                    onClick={() => handleSetIndex(i)}
+                    style={{
+                      position: "relative", width: "64px", height: "42px", flexShrink: 0,
+                      padding: 0, borderRadius: "3px", cursor: "pointer", overflow: "hidden",
+                      border: `2px solid ${activeImageIndex === i ? "var(--e-gold)" : "rgba(255,255,255,0.2)"}`,
+                      outline: "none", background: "none", boxShadow: "none",
+                      transition: "border-color 0.4s",
+                    }}
+                  >
                     <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    {activeImageIndex !== i && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />}
+                    {activeImageIndex !== i && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", transition: "background 0.4s" }} />
+                    )}
                   </button>
                 ))}
               </div>
@@ -234,7 +328,7 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                 <p className="e-prose">{property.description || "Bất động sản cao cấp này hiện đại, sang trọng và đầy đủ tiện nghi, tọa lạc tại một trong những vị trí đắc địa nhất. Với không gian rộng rãi, thiết kế tinh tế và tầm nhìn tuyệt đẹp, đây chắc chắn là sự lựa chọn hoàn hảo cho phong cách sống thượng lưu."}</p>
               </div>
 
-              {/* Amenities with heading */}
+              {/* Amenities */}
               <div ref={(el) => { reveals.current[1] = el; }} className="e-reveal e-detail-section">
                 <div className="e-category-tag" style={{ marginBottom: "0.75rem" }}>Tiện Ích</div>
                 <h2 className="e-h2">Tiện Nghi Nổi Bật</h2>
@@ -250,7 +344,7 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                 </div>
               </div>
 
-              {/* Map — 240px height */}
+              {/* Map */}
               <div ref={(el) => { reveals.current[2] = el; }} className="e-reveal e-detail-section">
                 <div className="e-category-tag" style={{ marginBottom: "0.75rem" }}>Vị Trí</div>
                 <h2 className="e-h2">Vị Trí Đắc Địa</h2>
@@ -269,7 +363,7 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                 )}
               </div>
 
-              {/* Legal — Vietnamese only, 4 cells */}
+              {/* Legal */}
               <div ref={(el) => { reveals.current[3] = el; }} className="e-reveal e-detail-section" style={{ borderBottom: "none" }}>
                 <div className="e-category-tag" style={{ marginBottom: "0.75rem" }}>Pháp Lý</div>
                 <h2 className="e-h2">Thông Tin Pháp Lý</h2>

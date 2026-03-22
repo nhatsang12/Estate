@@ -58,7 +58,13 @@ function prettyJson(value: unknown) {
   if (!value) return "Không có dữ liệu";
   try { return JSON.stringify(value, null, 2); } catch { return "Không thể hiển thị dữ liệu"; }
 }
-const fmtVND = (n: number) => formatVNDShort(n);
+const fmtVND = (n: number) =>
+  new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(n));
 function isImageUrl(url: string) {
   return /\/image\/upload\//.test(url) || /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(url);
 }
@@ -423,9 +429,6 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   PROPERTY MODERATION ROW
-═══════════════════════════════════════════════════════════ */
 function PropertyModerationRow({ property, onApprove, onReject, isLoading }: {
   property: Property; onApprove: () => Promise<void>;
   onReject: (reason: string) => Promise<void>; isLoading: boolean;
@@ -441,135 +444,260 @@ function PropertyModerationRow({ property, onApprove, onReject, isLoading }: {
   };
 
   return (
-    <div className="e-glass-card" style={{ background: "rgba(255,255,255,0.90)", backdropFilter: "blur(8px)", overflow: "hidden" }}>
-      {/* Main row */}
-      <div style={{ padding: "1.4rem 1.8rem", display: "flex", alignItems: "flex-start", gap: "1.2rem" }}>
-        <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-          {(property.images?.slice(0, 2) || []).map((img, i) => (
-            <div key={i} style={{ width: i === 0 ? 88 : 56, height: 66, borderRadius: "8px", overflow: "hidden", background: "var(--e-beige)", flexShrink: 0 }}>
-              <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    <div style={{
+      background: "#fff", border: "1px solid rgba(154,124,69,0.15)", borderRadius: "18px",
+      overflow: "hidden", position: "relative",
+      transition: "box-shadow 0.35s cubic-bezier(0.16,1,0.3,1), border-color 0.3s",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+    }}
+      onMouseEnter={e => {
+        e.currentTarget.style.boxShadow = "0 20px 56px rgba(154,124,69,0.11)";
+        e.currentTarget.style.borderColor = "rgba(201,169,110,0.35)";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)";
+        e.currentTarget.style.borderColor = "rgba(154,124,69,0.15)";
+      }}>
+
+      {/* Gold accent bar on top */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: "linear-gradient(90deg, var(--e-gold), transparent 70%)",
+      }} />
+
+      {/* ── Main Grid ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr auto", minHeight: 168 }}>
+
+        {/* Thumbnail */}
+        <div style={{ position: "relative", overflow: "hidden", background: "#f0ede8" }}>
+          {property.images?.[0] ? (
+            <img src={property.images[0]} alt="" style={{
+              width: "100%", height: "100%", objectFit: "cover",
+              display: "block", transition: "transform 0.55s ease",
+            }} />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+              <Home size={28} color="var(--e-light-muted)" />
             </div>
-          ))}
-          {!property.images?.length && (
-            <div style={{ width: 88, height: 66, borderRadius: "8px", background: "var(--e-beige)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Home size={20} color="var(--e-light-muted)" />
-            </div>
+          )}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(26,24,20,0.35) 0%, transparent 55%)" }} />
+          <span style={{
+            position: "absolute", top: 12, left: 12,
+            fontSize: "0.5rem", letterSpacing: "0.18em", textTransform: "uppercase",
+            fontWeight: 700, color: "#fff", fontFamily: "var(--e-sans)",
+            background: "rgba(26,24,20,0.55)", backdropFilter: "blur(6px)",
+            padding: "4px 10px", borderRadius: "6px",
+          }}>{property.type}</span>
+          {(property.images?.length ?? 0) > 1 && (
+            <span style={{
+              position: "absolute", bottom: 10, left: 12,
+              fontSize: "0.58rem", letterSpacing: "0.1em", textTransform: "uppercase",
+              fontWeight: 700, color: "rgba(255,255,255,0.8)", fontFamily: "var(--e-sans)",
+            }}>{property.images!.length} ảnh</span>
           )}
         </div>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h3 style={{ fontFamily: "var(--e-sans)", fontSize: "1rem", fontWeight: 700, color: "var(--e-charcoal)", marginBottom: 3, lineHeight: 1.3 }}>{property.title}</h3>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.74rem", color: "var(--e-light-muted)", marginBottom: 8, fontFamily: "var(--e-sans)" }}>
-            <MapPin size={12} color="var(--e-gold)" /> {property.address}
-          </div>
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            {[
-              { icon: <DollarSign size={12} />, text: fmtVND(property.price) },
-              { icon: <Ruler size={12} />, text: `${property.area} m²` },
-              { icon: <BedDouble size={12} />, text: `${property.bedrooms ?? 0} phòng ngủ` },
-              { icon: <FileText size={12} />, text: property.type },
-            ].map(({ icon, text }) => (
-              <span key={text} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.72rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>
-                <span style={{ color: "var(--e-gold)" }}>{icon}</span>{text}
+        {/* Body */}
+        <div style={{ padding: "1.4rem 1.6rem", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "0.7rem" }}>
+          <div>
+            {/* Status + Price */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                fontSize: "0.54rem", letterSpacing: "0.14em", textTransform: "uppercase",
+                fontWeight: 700, padding: "4px 11px", borderRadius: "20px",
+                color: "var(--e-gold)", background: "rgba(212,175,55,0.08)",
+                border: "1px solid rgba(212,175,55,0.3)", fontFamily: "var(--e-sans)",
+              }}>
+                <Clock size={8} /> Chờ duyệt
               </span>
-            ))}
+              <span style={{
+                fontFamily: "var(--e-serif)", fontSize: "1.05rem", fontWeight: 600,
+                color: "var(--e-charcoal)", letterSpacing: "-0.01em", whiteSpace: "nowrap",
+              }}>{fmtVND(property.price)}</span>
+            </div>
+
+            <h3 style={{
+              fontFamily: "var(--e-sans)", fontSize: "1rem", fontWeight: 700,
+              color: "var(--e-charcoal)", lineHeight: 1.35, marginTop: "0.55rem", marginBottom: 0,
+            }}>{property.title}</h3>
+            <p style={{
+              display: "flex", alignItems: "center", gap: 5,
+              fontSize: "0.73rem", color: "var(--e-muted)",
+              marginTop: "0.3rem", fontFamily: "var(--e-sans)",
+            }}>
+              <MapPin size={12} color="var(--e-gold)" style={{ flexShrink: 0 }} />
+              {property.address}
+            </p>
+          </div>
+
+          <div>
+            {/* Owner mini */}
+            {owner && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "0.55rem 0.9rem", marginBottom: "0.8rem",
+                background: "rgba(154,124,69,0.04)", border: "1px solid rgba(154,124,69,0.1)",
+                borderRadius: "10px",
+              }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: "8px",
+                  background: "linear-gradient(135deg, var(--e-gold), var(--e-gold-light))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "0.75rem", fontWeight: 700, color: "#fff", flexShrink: 0,
+                  fontFamily: "var(--e-serif)",
+                }}>
+                  {owner.name?.charAt(0)?.toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>{owner.name}</div>
+                  <div style={{ fontSize: "0.67rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>{owner.email}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Meta chips */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap",
+              paddingTop: "0.8rem", borderTop: "1px solid rgba(154,124,69,0.08)",
+            }}>
+              {[
+                `${property.area} m²`,
+                `${property.bedrooms ?? 0} phòng ngủ`,
+                `${property.bathrooms ?? 0} WC`,
+                property.furnished ? "Đầy đủ nội thất" : "Chưa có nội thất",
+              ].map(text => (
+                <span key={text} style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  fontSize: "0.71rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)",
+                }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--e-gold)", flexShrink: 0 }} />
+                  {text}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
-          <button onClick={() => setExpanded(v => !v)}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", border: "1px solid rgba(154,124,69,0.2)", background: expanded ? "rgba(154,124,69,0.06)" : "transparent", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--e-charcoal)", transition: "all 0.2s" }}>
-            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Chi Tiết
-          </button>
-          <button onClick={() => setRejecting(v => !v)} disabled={isLoading}
-            style={{ padding: "7px 13px", border: "1px solid rgba(184,74,42,0.25)", background: rejecting ? "rgba(184,74,42,0.08)" : "transparent", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#b84a2a", transition: "all 0.2s" }}>
-            Từ Chối
-          </button>
-          <button onClick={onApprove} disabled={isLoading}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 15px", background: "#2E8B75", color: "#fff", border: "none", borderRadius: "8px", cursor: isLoading ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: isLoading ? 0.6 : 1, transition: "all 0.2s" }}
-            onMouseEnter={e => { if (!isLoading) e.currentTarget.style.background = "#1e6b57"; }}
-            onMouseLeave={e => { if (!isLoading) e.currentTarget.style.background = "#2E8B75"; }}>
-            {isLoading ? <LoaderCircle size={12} className="animate-spin" /> : <CheckCircle size={12} />} Duyệt
-          </button>
+        {/* Actions */}
+        <div style={{
+          display: "flex", flexDirection: "column", justifyContent: "center",
+          gap: "0.45rem", padding: "1.2rem 1.2rem 1.2rem 1rem",
+          borderLeft: "1px solid rgba(154,124,69,0.1)",
+          background: "rgba(248,245,240,0.45)", minWidth: 112,
+        }}>
+          {[
+            { label: "Duyệt", icon: <CheckCircle size={13} />, style: { color: "#fff", background: "#2E8B75", borderColor: "#2E8B75", boxShadow: "0 3px 12px rgba(46,139,117,0.25)" }, onClick: onApprove },
+            { label: "Từ chối", icon: <XCircle size={13} />, style: { color: "#b84a2a", background: "rgba(184,74,42,0.04)", borderColor: "rgba(184,74,42,0.25)" }, onClick: () => setRejecting(v => !v) },
+            { label: "Chi tiết", icon: <ChevronDown size={12} />, style: { color: "var(--e-charcoal)", background: "rgba(255,255,255,0.8)", borderColor: "rgba(154,124,69,0.2)" }, onClick: () => setExpanded(v => !v) },
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.onClick} disabled={isLoading && btn.label === "Duyệt"}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "9px 14px", fontSize: "0.61rem", fontWeight: 700,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                borderRadius: "9px", cursor: "pointer", transition: "all 0.22s",
+                border: "1px solid", fontFamily: "var(--e-sans)", ...btn.style,
+              }}>
+              {btn.icon}{btn.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Rejection */}
-      <div style={{ maxHeight: rejecting ? 130 : 0, overflow: "hidden", transition: "max-height 0.3s ease" }}>
-        <div style={{ borderTop: "1px solid rgba(184,74,42,0.15)", background: "rgba(184,74,42,0.03)", padding: "1rem 1.8rem", display: "flex", gap: "0.75rem" }}>
-          <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="Nhập lý do từ chối tin đăng này..."
-            style={{ flex: 1, padding: "9px 12px", border: "1px solid rgba(184,74,42,0.25)", borderRadius: "8px", background: "#fff", fontFamily: "var(--e-sans)", fontSize: "0.84rem", color: "var(--e-charcoal)", outline: "none", resize: "vertical", minHeight: 56 }}
-            onFocus={e => e.target.style.borderColor = "#b84a2a"}
-            onBlur={e => e.target.style.borderColor = "rgba(184,74,42,0.25)"}
-          />
+      {/* Reject panel */}
+      <div style={{
+        borderTop: rejecting ? "1px solid rgba(184,74,42,0.15)" : "none",
+        background: "rgba(184,74,42,0.02)",
+        maxHeight: rejecting ? 130 : 0, overflow: "hidden",
+        transition: "max-height 0.35s ease",
+        padding: rejecting ? "1rem 1.8rem" : "0 1.8rem",
+      }}>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
+          <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)}
+            placeholder="Nhập lý do từ chối tin đăng này..."
+            style={{
+              flex: 1, padding: "10px 12px",
+              border: "1px solid rgba(184,74,42,0.28)", borderRadius: "9px",
+              background: "#fff", fontFamily: "var(--e-sans)", fontSize: "0.83rem",
+              color: "var(--e-charcoal)", outline: "none", resize: "none", minHeight: 62,
+            }} />
           <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            <button onClick={handleReject} style={{ padding: "8px 16px", background: "#b84a2a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Xác Nhận</button>
-            <button onClick={() => { setRejecting(false); setReason(""); }} style={{ padding: "8px 16px", background: "transparent", color: "var(--e-muted)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.66rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Hủy</button>
+            <button onClick={handleReject} style={{ padding: "9px 18px", background: "#b84a2a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Xác Nhận</button>
+            <button onClick={() => { setRejecting(false); setReason(""); }} style={{ padding: "9px 18px", background: "transparent", color: "var(--e-muted)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.65rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Hủy</button>
           </div>
         </div>
       </div>
 
-      {/* Expanded detail */}
-      <div style={{ maxHeight: expanded ? 900 : 0, overflow: "hidden", transition: "max-height 0.4s ease" }}>
-        <div style={{ borderTop: "1px solid rgba(154,124,69,0.1)", padding: "1.4rem 1.8rem", background: "rgba(255,252,248,0.5)" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <div>
-              <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Mô Tả</p>
-              <p style={{ fontSize: "0.8rem", color: "var(--e-muted)", lineHeight: 1.75, marginBottom: "1.2rem", fontFamily: "var(--e-sans)" }}>{property.description || "Chưa có mô tả."}</p>
-              {(property.amenities?.length ?? 0) > 0 && (
-                <>
-                  <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Tiện Ích</p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "1rem" }}>
-                    {property.amenities?.map(a => (
-                      <span key={a} style={{ padding: "3px 10px", background: "rgba(154,124,69,0.07)", border: "1px solid rgba(154,124,69,0.15)", borderRadius: "6px", fontSize: "0.7rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>{a}</span>
-                    ))}
-                  </div>
-                </>
-              )}
-              {owner && (
-                <>
-                  <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Chủ Sở Hữu</p>
-                  <div style={{ padding: "0.8rem 1rem", background: "rgba(255,255,255,0.8)", border: "1px solid rgba(154,124,69,0.12)", borderRadius: "8px" }}>
-                    <p style={{ fontWeight: 700, color: "var(--e-charcoal)", fontSize: "0.84rem", marginBottom: 3, fontFamily: "var(--e-sans)" }}>{owner.name}</p>
-                    <p style={{ fontSize: "0.76rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>{owner.email}</p>
-                    {owner.phone && <p style={{ fontSize: "0.76rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>{owner.phone}</p>}
-                  </div>
-                </>
-              )}
-            </div>
-            <div>
-              {(property.images?.length ?? 0) > 0 && (
-                <>
-                  <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Hình Ảnh</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.4rem", marginBottom: "1rem" }}>
-                    {property.images!.slice(0, 6).map((url, i) => (
-                      <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block", height: 64, borderRadius: "6px", overflow: "hidden", border: "1px solid rgba(154,124,69,0.12)" }}>
-                        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s" }}
-                          onMouseEnter={e => e.currentTarget.style.transform = "scale(1.06)"}
+      {/* Expand detail */}
+      <div style={{
+        borderTop: expanded ? "1px solid rgba(154,124,69,0.1)" : "none",
+        background: "rgba(248,245,240,0.5)",
+        maxHeight: expanded ? 900 : 0, overflow: "hidden",
+        transition: "max-height 0.4s cubic-bezier(0.16,1,0.3,1)",
+        padding: expanded ? "1.4rem 1.8rem" : "0 1.8rem",
+      }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.4rem" }}>
+          {/* Left */}
+          <div>
+            <p style={{ fontSize: "0.54rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 7, fontFamily: "var(--e-sans)" }}>Mô Tả</p>
+            <p style={{ fontSize: "0.79rem", color: "var(--e-muted)", lineHeight: 1.75, fontFamily: "var(--e-sans)" }}>{property.description || "Chưa có mô tả."}</p>
+            {(property.amenities?.length ?? 0) > 0 && (
+              <>
+                <p style={{ fontSize: "0.54rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, margin: "1.2rem 0 7px", fontFamily: "var(--e-sans)" }}>Tiện Ích</p>
+                <div>
+                  {property.amenities?.map(a => (
+                    <span key={a} style={{ display: "inline-block", padding: "3px 10px", margin: 2, background: "rgba(154,124,69,0.07)", border: "1px solid rgba(154,124,69,0.15)", borderRadius: "6px", fontSize: "0.68rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>{a}</span>
+                  ))}
+                </div>
+              </>
+            )}
+            {owner && (
+              <>
+                <p style={{ fontSize: "0.54rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, margin: "1.2rem 0 7px", fontFamily: "var(--e-sans)" }}>Chủ Sở Hữu</p>
+                <div style={{ padding: "0.8rem 1rem", background: "rgba(255,255,255,0.8)", border: "1px solid rgba(154,124,69,0.12)", borderRadius: "8px" }}>
+                  <p style={{ fontWeight: 700, color: "var(--e-charcoal)", fontSize: "0.84rem", marginBottom: 3, fontFamily: "var(--e-sans)" }}>{owner.name}</p>
+                  <p style={{ fontSize: "0.76rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>{owner.email}</p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Right */}
+          <div>
+            {(property.images?.length ?? 0) > 0 && (
+              <>
+                <p style={{ fontSize: "0.54rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 7, fontFamily: "var(--e-sans)" }}>Hình Ảnh</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.4rem", marginBottom: "1rem" }}>
+                  {property.images!.slice(0, 6).map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block", height: 68, borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(154,124,69,0.15)" }}>
+                      <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s" }}
+                        onMouseEnter={e => e.currentTarget.style.transform = "scale(1.07)"}
+                        onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"} />
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
+            {(property.ownershipDocuments?.length ?? 0) > 0 && (
+              <>
+                <p style={{ fontSize: "0.54rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 7, fontFamily: "var(--e-sans)" }}>Giấy Tờ Pháp Lý</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                  {property.ownershipDocuments?.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(154,124,69,0.15)" }}>
+                      {isImageUrl(url) ? (
+                        <img src={url} alt="" style={{ width: "100%", height: 72, objectFit: "cover", display: "block", transition: "transform 0.3s" }}
+                          onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"}
                           onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"} />
-                      </a>
-                    ))}
-                  </div>
-                </>
-              )}
-              {(property.ownershipDocuments?.length ?? 0) > 0 && (
-                <>
-                  <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Giấy Tờ Pháp Lý</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                    {property.ownershipDocuments?.map((url, i) => (
-                      <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(154,124,69,0.15)", textDecoration: "none" }}>
-                        {isImageUrl(url) ? (
-                          <img src={url} alt={`Giấy tờ ${i + 1}`} style={{ width: "100%", height: 72, objectFit: "cover", display: "block" }} />
-                        ) : (
-                          <div style={{ height: 72, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--e-cream)", fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>PDF</div>
-                        )}
-                        <div style={{ padding: "0.4rem 0.6rem", background: "#fff", fontSize: "0.68rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)", fontWeight: 600 }}>Giấy tờ {i + 1}</div>
-                      </a>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+                      ) : (
+                        <div style={{ height: 72, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--e-cream)", fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>PDF</div>
+                      )}
+                      <div style={{ padding: "0.4rem 0.6rem", background: "#fff", fontSize: "0.68rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)", fontWeight: 600 }}>Giấy tờ {i + 1}</div>
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -710,7 +838,7 @@ function PropertiesView() {
         </>
       ) : (
         <div style={{ textAlign: "center", padding: "5rem 2rem", background: "rgba(255,255,255,0.85)", borderRadius: "14px", border: "1px solid rgba(154,124,69,0.15)", backdropFilter: "blur(8px)" }}>
-          <CheckCircle size={36} style={{ color: "#2E8B75", marginBottom: "1rem" }} />
+
           <p style={{ fontSize: "1rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>
             {search || typeFilter !== "all" ? "Không tìm thấy kết quả phù hợp" : "Không có bất động sản chờ duyệt"}
           </p>
@@ -722,89 +850,6 @@ function PropertiesView() {
 
 /* ═══════════════════════════════════════════════════════════
    PROVIDER MODERATION ROW
-═══════════════════════════════════════════════════════════ */
-function ProviderModerationRow({ provider, onApprove, onReject, isLoading }: {
-  provider: User; onApprove: () => Promise<void>;
-  onReject: (reason: string) => Promise<void>; isLoading: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
-
-  const handleReject = async () => {
-    if (!reason.trim()) { alert("Vui lòng nhập lý do từ chối."); return; }
-    await onReject(reason);
-  };
-
-  return (
-    <div className="e-glass-card" style={{ background: "rgba(255,255,255,0.90)", backdropFilter: "blur(8px)", overflow: "hidden" }}>
-      <div style={{ padding: "1.4rem 1.8rem", display: "flex", alignItems: "flex-start", gap: "1.2rem" }}>
-        <div style={{ width: 52, height: 52, borderRadius: "12px", background: "linear-gradient(135deg, var(--e-gold), var(--e-gold-light))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "var(--e-serif)", fontSize: "1.3rem", fontWeight: 600, flexShrink: 0 }}>
-          {provider.name?.charAt(0)?.toUpperCase()}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h3 style={{ fontFamily: "var(--e-sans)", fontSize: "1rem", fontWeight: 700, color: "var(--e-charcoal)", marginBottom: 3, lineHeight: 1.3 }}>{provider.name}</h3>
-          <p style={{ fontSize: "0.76rem", color: "var(--e-light-muted)", marginBottom: 6, fontFamily: "var(--e-sans)" }}>{provider.email}</p>
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-            {provider.phone && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}><Phone size={12} /> {provider.phone}</span>}
-            {provider.address && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}><MapPin size={12} /> {provider.address}</span>}
-            <KycStatusBadge status={provider.kycStatus || "pending"} />
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
-          <button onClick={() => setExpanded(v => !v)}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", border: "1px solid rgba(154,124,69,0.2)", background: expanded ? "rgba(154,124,69,0.06)" : "transparent", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--e-charcoal)", transition: "all 0.2s" }}>
-            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Tài Liệu
-          </button>
-          <button onClick={() => setRejecting(v => !v)} disabled={isLoading}
-            style={{ padding: "7px 13px", border: "1px solid rgba(184,74,42,0.25)", background: rejecting ? "rgba(184,74,42,0.08)" : "transparent", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#b84a2a", transition: "all 0.2s" }}>
-            Từ Chối
-          </button>
-          <button onClick={onApprove} disabled={isLoading}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 15px", background: "#2E8B75", color: "#fff", border: "none", borderRadius: "8px", cursor: isLoading ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: isLoading ? 0.6 : 1, transition: "all 0.2s" }}
-            onMouseEnter={e => { if (!isLoading) e.currentTarget.style.background = "#1e6b57"; }}
-            onMouseLeave={e => { if (!isLoading) e.currentTarget.style.background = "#2E8B75"; }}>
-            {isLoading ? <LoaderCircle size={12} className="animate-spin" /> : <ShieldCheck size={12} />} Xác Minh
-          </button>
-        </div>
-      </div>
-
-      <div style={{ maxHeight: rejecting ? 130 : 0, overflow: "hidden", transition: "max-height 0.3s ease" }}>
-        <div style={{ borderTop: "1px solid rgba(184,74,42,0.15)", background: "rgba(184,74,42,0.03)", padding: "1rem 1.8rem", display: "flex", gap: "0.75rem" }}>
-          <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="Nhập lý do từ chối provider này..."
-            style={{ flex: 1, padding: "9px 12px", border: "1px solid rgba(184,74,42,0.25)", borderRadius: "8px", background: "#fff", fontFamily: "var(--e-sans)", fontSize: "0.84rem", color: "var(--e-charcoal)", outline: "none", resize: "vertical", minHeight: 56 }}
-            onFocus={e => e.target.style.borderColor = "#b84a2a"}
-            onBlur={e => e.target.style.borderColor = "rgba(184,74,42,0.25)"}
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            <button onClick={handleReject} style={{ padding: "8px 16px", background: "#b84a2a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Xác Nhận</button>
-            <button onClick={() => { setRejecting(false); setReason(""); }} style={{ padding: "8px 16px", background: "transparent", color: "var(--e-muted)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.66rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Hủy</button>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ maxHeight: expanded ? 300 : 0, overflow: "hidden", transition: "max-height 0.4s ease" }}>
-        <div style={{ borderTop: "1px solid rgba(154,124,69,0.1)", padding: "1.2rem 1.8rem", background: "rgba(255,252,248,0.5)" }}>
-          <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 10, fontFamily: "var(--e-sans)" }}>Tài Liệu CCCD</p>
-          {provider.kycDocuments?.length ? (
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              {provider.kycDocuments.map((url, i) => (
-                <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block", width: 160, height: 110, borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(154,124,69,0.2)" }}>
-                  <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s" }}
-                    onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"}
-                    onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"} />
-                </a>
-              ))}
-            </div>
-          ) : <p style={{ fontSize: "0.82rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>Chưa có tài liệu KYC.</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   PROVIDERS VIEW
 ═══════════════════════════════════════════════════════════ */
 function ProvidersView() {
   const [providers, setProviders] = useState<User[]>([]);
@@ -860,7 +905,7 @@ function ProvidersView() {
       <div style={{ marginBottom: "2.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
         <div>
           <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Quản Lý Đối Tác</p>
-          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2rem, 3vw, 2.8rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2rem, 3vw, 2.8rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, lineHeight: 1.1 }}>
             Xác Minh <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>Nhà Cung Cấp</em>
           </h2>
         </div>
@@ -875,13 +920,7 @@ function ProvidersView() {
         </div>
       </div>
 
-      {/* Filter panel — overflow: visible so dropdowns show */}
-      <div style={{
-        maxHeight: showFilters ? 500 : 0,
-        overflow: showFilters ? "visible" : "hidden",
-        transition: "max-height 0.35s ease",
-        marginBottom: showFilters ? "1.2rem" : 0,
-      }}>
+      <div style={{ maxHeight: showFilters ? 500 : 0, overflow: showFilters ? "visible" : "hidden", transition: "max-height 0.35s ease", marginBottom: showFilters ? "1.2rem" : 0 }}>
         <div className="e-glass-card" style={{ padding: "1.2rem 1.4rem", background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "1rem", alignItems: "end" }}>
           <div>
             <label style={{ display: "block", fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Tìm Kiếm</label>
@@ -890,23 +929,13 @@ function ProvidersView() {
               <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Tên hoặc email..."
                 style={{ width: "100%", padding: "9px 12px 9px 30px", border: "1px solid rgba(154,124,69,0.25)", borderRadius: "8px", background: "rgba(255,255,255,0.92)", fontFamily: "var(--e-sans)", fontSize: "0.84rem", color: "var(--e-charcoal)", outline: "none" }}
                 onFocus={e => e.target.style.borderColor = "var(--e-gold)"}
-                onBlur={e => e.target.style.borderColor = "rgba(154,124,69,0.25)"}
-              />
+                onBlur={e => e.target.style.borderColor = "rgba(154,124,69,0.25)"} />
             </div>
           </div>
           <AnimatedSelect label="Trạng Thái KYC" value={kycFilter} onChange={setKycFilter} icon={ShieldCheck}
-            options={[
-              { value: "all", label: "Tất cả" }, { value: "pending", label: "Chờ xử lý" },
-              { value: "submitted", label: "Đã nộp" }, { value: "reviewing", label: "Đang xem xét" },
-              { value: "rejected", label: "Từ chối" },
-            ]}
-          />
+            options={[{ value: "all", label: "Tất cả" }, { value: "pending", label: "Chờ xử lý" }, { value: "submitted", label: "Đã nộp" }, { value: "reviewing", label: "Đang xem xét" }, { value: "rejected", label: "Từ chối" }]} />
           <AnimatedSelect label="Sắp Xếp" value={sortBy} onChange={setSortBy} icon={SlidersHorizontal}
-            options={[
-              { value: "newest", label: "Mới nhất" }, { value: "oldest", label: "Cũ nhất" },
-              { value: "name_asc", label: "Tên A→Z" }, { value: "name_desc", label: "Tên Z→A" },
-            ]}
-          />
+            options={[{ value: "newest", label: "Mới nhất" }, { value: "oldest", label: "Cũ nhất" }, { value: "name_asc", label: "Tên A→Z" }, { value: "name_desc", label: "Tên Z→A" }]} />
         </div>
       </div>
 
@@ -916,7 +945,7 @@ function ProvidersView() {
         </div>
       ) : filtered.length > 0 ? (
         <>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
             {filtered.map(p => (
               <ProviderModerationRow key={p._id} provider={p} onApprove={handleApprove(p._id)} onReject={handleReject(p._id)} isLoading={processedId === p._id} />
             ))}
@@ -940,6 +969,156 @@ function ProvidersView() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+function ProviderModerationRow({ provider, onApprove, onReject, isLoading }: {
+  provider: User; onApprove: () => Promise<void>;
+  onReject: (reason: string) => Promise<void>; isLoading: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const handleReject = async () => {
+    if (!reason.trim()) { alert("Vui lòng nhập lý do từ chối."); return; }
+    await onReject(reason);
+  };
+
+  const AVATAR_GRADIENTS = [
+    "linear-gradient(135deg, var(--e-gold), var(--e-gold-light))",
+    "linear-gradient(135deg, #7b9e6e, #a8c896)",
+    "linear-gradient(135deg, #7e6a9e, #a89cc8)",
+  ];
+  const avatarGrad = AVATAR_GRADIENTS[(provider.name?.charCodeAt(0) ?? 0) % 3];
+
+  return (
+    <div style={{
+      background: "#fff", border: "1px solid rgba(154,124,69,0.15)", borderRadius: "18px",
+      overflow: "hidden", position: "relative",
+      transition: "box-shadow 0.35s cubic-bezier(0.16,1,0.3,1), border-color 0.3s",
+    }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 20px 56px rgba(154,124,69,0.11)"; e.currentTarget.style.borderColor = "rgba(201,169,110,0.35)"; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "rgba(154,124,69,0.15)"; }}>
+
+      {/* Gold top bar */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, var(--e-gold), transparent 70%)" }} />
+
+      {/* ── Main Grid: avatar col | body | actions ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "80px 1fr auto", minHeight: 130, alignItems: "stretch" }}>
+
+        {/* Avatar column */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "linear-gradient(160deg, rgba(201,169,110,0.07) 0%, rgba(201,169,110,0.02) 100%)",
+          borderRight: "1px solid rgba(154,124,69,0.08)", padding: "1.2rem 0.8rem",
+        }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: "14px", background: avatarGrad,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "var(--e-serif)", fontSize: "1.3rem", fontWeight: 600, color: "#fff",
+            boxShadow: "0 4px 14px rgba(201,169,110,0.3)", flexShrink: 0,
+          }}>
+            {provider.name?.charAt(0)?.toUpperCase()}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "1.3rem 1.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "0.6rem" }}>
+          <div>
+            {/* Name + status */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", marginBottom: 4 }}>
+              <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>
+                {provider.name}
+              </span>
+              <KycStatusBadge status={provider.kycStatus || "pending"} />
+            </div>
+            <p style={{ fontSize: "0.73rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>{provider.email}</p>
+          </div>
+
+          {/* Meta chips */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.8rem", flexWrap: "wrap" }}>
+            {provider.phone && (
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.7rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>
+                <Phone size={12} color="var(--e-gold)" /> {provider.phone}
+              </span>
+            )}
+            {provider.address && (
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.7rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>
+                <MapPin size={12} color="var(--e-gold)" /> {provider.address}
+              </span>
+            )}
+            {(provider.kycDocuments?.length ?? 0) > 0 && (
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.7rem", color: "#1a6fa8", fontFamily: "var(--e-sans)" }}>
+                <FileText size={12} /> {provider.kycDocuments!.length} tài liệu CCCD
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions — identical to PropertyModerationRow */}
+        <div style={{
+          display: "flex", flexDirection: "column", justifyContent: "center",
+          gap: "0.42rem", padding: "1.1rem 1.1rem 1.1rem 0.9rem",
+          borderLeft: "1px solid rgba(154,124,69,0.1)",
+          background: "rgba(248,245,240,0.45)", minWidth: 108,
+        }}>
+          {[
+            { label: "Xác minh", icon: <ShieldCheck size={13} />, cls: "approve", onClick: onApprove },
+            { label: "Từ chối", icon: <XCircle size={13} />, cls: "reject", onClick: () => setRejecting(v => !v) },
+            { label: "Tài liệu", icon: <ChevronDown size={12} />, cls: "detail", onClick: () => setExpanded(v => !v) },
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.onClick} disabled={isLoading && btn.cls === "approve"}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "9px 14px", fontSize: "0.61rem", fontWeight: 700,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                borderRadius: "9px", cursor: "pointer", transition: "all 0.22s",
+                whiteSpace: "nowrap", border: "1px solid", fontFamily: "var(--e-sans)",
+                ...(btn.cls === "approve" ? { color: "#fff", background: "#2E8B75", borderColor: "#2E8B75", boxShadow: "0 3px 12px rgba(46,139,117,0.25)" }
+                  : btn.cls === "reject" ? { color: "#b84a2a", background: "rgba(184,74,42,0.04)", borderColor: "rgba(184,74,42,0.25)" }
+                    : { color: "var(--e-charcoal)", background: "rgba(255,255,255,0.8)", borderColor: "rgba(154,124,69,0.2)" }),
+              }}>
+              {isLoading && btn.cls === "approve" ? <LoaderCircle size={12} className="animate-spin" /> : btn.icon}
+              {btn.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Reject slide panel */}
+      <div style={{ maxHeight: rejecting ? 130 : 0, overflow: "hidden", transition: "max-height 0.35s ease" }}>
+        <div style={{ borderTop: "1px solid rgba(184,74,42,0.15)", background: "rgba(184,74,42,0.025)", padding: "1rem 1.6rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
+            <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)}
+              placeholder="Nhập lý do từ chối provider này..."
+              style={{ flex: 1, padding: "10px 12px", border: "1px solid rgba(184,74,42,0.28)", borderRadius: "9px", background: "#fff", fontFamily: "var(--e-sans)", fontSize: "0.83rem", color: "var(--e-charcoal)", outline: "none", resize: "none", minHeight: 58 }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.38rem" }}>
+              <button onClick={handleReject} style={{ padding: "9px 18px", background: "#b84a2a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.64rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Xác Nhận</button>
+              <button onClick={() => { setRejecting(false); setReason(""); }} style={{ padding: "9px 18px", background: "transparent", color: "var(--e-muted)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.64rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Hủy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Docs slide panel */}
+      <div style={{ maxHeight: expanded ? 300 : 0, overflow: "hidden", transition: "max-height 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
+        <div style={{ borderTop: "1px solid rgba(154,124,69,0.1)", background: "rgba(248,245,240,0.5)", padding: "1.3rem 1.6rem" }}>
+          <p style={{ fontSize: "0.53rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 10, fontFamily: "var(--e-sans)" }}>Tài Liệu CCCD</p>
+          {provider.kycDocuments?.length ? (
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              {provider.kycDocuments.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noreferrer"
+                  style={{ display: "block", width: 160, height: 108, borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(154,124,69,0.2)" }}>
+                  <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.35s" }}
+                    onMouseEnter={e => e.currentTarget.style.transform = "scale(1.06)"}
+                    onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"} />
+                </a>
+              ))}
+            </div>
+          ) : <p style={{ fontSize: "0.82rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>Chưa có tài liệu KYC.</p>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1096,86 +1275,123 @@ function KycView() {
           </div>
 
           {/* Detail panel */}
-          <div className="e-glass-card" style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)", position: "sticky", top: 100 }}>
-            {selectedUser ? (
-              <div style={{ padding: "1.8rem" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", marginBottom: "1.2rem" }}>
-                  <div>
-                    <h3 style={{ fontFamily: "var(--e-serif)", fontSize: "1.2rem", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, marginBottom: 4 }}>{selectedUser.name}</h3>
-                    <p style={{ fontSize: "0.78rem", color: "var(--e-muted)", margin: 0, fontFamily: "var(--e-sans)" }}>{selectedUser.email}</p>
-                  </div>
-                  <KycStatusBadge status={selectedUser.kycStatus} />
+          {selectedUser ? (
+            <>
+              {/* Header với name + status */}
+              <div style={{
+                padding: "1.3rem 1.6rem", borderBottom: "1px solid rgba(154,124,69,0.1)",
+                background: "linear-gradient(135deg, rgba(201,169,110,0.04), rgba(255,255,255,0))",
+                display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem",
+              }}>
+                <div>
+                  <div style={{ fontFamily: "var(--e-serif)", fontSize: "1.2rem", fontWeight: 500, color: "var(--e-charcoal)", marginBottom: 3 }}>{selectedUser.name}</div>
+                  <div style={{ fontSize: "0.76rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>{selectedUser.email} · {selectedUser.role}</div>
                 </div>
+                <KycStatusBadge status={selectedUser.kycStatus} />
+              </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.2rem", padding: "1rem", background: "rgba(154,124,69,0.04)", borderRadius: "10px", border: "1px solid rgba(154,124,69,0.1)" }}>
-                  {[{ label: "Địa chỉ", value: selectedUser.address || "N/A" }, { label: "Điện thoại", value: selectedUser.phone || "Chưa có" }, { label: "Vai trò", value: selectedUser.role }, { label: "Xác minh", value: selectedUser.isVerified ? "Có" : "Không" }].map(item => (
-                    <div key={item.label} style={{ display: "flex", gap: "0.5rem", fontSize: "0.8rem", fontFamily: "var(--e-sans)" }}>
-                      <span style={{ fontWeight: 700, color: "var(--e-charcoal)", minWidth: 80 }}>{item.label}:</span>
-                      <span style={{ color: "var(--e-muted)" }}>{item.value}</span>
+              <div style={{ padding: "1.4rem 1.6rem", display: "flex", flexDirection: "column", gap: "1.2rem" }}>
+                {/* Info grid */}
+                <div style={{
+                  display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem",
+                  padding: "1rem 1.1rem", background: "rgba(154,124,69,0.03)",
+                  border: "1px solid rgba(154,124,69,0.09)", borderRadius: "12px",
+                }}>
+                  {[
+                    { label: "Địa chỉ", value: selectedUser.address || "N/A" },
+                    { label: "Điện thoại", value: selectedUser.phone || "Chưa có" },
+                    { label: "Vai trò", value: selectedUser.role },
+                    { label: "Xác minh", value: selectedUser.isVerified ? "Đã xác minh" : "Chưa xác minh", color: selectedUser.isVerified ? "#2E8B75" : undefined },
+                  ].map(item => (
+                    <div key={item.label}>
+                      <div style={{ fontSize: "0.58rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 3, fontFamily: "var(--e-sans)" }}>{item.label}</div>
+                      <div style={{ fontSize: "0.8rem", fontWeight: 600, color: item.color ?? "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>{item.value}</div>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ marginBottom: "1.2rem" }}>
-                  <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Tài Liệu CCCD</p>
-                  {selectedUser.kycDocuments?.length ? (
+                {/* KYC docs */}
+                {selectedUser.kycDocuments?.length ? (
+                  <div>
+                    <p style={{ fontSize: "0.53rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Tài Liệu CCCD</p>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                      {selectedUser.kycDocuments.map((url, idx) => (
-                        <a key={idx} href={url} target="_blank" rel="noreferrer" style={{ display: "block", overflow: "hidden", borderRadius: "8px", border: "1px solid rgba(154,124,69,0.15)" }}>
-                          <img src={url} alt={`KYC ${idx + 1}`} style={{ width: "100%", height: 90, objectFit: "cover", display: "block", transition: "transform 0.3s" }}
-                            onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
+                      {selectedUser.kycDocuments.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer"
+                          style={{ display: "block", overflow: "hidden", borderRadius: "9px", border: "1px solid rgba(154,124,69,0.15)" }}>
+                          <img src={url} alt={`KYC ${i + 1}`} style={{ width: "100%", height: 90, objectFit: "cover", display: "block", transition: "transform 0.3s" }}
+                            onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"}
                             onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"} />
                         </a>
                       ))}
                     </div>
-                  ) : <p style={{ fontSize: "0.8rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>Chưa có tài liệu.</p>}
+                  </div>
+                ) : <p style={{ fontSize: "0.8rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>Chưa có tài liệu.</p>}
+
+                {/* OCR */}
+                <div>
+                  <p style={{ fontSize: "0.53rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Dữ Liệu OCR</p>
+                  <pre style={{ maxHeight: 96, overflowY: "auto", background: "var(--e-charcoal)", color: "#a8b8c8", padding: "0.9rem 1rem", borderRadius: "10px", fontSize: "0.68rem", margin: 0, lineHeight: 1.65 }}>
+                    {prettyJson(selectedUser.kycExtractedData)}
+                  </pre>
                 </div>
 
-                <div style={{ marginBottom: "1.2rem" }}>
-                  <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Dữ Liệu OCR</p>
-                  <pre style={{ maxHeight: 110, overflowY: "auto", background: "var(--e-charcoal)", color: "#e2e8f0", padding: "0.8rem", borderRadius: "8px", fontSize: "0.68rem", margin: 0, lineHeight: 1.5 }}>{prettyJson(selectedUser.kycExtractedData)}</pre>
-                </div>
-
+                {/* Rejection reason display */}
                 {selectedUser.kycRejectionReason && (
-                  <div style={{ marginBottom: "1rem", border: "1px solid rgba(184,74,42,0.3)", background: "rgba(184,74,42,0.06)", padding: "0.8rem 1rem", borderRadius: "8px" }}>
-                    <p style={{ fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "#b84a2a", fontWeight: 700, marginBottom: 4, fontFamily: "var(--e-sans)" }}>Lý Do Từ Chối</p>
-                    <p style={{ fontSize: "0.8rem", color: "#b84a2a", margin: 0, fontFamily: "var(--e-sans)" }}>{selectedUser.kycRejectionReason}</p>
+                  <div style={{ padding: "0.8rem 1rem", borderRadius: "9px", border: "1px solid rgba(184,74,42,0.28)", background: "rgba(184,74,42,0.05)" }}>
+                    <p style={{ fontSize: "0.54rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "#b84a2a", fontWeight: 700, marginBottom: 4, fontFamily: "var(--e-sans)" }}>Lý Do Từ Chối Trước</p>
+                    <p style={{ fontSize: "0.78rem", color: "#b84a2a", lineHeight: 1.6, fontFamily: "var(--e-sans)" }}>{selectedUser.kycRejectionReason}</p>
                   </div>
                 )}
 
-                <div style={{ marginBottom: "1rem" }}>
-                  <label style={{ display: "block", fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Lý Do Từ Chối (nếu cần)</label>
-                  <textarea rows={3} value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} placeholder="Bắt buộc khi từ chối KYC"
-                    style={{ width: "100%", padding: "10px 12px", border: "1px solid rgba(154,124,69,0.25)", borderRadius: "8px", background: "rgba(255,252,248,0.9)", fontFamily: "var(--e-sans)", fontSize: "0.84rem", color: "var(--e-charcoal)", outline: "none", resize: "vertical", minHeight: 72 }}
+                {/* Reason textarea */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.56rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>
+                    Lý do từ chối (bắt buộc nếu từ chối)
+                  </label>
+                  <textarea rows={3} value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}
+                    placeholder="Nhập lý do nếu cần từ chối hồ sơ KYC này..."
+                    style={{
+                      width: "100%", padding: "10px 12px",
+                      border: "1px solid rgba(154,124,69,0.25)", borderRadius: "9px",
+                      background: "rgba(255,252,248,0.9)", fontFamily: "var(--e-sans)", fontSize: "0.83rem",
+                      color: "var(--e-charcoal)", outline: "none", resize: "none", minHeight: 68,
+                      transition: "border-color 0.2s",
+                    }}
                     onFocus={e => e.target.style.borderColor = "var(--e-gold)"}
-                    onBlur={e => e.target.style.borderColor = "rgba(154,124,69,0.25)"}
-                  />
+                    onBlur={e => e.target.style.borderColor = "rgba(154,124,69,0.25)"} />
                 </div>
 
+                {/* Action buttons */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                  <button type="button" disabled={actionLoading} onClick={() => void handleApprove()}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", background: "#2E8B75", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: actionLoading ? 0.7 : 1, transition: "background 0.2s" }}
+                  <button onClick={() => void handleApprove()} disabled={actionLoading}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 11, background: "#2E8B75", color: "#fff", border: "none", borderRadius: "9px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: actionLoading ? 0.7 : 1, boxShadow: "0 3px 12px rgba(46,139,117,0.25)", transition: "background 0.2s" }}
                     onMouseEnter={e => { if (!actionLoading) e.currentTarget.style.background = "#1e6b57"; }}
                     onMouseLeave={e => { if (!actionLoading) e.currentTarget.style.background = "#2E8B75"; }}>
                     {actionLoading ? <LoaderCircle size={13} className="animate-spin" /> : <ShieldCheck size={13} />} Duyệt KYC
                   </button>
-                  <button type="button" disabled={actionLoading} onClick={() => void handleReject()}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", background: "rgba(184,74,42,0.08)", color: "#b84a2a", border: "1px solid rgba(184,74,42,0.3)", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: actionLoading ? 0.7 : 1, transition: "all 0.2s" }}
+                  <button onClick={() => void handleReject()} disabled={actionLoading}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 11, background: "rgba(184,74,42,0.06)", color: "#b84a2a", border: "1px solid rgba(184,74,42,0.3)", borderRadius: "9px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: actionLoading ? 0.7 : 1, transition: "all 0.2s" }}
                     onMouseEnter={e => { if (!actionLoading) { e.currentTarget.style.background = "#b84a2a"; e.currentTarget.style.color = "#fff"; } }}
-                    onMouseLeave={e => { if (!actionLoading) { e.currentTarget.style.background = "rgba(184,74,42,0.08)"; e.currentTarget.style.color = "#b84a2a"; } }}>
+                    onMouseLeave={e => { if (!actionLoading) { e.currentTarget.style.background = "rgba(184,74,42,0.06)"; e.currentTarget.style.color = "#b84a2a"; } }}>
                     {actionLoading ? <LoaderCircle size={13} className="animate-spin" /> : <XCircle size={13} />} Từ Chối
                   </button>
                 </div>
+
+                {/* Feedback banners */}
+                {errorMessage && <div style={{ padding: "0.7rem 1rem", borderRadius: "8px", fontSize: "0.78rem", color: "#b84a2a", background: "rgba(184,74,42,0.06)", border: "1px solid rgba(184,74,42,0.25)", fontFamily: "var(--e-sans)" }}>{errorMessage}</div>}
+                {successMessage && <div style={{ padding: "0.7rem 1rem", borderRadius: "8px", fontSize: "0.78rem", color: "#2E8B75", background: "rgba(46,139,117,0.07)", border: "1px solid rgba(46,139,117,0.25)", fontFamily: "var(--e-sans)" }}>{successMessage}</div>}
               </div>
-            ) : (
-              <div style={{ padding: "3rem", textAlign: "center" }}>
-                <p style={{ fontSize: "0.88rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>Chọn người dùng để xem chi tiết KYC.</p>
-              </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div style={{ padding: "3rem", textAlign: "center" }}>
+              <p style={{ fontSize: "0.88rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>Chọn người dùng để xem chi tiết KYC.</p>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+
+      )
+      }
+    </div >
   );
 }
 
@@ -1250,13 +1466,13 @@ export default function AdminDashboard() {
       `}</style>
 
       <div className="estoria min-h-screen flex overflow-hidden font-[var(--e-sans)] bg-[var(--e-cream)]">
-        
+
         {/* ── Luxury Vertical Sidebar ── */}
         <aside className="w-64 flex flex-col h-screen fixed top-0 left-0 z-50 shadow-2xl overflow-hidden"
           style={{ backgroundImage: "url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&q=85')", backgroundSize: "cover", backgroundPosition: "center" }}>
-          
+
           <div className="absolute inset-0 bg-gradient-to-b from-[#111c14]/95 to-[#111c14]/90 backdrop-blur-md pointer-events-none z-0" />
-          
+
           <div className="relative z-10 flex flex-col h-full border-r border-[#D4AF37]/10">
             {/* Header/Brand */}
             <div className="p-8 pb-6 border-b border-[#D4AF37]/10">
@@ -1279,13 +1495,13 @@ export default function AdminDashboard() {
                   <button key={item.view} onClick={() => handleSetView(item.view)}
                     className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden ${isActive ? "bg-[#D4AF37]/10 border border-[#D4AF37]/20 shadow-lg text-white" : "text-white/60 hover:text-white hover:bg-white/5 border border-transparent"}`}
                     style={{ fontFamily: "var(--e-sans)" }}>
-                    
+
                     {/* Active vertical bar */}
                     {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--e-gold-light)] shadow-[0_0_10px_var(--e-gold)]" />}
 
                     <span className={`transition-transform duration-300 z-10 ${isActive ? "text-[var(--e-gold-light)] scale-110" : "group-hover:scale-110"}`}>{item.icon}</span>
                     <span className={`text-[0.8rem] font-semibold tracking-wide flex-1 text-left z-10 ${isActive ? "opacity-100" : "opacity-90"}`}>{item.label}</span>
-                    
+
                     {badge != null && badge > 0 && (
                       <span className="z-10" style={{ fontSize: "0.6rem", fontWeight: 700, background: "var(--e-gold)", color: "#fff", padding: "2px 7px", borderRadius: "6px", minWidth: 24, textAlign: "center", boxShadow: '0 0 10px rgba(212,175,55,0.4)' }}>{badge}</span>
                     )}
@@ -1319,7 +1535,7 @@ export default function AdminDashboard() {
         <main className="flex-1 ml-64 min-h-screen relative overflow-y-auto">
           {/* Subtle background layer to prevent completely flat white */}
           <div style={{ position: "fixed", top: 0, left: "16rem", right: 0, bottom: 0, backgroundImage: "url('https://images.unsplash.com/photo-1628624747186-a941c476b7ef?w=1600&q=85')", backgroundSize: "cover", backgroundPosition: "center", filter: "blur(20px) opacity(0.06)", zIndex: 0, pointerEvents: 'none' }} />
-          
+
           <div className="relative z-10 min-h-full flex flex-col p-8 lg:p-12">
             <div className="w-full max-w-7xl mx-auto flex-1">
               {/* Context Header Area could go here if needed, but the Views handle their own headers */}
@@ -1328,7 +1544,7 @@ export default function AdminDashboard() {
               {view === "providers" && <ViewWrapper><ProvidersView /></ViewWrapper>}
               {view === "kyc" && <ViewWrapper><KycView /></ViewWrapper>}
             </div>
-            
+
             <footer className="mt-16 pt-8 border-t border-[var(--e-beige)] text-center text-[0.68rem] uppercase tracking-widest text-[var(--e-muted)] font-medium" style={{ fontFamily: "var(--e-sans)" }}>
               &copy; {new Date().getFullYear()} Estoria Luxury Real Estate
             </footer>
