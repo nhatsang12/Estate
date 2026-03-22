@@ -6,7 +6,7 @@ import { propertyService, FilterOptionsData } from '@/services/propertyService';
    TYPES
 ══════════════════════════════════════════ */
 export interface SearchParams {
-    tab: string; // Keep for backward compatibility
+    tab: string;
     location: string;
     types: string[];
     priceMin: number;
@@ -15,128 +15,55 @@ export interface SearchParams {
     areaMax: number;
     bedrooms: string[];
     bathrooms: string[];
+    priceSortOrder?: PriceSortOrder;
 }
 
 interface SearchSectionProps {
     onSearch?: (params: SearchParams) => void;
     loading?: boolean;
-    compact?: boolean; // hides heading + reduces padding when embedded inside listings
+    compact?: boolean;
 }
 
 /* ══════════════════════════════════════════
    CONSTANTS
 ══════════════════════════════════════════ */
-const PRICE_MARKS = [0, 2, 5, 10, 20, 50];   // tỷ
-const AREA_MARKS = [0, 30, 60, 100, 200, 500]; // m²
+const AREA_MARKS = [0, 30, 60, 100, 200, 500]; // kept for legacy ref if needed
+
+interface RangeOption {
+    key: string;
+    label: string;
+    min: number;
+    max: number;
+}
+
+// Giá — sort direction
+export type PriceSortOrder = 'desc' | 'asc' | '';
+
+const PRICE_SORT_OPTIONS: { key: PriceSortOrder; label: string }[] = [
+    { key: 'desc', label: '↓ Cao → Thấp' },
+    { key: 'asc', label: '↑ Thấp → Cao' },
+];
+
+// Diện tích — từ lớn đến nhỏ
+const AREA_RANGES: RangeOption[] = [
+    { key: 'above500', label: 'Trên 500 m²', min: 500, max: 9999 },
+    { key: '200to500', label: '200 – 500 m²', min: 200, max: 500 },
+    { key: '100to200', label: '100 – 200 m²', min: 100, max: 200 },
+    { key: '60to100', label: '60 – 100 m²', min: 60, max: 100 },
+    { key: '30to60', label: '30 – 60 m²', min: 30, max: 60 },
+    { key: 'below30', label: 'Dưới 30 m²', min: 0, max: 30 },
+];
 
 /* ══════════════════════════════════════════
-   DUAL RANGE SLIDER (Native Theme)
+   HELPER — resolve multi-select area ranges → min/max
 ══════════════════════════════════════════ */
-function DualRange({
-    marks, valueMin, valueMax, formatTick, onChange,
-}: {
-    marks: number[];
-    valueMin: number;
-    valueMax: number;
-    formatTick: (v: number) => string;
-    onChange: (min: number, max: number) => void;
-}) {
-    const trackRef = useRef<HTMLDivElement>(null);
-    const dragging = useRef<'min' | 'max' | null>(null);
-    const min = marks[0], max = marks[marks.length - 1];
-    const pct = (v: number) => ((v - min) / (max - min)) * 100;
-
-    const snap = useCallback((raw: number) => {
-        let closest = marks[0];
-        marks.forEach(m => { if (Math.abs(m - raw) < Math.abs(closest - raw)) closest = m; });
-        return closest;
-    }, [marks]);
-
-    const getVal = useCallback((clientX: number) => {
-        const rect = trackRef.current?.getBoundingClientRect();
-        if (!rect) return min;
-        const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        return snap(min + ratio * (max - min));
-    }, [min, max, snap]);
-
-    useEffect(() => {
-        const mv = (e: MouseEvent | TouchEvent) => {
-            if (!dragging.current) return;
-            const x = 'touches' in e ? e.touches[0].clientX : e.clientX;
-            const v = getVal(x);
-            if (dragging.current === 'min') onChange(Math.min(v, valueMax), valueMax);
-            else onChange(valueMin, Math.max(v, valueMin));
-        };
-        const up = () => { dragging.current = null; };
-        window.addEventListener('mousemove', mv);
-        window.addEventListener('mouseup', up);
-        window.addEventListener('touchmove', mv, { passive: true });
-        window.addEventListener('touchend', up);
-        return () => {
-            window.removeEventListener('mousemove', mv);
-            window.removeEventListener('mouseup', up);
-            window.removeEventListener('touchmove', mv);
-            window.removeEventListener('touchend', up);
-        };
-    }, [getVal, onChange, valueMin, valueMax]);
-
-    return (
-        <div style={{ paddingBottom: '1rem' }}>
-            {/* Value display */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
-                <div>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--e-muted)', fontWeight: 600, marginBottom: 4, fontFamily: 'var(--e-sans)' }}>Từ</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>{formatTick(valueMin)}</div>
-                </div>
-                <div style={{ width: 16, height: 1, background: 'var(--e-beige)', margin: '0 8px', alignSelf: 'center' }} />
-                <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--e-muted)', fontWeight: 600, marginBottom: 4, fontFamily: 'var(--e-sans)' }}>Đến</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>
-                        {valueMax >= max ? `${formatTick(max)}+` : formatTick(valueMax)}
-                    </div>
-                </div>
-            </div>
-
-            {/* Track */}
-            <div ref={trackRef} style={{ position: 'relative', height: 4, background: 'var(--e-beige)', borderRadius: 4, margin: '0 8px 24px', cursor: 'pointer' }}>
-                <div style={{
-                    position: 'absolute', height: '100%', background: 'var(--e-charcoal)', borderRadius: 4,
-                    left: `${pct(valueMin)}%`, width: `${pct(valueMax) - pct(valueMin)}%`,
-                }} />
-                {(['min', 'max'] as const).map(side => (
-                    <div key={side}
-                        onMouseDown={e => { e.preventDefault(); dragging.current = side; }}
-                        onTouchStart={() => { dragging.current = side; }}
-                        style={{
-                            position: 'absolute', top: '50%',
-                            left: `${pct(side === 'min' ? valueMin : valueMax)}%`,
-                            transform: 'translate(-50%,-50%)',
-                            width: 20, height: 20, borderRadius: '50%',
-                            background: 'var(--e-white)', border: '2px solid var(--e-charcoal)',
-                            cursor: 'grab', touchAction: 'none',
-                            boxShadow: '0 2px 6px rgba(0,0,0,.15)', zIndex: 2,
-                            transition: 'transform .1s',
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.transform = 'translate(-50%,-50%) scale(1.1)'}
-                        onMouseLeave={e => e.currentTarget.style.transform = 'translate(-50%,-50%) scale(1)'}
-                    />
-                ))}
-            </div>
-
-            {/* Tick snap areas */}
-            <div style={{ position: 'relative', height: 8, margin: '0 8px' }}>
-                {marks.map(m => (
-                    <div key={m} style={{
-                        position: 'absolute', left: `${pct(m)}%`, transform: 'translateX(-50%)',
-                        width: 4, height: 4, borderRadius: '50%',
-                        background: (m >= valueMin && m <= valueMax) ? 'var(--e-charcoal)' : 'var(--e-beige)',
-                        opacity: 0.5,
-                        top: 2
-                    }} />
-                ))}
-            </div>
-        </div>
-    );
+function resolveAreaRange(keys: string[], options: RangeOption[]): { min: number; max: number } {
+    if (keys.length === 0) return { min: 0, max: options[0].max };
+    const selected = options.filter(o => keys.includes(o.key));
+    return {
+        min: Math.min(...selected.map(o => o.min)),
+        max: Math.max(...selected.map(o => o.max)),
+    };
 }
 
 /* ══════════════════════════════════════════
@@ -144,18 +71,20 @@ function DualRange({
 ══════════════════════════════════════════ */
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
     return (
-        <button onClick={onClick} style={{
-            padding: '8px 16px',
-            borderRadius: 0,
-            border: `1px solid ${active ? 'var(--e-charcoal)' : 'var(--e-beige)'}`,
-            background: active ? 'var(--e-charcoal)' : 'transparent',
-            color: active ? 'var(--e-white)' : 'var(--e-charcoal)',
-            fontSize: '0.85rem', fontWeight: active ? 500 : 400,
-            cursor: 'pointer',
-            transition: 'all .2s ease',
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            fontFamily: 'var(--e-sans)'
-        }}
+        <button
+            onClick={onClick}
+            style={{
+                padding: '8px 16px',
+                borderRadius: 0,
+                border: `1px solid ${active ? 'var(--e-charcoal)' : 'var(--e-beige)'}`,
+                background: active ? 'var(--e-charcoal)' : 'transparent',
+                color: active ? 'var(--e-white)' : 'var(--e-charcoal)',
+                fontSize: '0.85rem', fontWeight: active ? 500 : 400,
+                cursor: 'pointer',
+                transition: 'all .2s ease',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontFamily: 'var(--e-sans)'
+            }}
             onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--e-gold)'; e.currentTarget.style.color = 'var(--e-gold)'; } }}
             onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--e-beige)'; e.currentTarget.style.color = 'var(--e-charcoal)'; } }}
         >
@@ -166,28 +95,66 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
 }
 
 /* ══════════════════════════════════════════
-   ADVANCED FILTER MODAL (shared)
+   RANGE CHIP GROUP — reusable multi-select
+══════════════════════════════════════════ */
+function RangeChipGroup({
+    title,
+    ranges,
+    selected,
+    onToggle,
+}: {
+    title: string;
+    ranges: RangeOption[];
+    selected: string[];
+    onToggle: (key: string) => void;
+}) {
+    return (
+        <div>
+            <h4 style={{
+                fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)',
+                marginBottom: '1.5rem', fontFamily: 'var(--e-serif)'
+            }}>
+                {title}
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {ranges.map(r => (
+                    <Chip
+                        key={r.key}
+                        label={r.label}
+                        active={selected.includes(r.key)}
+                        onClick={() => onToggle(r.key)}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/* ══════════════════════════════════════════
+   ADVANCED FILTER MODAL
 ══════════════════════════════════════════ */
 function AdvancedModal({
     advancedRef, onClose, onSearch, onReset,
     safeTypes, safeBedrooms, safeBathrooms,
     types, setTypes, bedrooms, setBedrooms, bathrooms, setBathrooms,
-    priceMin, priceMax, setPriceMin, setPriceMax,
-    areaMin, areaMax, setAreaMin, setAreaMax,
-    fmtPrice, fmtArea, toggleArr,
+    selectedAreaRanges, toggleAreaRange,
+    toggleArr,
 }: any) {
     return (
-        <div style={{
-            position: 'fixed',
-            top: 0, left: 0, width: '100vw', height: '100vh',
-            background: 'rgba(26, 23, 20, 0.4)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem'
-        }} onClick={onClose}>
+        <div
+            style={{
+                position: 'fixed',
+                top: 0, left: 0, width: '100vw', height: '100vh',
+                background: 'rgba(26, 23, 20, 0.4)',
+                backdropFilter: 'blur(8px)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '2rem'
+            }}
+            onClick={onClose}
+        >
             <div
                 ref={advancedRef}
                 onClick={e => e.stopPropagation()}
@@ -203,6 +170,7 @@ function AdvancedModal({
                     animation: 'modalScale 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
             >
+                {/* Close */}
                 <button
                     onClick={onClose}
                     style={{
@@ -216,15 +184,19 @@ function AdvancedModal({
                     <X size={24} />
                 </button>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '4rem' }}>
-                    {/* Left Col */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '3rem' }}>
+
+                    {/* Col 1 — Loại BĐS + Phòng */}
                     <div>
-                        <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Loại Bất Động Sản</h4>
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>
+                            Loại Bất Động Sản
+                        </h4>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: '3rem' }}>
                             {safeTypes.map((pt: any) => (
                                 <Chip key={pt.value} label={pt.label} active={types.includes(pt.value)} onClick={() => toggleArr(types, pt.value, setTypes)} />
                             ))}
                         </div>
+
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                             <div>
                                 <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Phòng Ngủ</h4>
@@ -245,20 +217,13 @@ function AdvancedModal({
                         </div>
                     </div>
 
-                    {/* Right Col */}
-                    <div>
-                        <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Khoảng Giá (Tỷ VNĐ)</h4>
-                        <DualRange
-                            marks={PRICE_MARKS} valueMin={priceMin} valueMax={priceMax}
-                            formatTick={fmtPrice} onChange={(a: number, b: number) => { setPriceMin(a); setPriceMax(b); }}
-                        />
-                        <div style={{ height: '3rem' }} />
-                        <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Diện Tích (m²)</h4>
-                        <DualRange
-                            marks={AREA_MARKS} valueMin={areaMin} valueMax={areaMax}
-                            formatTick={fmtArea} onChange={(a: number, b: number) => { setAreaMin(a); setAreaMax(b); }}
-                        />
-                    </div>
+                    {/* Col 2 — Diện Tích */}
+                    <RangeChipGroup
+                        title="Diện Tích (m²)"
+                        ranges={AREA_RANGES}
+                        selected={selectedAreaRanges}
+                        onToggle={toggleAreaRange}
+                    />
                 </div>
 
                 {/* Actions */}
@@ -270,16 +235,22 @@ function AdvancedModal({
                         background: 'transparent', border: 'none', color: 'var(--e-muted)',
                         fontSize: '0.85rem', fontWeight: 500, cursor: 'pointer',
                         fontFamily: 'var(--e-sans)', textDecoration: 'underline', textUnderlineOffset: 4
-                    }}>Xóa bộ lọc</button>
-                    <button onClick={onSearch} style={{
-                        padding: '12px 48px', background: 'var(--e-charcoal)', color: 'var(--e-white)',
-                        border: '1px solid var(--e-charcoal)', fontSize: '0.85rem', fontWeight: 600,
-                        cursor: 'pointer', fontFamily: 'var(--e-sans)', letterSpacing: '0.1em', textTransform: 'uppercase',
-                        transition: 'all 0.2s ease'
-                    }}
+                    }}>
+                        Xóa bộ lọc
+                    </button>
+                    <button
+                        onClick={onSearch}
+                        style={{
+                            padding: '12px 48px', background: 'var(--e-charcoal)', color: 'var(--e-white)',
+                            border: '1px solid var(--e-charcoal)', fontSize: '0.85rem', fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'var(--e-sans)', letterSpacing: '0.1em', textTransform: 'uppercase',
+                            transition: 'all 0.2s ease'
+                        }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'var(--e-gold)'; e.currentTarget.style.borderColor = 'var(--e-gold)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'var(--e-charcoal)'; e.currentTarget.style.borderColor = 'var(--e-charcoal)'; }}
-                    >Áp dụng bộ lọc</button>
+                    >
+                        Áp dụng bộ lọc
+                    </button>
                 </div>
             </div>
         </div>
@@ -308,19 +279,22 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
     const [bathrooms, setBathrooms] = useState<string[]>([]);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
-    const [priceMin, setPriceMin] = useState(PRICE_MARKS[0]);
-    const [priceMax, setPriceMax] = useState(PRICE_MARKS[PRICE_MARKS.length - 1]);
-    const [areaMin, setAreaMin] = useState(AREA_MARKS[0]);
-    const [areaMax, setAreaMax] = useState(AREA_MARKS[AREA_MARKS.length - 1]);
+    // ── Sort & range states ──
+    const [priceSortOrder, setPriceSortOrder] = useState<PriceSortOrder>('');
+    const [selectedAreaRanges, setSelectedAreaRanges] = useState<string[]>([]);
+
+    const toggleAreaRange = (key: string) =>
+        setSelectedAreaRanges(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
 
     const advancedRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Close advanced on outside click
+    // Close on outside click
     useEffect(() => {
         if (!isAdvancedOpen) return;
         const fn = (e: MouseEvent) => {
-            if (advancedRef.current && !advancedRef.current.contains(e.target as Node)) setIsAdvancedOpen(false);
+            if (advancedRef.current && !advancedRef.current.contains(e.target as Node))
+                setIsAdvancedOpen(false);
         };
         const t = setTimeout(() => document.addEventListener('mousedown', fn), 0);
         return () => { clearTimeout(t); document.removeEventListener('mousedown', fn); };
@@ -331,42 +305,44 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
 
     const reset = () => {
         setTypes([]); setBedrooms([]); setBathrooms([]);
-        setPriceMin(PRICE_MARKS[0]); setPriceMax(PRICE_MARKS[PRICE_MARKS.length - 1]);
-        setAreaMin(AREA_MARKS[0]); setAreaMax(AREA_MARKS[AREA_MARKS.length - 1]);
+        setSelectedAreaRanges([]);
     };
 
     const activeCount =
         types.length + bedrooms.length + bathrooms.length +
-        (priceMin > PRICE_MARKS[0] || priceMax < PRICE_MARKS[PRICE_MARKS.length - 1] ? 1 : 0) +
-        (areaMin > AREA_MARKS[0] || areaMax < AREA_MARKS[AREA_MARKS.length - 1] ? 1 : 0);
+        (selectedAreaRanges.length > 0 ? 1 : 0);
 
-    // ─── EXACT SAME logic as original ───
     const handleSearch = () => {
         setIsAdvancedOpen(false);
-        onSearch?.({ tab: "Mua Bán", location, types, priceMin, priceMax, areaMin, areaMax, bedrooms, bathrooms });
+        const area = resolveAreaRange(selectedAreaRanges, AREA_RANGES);
+        onSearch?.({
+            tab: 'Mua Bán', location, types,
+            priceMin: 0, priceMax: 9999,
+            areaMin: area.min, areaMax: area.max,
+            bedrooms, bathrooms,
+            priceSortOrder,
+        });
     };
 
-    const fmtPrice = (v: number) => `${v} tỷ`;
-    const fmtArea = (v: number) => `${v} m²`;
-
-    const typeLabel = types.length === 0 ? 'Tất cả loại BĐS'
-        : types.length === 1 ? safeTypes.find(t => t.value === types[0])?.label
-            : `${types.length} loại BĐS`;
+    const typeLabel =
+        types.length === 0 ? 'Tất cả loại BĐS'
+            : types.length === 1 ? safeTypes.find(t => t.value === types[0])?.label
+                : `${types.length} loại BĐS`;
 
     /* ─── Shared modal props ─── */
     const modalProps = {
-        advancedRef, onClose: () => setIsAdvancedOpen(false),
-        onSearch: handleSearch, onReset: reset,
+        advancedRef,
+        onClose: () => setIsAdvancedOpen(false),
+        onSearch: handleSearch,
+        onReset: reset,
         safeTypes, safeBedrooms, safeBathrooms,
         types, setTypes, bedrooms, setBedrooms, bathrooms, setBathrooms,
-        priceMin, priceMax, setPriceMin, setPriceMax,
-        areaMin, areaMax, setAreaMin, setAreaMax,
-        fmtPrice, fmtArea, toggleArr,
+        selectedAreaRanges, toggleAreaRange,
+        toggleArr,
     };
 
     /* ════════════════════════════════════════════════
-       COMPACT MODE — search bar only, no heading/section
-       Used when embedded inside listings section
+       COMPACT MODE
     ════════════════════════════════════════════════ */
     if (compact) {
         return (
@@ -419,6 +395,34 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                                 <div style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Loại BĐS</div>
                                 <div style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>{typeLabel}</div>
                             </div>
+                        </div>
+
+                        {/* Price Sort Segment */}
+                        <div style={{ display: 'flex', alignItems: 'stretch', borderRight: '1px solid var(--e-beige)' }}>
+                            {PRICE_SORT_OPTIONS.map((opt, i) => (
+                                <button
+                                    key={opt.key}
+                                    onClick={() => setPriceSortOrder(priceSortOrder === opt.key ? '' : opt.key)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 5,
+                                        padding: '0 1rem',
+                                        background: priceSortOrder === opt.key ? 'var(--e-charcoal)' : 'transparent',
+                                        color: priceSortOrder === opt.key ? 'var(--e-white)' : 'var(--e-muted)',
+                                        border: 'none',
+                                        borderLeft: i > 0 ? '1px solid var(--e-beige)' : 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '0.72rem', fontWeight: 600,
+                                        letterSpacing: '0.04em', textTransform: 'uppercase',
+                                        fontFamily: 'var(--e-sans)',
+                                        transition: 'all 0.2s',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                    onMouseEnter={e => { if (priceSortOrder !== opt.key) e.currentTarget.style.color = 'var(--e-charcoal)'; }}
+                                    onMouseLeave={e => { if (priceSortOrder !== opt.key) e.currentTarget.style.color = 'var(--e-muted)'; }}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
                         </div>
 
                         {/* Advanced toggle */}
@@ -480,7 +484,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
     }
 
     /* ════════════════════════════════════════════════
-       FULL MODE — original layout with heading
+       FULL MODE
     ════════════════════════════════════════════════ */
     return (
         <section style={{
@@ -515,7 +519,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                     </p>
                 </div>
 
-                {/* Primary Search Bar — exact same as original */}
+                {/* Primary Search Bar */}
                 <div style={{
                     background: 'var(--e-white)',
                     border: '1px solid var(--e-beige)',
@@ -572,6 +576,34 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         </div>
                     </div>
 
+                    {/* Price Sort Segment */}
+                    <div style={{ display: 'flex', alignItems: 'stretch', borderRight: '1px solid var(--e-beige)' }}>
+                        {PRICE_SORT_OPTIONS.map((opt, i) => (
+                            <button
+                                key={opt.key}
+                                onClick={() => setPriceSortOrder(priceSortOrder === opt.key ? '' : opt.key)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    padding: '0 1.4rem',
+                                    background: priceSortOrder === opt.key ? 'var(--e-charcoal)' : 'transparent',
+                                    color: priceSortOrder === opt.key ? 'var(--e-white)' : 'var(--e-muted)',
+                                    border: 'none',
+                                    borderLeft: i > 0 ? '1px solid var(--e-beige)' : 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 600,
+                                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                                    fontFamily: 'var(--e-sans)',
+                                    transition: 'all 0.2s',
+                                    whiteSpace: 'nowrap',
+                                }}
+                                onMouseEnter={e => { if (priceSortOrder !== opt.key) e.currentTarget.style.color = 'var(--e-charcoal)'; }}
+                                onMouseLeave={e => { if (priceSortOrder !== opt.key) e.currentTarget.style.color = 'var(--e-muted)'; }}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Advanced Filters Toggle */}
                     <button
                         onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
@@ -625,7 +657,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
             <style>{`
                 @keyframes modalScale {
                     from { opacity: 0; transform: scale(0.95); }
-                    to { opacity: 1; transform: scale(1); }
+                    to   { opacity: 1; transform: scale(1);    }
                 }
                 .spinner {
                     width: 16px; height: 16px;
@@ -635,9 +667,6 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                     animation: ss-spin .8s linear infinite;
                 }
                 @keyframes ss-spin { to { transform: rotate(360deg); } }
-                @media (max-width: 768px) {
-                    /* Add responsive layout if needed */
-                }
             `}</style>
         </section>
     );

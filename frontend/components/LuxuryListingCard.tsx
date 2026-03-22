@@ -6,6 +6,7 @@ import { formatVNDShort } from '@/utils/formatPrice';
 
 interface LuxuryListingCardProps {
     property: Property;
+    horizontal?: boolean;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -40,16 +41,7 @@ function shortenAddress(address?: string, maxParts = 3) {
     return `${parts.slice(0, maxParts).join(', ')}…`;
 }
 
-/* ─────────────────────────────────────────
-   CSS — injected ONCE into <head>
-   Avoids placing <style> tags as grid items
-───────────────────────────────────────── */
 const CARD_CSS = `
-/* ═══════════════════════════════════════
-   LUXURY LISTING CARD — Catalog Edition
-   Synced with FeaturedSection v3 tokens
-═══════════════════════════════════════ */
-
 .lc-card {
     background: var(--e-white);
     display: flex;
@@ -58,6 +50,8 @@ const CARD_CSS = `
     overflow: hidden;
     cursor: pointer;
     border: 1px solid var(--e-beige);
+    /* FIX: ensure card fills full grid cell height */
+    height: 100%;
     transition:
         box-shadow 0.4s cubic-bezier(0.25,0.46,0.45,0.94),
         transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94),
@@ -68,8 +62,6 @@ const CARD_CSS = `
     box-shadow: 0 20px 50px -10px rgba(26,23,20,0.13);
     border-color: rgba(184,151,74,0.25);
 }
-
-/* Gold accent line top on hover */
 .lc-card::before {
     content: '';
     position: absolute;
@@ -82,7 +74,7 @@ const CARD_CSS = `
 }
 .lc-card:hover::before { opacity: 1; }
 
-/* ─── Image shell ─── */
+/* Image */
 .lc-img-wrap {
     position: relative;
     width: 100%;
@@ -91,7 +83,6 @@ const CARD_CSS = `
     background: var(--e-charcoal);
     flex-shrink: 0;
 }
-
 .lc-img {
     position: absolute;
     inset: 0;
@@ -107,7 +98,6 @@ const CARD_CSS = `
     transform: scale(1.07);
     filter: brightness(0.82) saturate(0.92);
 }
-
 .lc-img-wrap::after {
     content: '';
     position: absolute;
@@ -118,11 +108,10 @@ const CARD_CSS = `
     z-index: 1;
 }
 
-/* ─── Badge ─── */
+/* Badge */
 .lc-badge {
     position: absolute;
-    top: 1rem;
-    left: 1rem;
+    top: 1rem; left: 1rem;
     z-index: 4;
     font-family: var(--e-sans);
     font-size: 0.55rem;
@@ -139,11 +128,10 @@ const CARD_CSS = `
 .lc-badge--new { background: rgba(120,180,110,0.14); color: #a8c8a0; border: 1px solid rgba(120,180,110,0.45); }
 .lc-badge--hot { background: rgba(220,110,60,0.14); color: #e8a080; border: 1px solid rgba(220,110,60,0.4); }
 
-/* ─── Fav button ─── */
+/* Fav */
 .lc-fav {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: 1rem; right: 1rem;
     z-index: 4;
     width: 34px; height: 34px;
     border-radius: 50%;
@@ -162,23 +150,20 @@ const CARD_CSS = `
     border-color: rgba(184,151,74,0.6);
 }
 
-/* ─── Info panel ─── */
+/* Body — flex:1 so it stretches to fill remaining card height */
 .lc-body {
     padding: 1.8rem 1.9rem 2rem;
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex: 1;           /* ← fills remaining height so footer always anchors to bottom */
     position: relative;
     background: var(--e-white);
 }
-
-/* Left gold bar on hover */
 .lc-body::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 1.5rem;
-    bottom: 1.6rem;
+    top: 1.5rem; bottom: 1.6rem;
     width: 2px;
     background: linear-gradient(to bottom, var(--e-gold), transparent);
     opacity: 0;
@@ -186,7 +171,7 @@ const CARD_CSS = `
 }
 .lc-card:hover .lc-body::before { opacity: 1; }
 
-/* Type — matches .e-section-label */
+/* Type */
 .lc-type {
     font-family: var(--e-sans);
     font-size: 0.68rem;
@@ -207,7 +192,7 @@ const CARD_CSS = `
     flex-shrink: 0;
 }
 
-/* Title — matches .e-featured-name */
+/* Title */
 .lc-name {
     font-family: var(--e-serif);
     font-size: 1.35rem;
@@ -257,7 +242,7 @@ const CARD_CSS = `
 .lc-spec:last-child { border-right: none; margin-right: 0; }
 .lc-spec svg { flex-shrink: 0; }
 
-/* Footer */
+/* Footer — margin-top:auto pushes it to bottom regardless of content height */
 .lc-footer {
     display: flex;
     align-items: flex-end;
@@ -287,7 +272,7 @@ const CARD_CSS = `
     letter-spacing: 0.01em;
 }
 
-/* CTA button */
+/* CTA */
 .lc-cta {
     display: inline-flex;
     align-items: center;
@@ -315,11 +300,50 @@ const CARD_CSS = `
 }
 .lc-cta svg { transition: transform 0.3s; }
 .lc-card:hover .lc-cta svg { transform: translateX(3px); }
+
+/* ── HORIZONTAL / LIST MODE ── */
+.lc-card.lc-horizontal {
+    flex-direction: row;
+    height: auto;
+    min-height: 190px;
+}
+.lc-card.lc-horizontal .lc-img-wrap {
+    width: 280px;
+    min-width: 280px;
+    padding-top: 0;
+    height: auto;
+    flex-shrink: 0;
+}
+.lc-card.lc-horizontal .lc-body {
+    padding: 1.4rem 1.8rem;
+}
+.lc-card.lc-horizontal .lc-name {
+    font-size: 1.15rem;
+    margin-bottom: 0.35rem;
+}
+.lc-card.lc-horizontal .lc-addr {
+    margin-bottom: 0.75rem;
+}
+.lc-card.lc-horizontal .lc-specs {
+    margin-bottom: 0.75rem;
+}
+.lc-card.lc-horizontal .lc-footer {
+    margin-top: 0;
+}
+.lc-card.lc-horizontal:hover {
+    transform: translateX(4px) translateY(-2px);
+}
+@media (max-width: 640px) {
+    .lc-card.lc-horizontal { flex-direction: column; height: 100%; }
+    .lc-card.lc-horizontal .lc-img-wrap {
+        width: 100%;
+        min-width: unset;
+        padding-top: 56%;
+    }
+}
 `;
 
-/* Module-level flag — inject CSS only once across all card instances */
 let _lcStyleInjected = false;
-
 function useInjectCardStyles() {
     useEffect(() => {
         if (_lcStyleInjected) return;
@@ -331,10 +355,7 @@ function useInjectCardStyles() {
     }, []);
 }
 
-/* ─────────────────────────────────────────
-   COMPONENT
-───────────────────────────────────────── */
-export default function LuxuryListingCard({ property: p }: LuxuryListingCardProps) {
+export default function LuxuryListingCard({ property: p, horizontal = false }: LuxuryListingCardProps) {
     useInjectCardStyles();
 
     const router = useRouter();
@@ -360,7 +381,7 @@ export default function LuxuryListingCard({ property: p }: LuxuryListingCardProp
 
     return (
         <div
-            className="lc-card"
+            className={`lc-card${horizontal ? ' lc-horizontal' : ''}`}
             role="button"
             tabIndex={0}
             onClick={() => router.push(`/properties/${p._id}`)}
@@ -371,16 +392,14 @@ export default function LuxuryListingCard({ property: p }: LuxuryListingCardProp
                 }
             }}
         >
-            {/* ── Image ── */}
+            {/* Image */}
             <div className="lc-img-wrap">
                 <img className="lc-img" src={img} alt={p.title} loading="lazy" />
-
                 {badge && (
                     <span className={`lc-badge ${BADGE_CONFIG[badge].cls}`}>
                         {BADGE_CONFIG[badge].label}
                     </span>
                 )}
-
                 <button
                     className={`lc-fav${faved ? ' is-faved' : ''}`}
                     onClick={e => { e.stopPropagation(); setFaved(v => !v); }}
@@ -390,32 +409,21 @@ export default function LuxuryListingCard({ property: p }: LuxuryListingCardProp
                 </button>
             </div>
 
-            {/* ── Body ── */}
+            {/* Body */}
             <div className="lc-body">
-
                 <div className="lc-type">{typeLabel}</div>
-
                 <h3 className="lc-name">{displayTitle}</h3>
-
                 <div className="lc-addr">
                     <PinIcon />
                     {shortenAddress(p.address)}
                 </div>
-
                 {(p.area != null || p.bedrooms != null || p.bathrooms != null) && (
                     <div className="lc-specs">
-                        {p.area != null && (
-                            <div className="lc-spec"><AreaIcon /> {p.area} m²</div>
-                        )}
-                        {p.bedrooms != null && (
-                            <div className="lc-spec"><BedIcon /> {p.bedrooms} PN</div>
-                        )}
-                        {p.bathrooms != null && (
-                            <div className="lc-spec"><BathIcon /> {p.bathrooms} WC</div>
-                        )}
+                        {p.area != null && <div className="lc-spec"><AreaIcon /> {p.area} m²</div>}
+                        {p.bedrooms != null && <div className="lc-spec"><BedIcon /> {p.bedrooms} PN</div>}
+                        {p.bathrooms != null && <div className="lc-spec"><BathIcon /> {p.bathrooms} WC</div>}
                     </div>
                 )}
-
                 <div className="lc-footer">
                     <div className="lc-price-wrap">
                         <span className="lc-price-label">Giá</span>
@@ -429,20 +437,17 @@ export default function LuxuryListingCard({ property: p }: LuxuryListingCardProp
                         Chi tiết <ArrowIcon />
                     </Link>
                 </div>
-
             </div>
         </div>
     );
 }
 
-/* ──────────────── Icons ──────────────── */
+/* Icons */
 function HeartIcon({ filled }: { filled: boolean }) {
     return (
         <svg width={14} height={14} viewBox="0 0 24 24"
             stroke={filled ? '#e5c97a' : 'rgba(255,255,255,0.75)'}
-            fill={filled ? '#e5c97a' : 'none'}
-            strokeWidth={1.6}
-        >
+            fill={filled ? '#e5c97a' : 'none'} strokeWidth={1.6}>
             <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
         </svg>
     );

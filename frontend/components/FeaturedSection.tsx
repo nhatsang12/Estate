@@ -258,7 +258,7 @@ export default function FeaturedSection({ properties }: FeaturedSectionProps) {
                     transition:
                         transform 1.1s cubic-bezier(0.25,0.46,0.45,0.94),
                         filter 0.65s ease;
-                    filter: brightness(0.5) saturate(0.78);
+                    filter: brightness(0.62) saturate(0.78);
                 }
                 .ah-card:hover .ah-img {
                     transform: scale(1.06);

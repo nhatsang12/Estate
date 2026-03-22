@@ -6,40 +6,8 @@ import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
-import {
-  Waves, Dumbbell, Wind, Car, Trees, ShieldCheck, Wifi,
-  AirVent, ChefHat, WashingMachine,
-} from "lucide-react";
-const AMENITY_ICONS: Record<string, React.ReactNode> = {
-  "Hồ bơi": <Waves size={16} />,
-  "Phòng gym": <Dumbbell size={16} />,
-  "Ban công": <Wind size={16} />,
-  "Bãi đỗ xe": <Car size={16} />,
-  "Sân vườn": <Trees size={16} />,
-  "Bảo vệ 24/7": <ShieldCheck size={16} />,
-  "WiFi": <Wifi size={16} />,
-  "Điều hoà": <AirVent size={16} />,
-  "Bếp đầy đủ": <ChefHat size={16} />,
-  "Máy giặt": <WashingMachine size={16} />,
-};
-import {
-  Bath,
-  BedDouble,
-  Building2,
-  CalendarClock,
-  CheckCircle2,
-  ChevronLeft,
-  Mail,
-  MapPin,
-  Phone,
-  Ruler,
-  Send,
-  Maximize2,
-  Sparkles,
-  ArrowRight,
-  Share2,
-  Heart,
-} from "lucide-react";
+import { Waves, Dumbbell, Wind, Car, Trees, ShieldCheck, Wifi, AirVent, ChefHat, WashingMachine } from "lucide-react";
+import { Bath, BedDouble, Building2, CalendarClock, CheckCircle2, Mail, MapPin, Phone, Maximize2, Sparkles, ArrowRight } from "lucide-react";
 import LuxuryNavbar from "@/components/LuxuryNavbar";
 import LuxuryFooter from "@/components/LuxuryFooter";
 import LuxuryListingCard from "@/components/LuxuryListingCard";
@@ -48,6 +16,19 @@ import { propertyService } from "@/services/propertyService";
 import type { Property, PropertyOwner } from "@/types/property";
 
 const AddressMap = dynamic(() => import("@/components/AddressMap"), { ssr: false });
+
+const TYPE_LABEL_VI: Record<string, string> = {
+  apartment: "Căn Hộ", house: "Nhà Phố",
+  villa: "Biệt Thự", studio: "Studio", office: "Văn Phòng",
+};
+
+const AMENITY_ICONS: Record<string, React.ReactNode> = {
+  "Hồ bơi": <Waves size={16} />, "Phòng gym": <Dumbbell size={16} />,
+  "Ban công": <Wind size={16} />, "Bãi đỗ xe": <Car size={16} />,
+  "Sân vườn": <Trees size={16} />, "Bảo vệ 24/7": <ShieldCheck size={16} />,
+  "WiFi": <Wifi size={16} />, "Điều hoà": <AirVent size={16} />,
+  "Bếp đầy đủ": <ChefHat size={16} />, "Máy giặt": <WashingMachine size={16} />,
+};
 
 interface PropertyDetailPageProps {
   property: Property | null;
@@ -58,206 +39,73 @@ interface PropertyDetailPageProps {
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(amount);
 }
-function formatNumber(value?: number) {
-  if (value === undefined || value === null) return "N/A";
-  return new Intl.NumberFormat("en-US").format(value);
-}
-function formatDate(value?: string) {
-  if (!value) return "N/A";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "N/A";
-  return new Intl.DateTimeFormat("vi-VN", { year: "numeric", month: "long", day: "numeric" }).format(date);
-}
-function isImageUrl(url: string) {
-  return /\/image\/upload\//.test(url) || /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(url);
-}
 function isPopulatedOwner(owner: PropertyOwner): owner is Exclude<PropertyOwner, string> {
   return typeof owner !== "string";
 }
 
-// ————— CSS Constants & Global Styles —————
 const GLOBAL_STYLE = `
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  @keyframes lineGrow {
-    from { width: 0; }
-    to { width: 100%; }
-  }
-
-  .e-reveal { opacity: 0; transform: translateY(20px); transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
-  .e-reveal.visible { opacity: 1; transform: translateY(0); }
-
+  .e-reveal { opacity:0; transform:translateY(20px); transition:all 0.8s cubic-bezier(0.22,1,0.36,1); }
+  .e-reveal.visible { opacity:1; transform:translateY(0); }
   .e-hero-overlay {
-    background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 30%, rgba(0,0,0,0.85) 100%);
+    background:
+      radial-gradient(ellipse at center, transparent 28%, rgba(0,0,0,0.65) 100%),
+      linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 30%),
+      linear-gradient(to top, rgba(0,0,0,0.92) 0%, transparent 42%);
   }
-
-  .e-sticky-sidebar {
-    position: sticky;
-    top: 100px;
-  }
-
-  .e-thumbnail {
-    transition: all 0.3s var(--e-ease);
-    border: 1px solid transparent;
-  }
-  .e-thumbnail.active {
-    border-color: var(--e-gold);
-    transform: scale(1.05);
-  }
-
-  .e-glass-card {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(140, 110, 63, 0.15);
-  }
-
-  .e-detail-section {
-    padding: 3rem 0;
-    border-bottom: 1px solid var(--e-beige);
-  }
-
-  .e-category-tag {
-    font-size: 0.65rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--e-gold);
-    font-weight: 700;
-  }
-
-  .e-h2 {
-    font-family: var(--e-serif);
-    font-size: 1.8rem;
-    font-weight: 500;
-    color: var(--e-charcoal);
-    margin-bottom: 1.5rem;
-  }
-
-  .e-prose {
-    font-size: 1rem;
-    line-height: 1.8;
-    color: var(--e-muted);
-    font-weight: 300;
-  }
-
-  .e-icon-box {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--e-beige);
-    color: var(--e-gold);
-    transition: all 0.3s;
-  }
-  .e-icon-box:hover {
-    background: var(--e-gold);
-    color: var(--e-white);
-    border-color: var(--e-gold);
-  }
-
+  .e-sticky-sidebar { position:sticky; top:100px; }
+  .e-detail-section { padding:3rem 0; border-bottom:1px solid var(--e-beige); }
+  .e-category-tag { font-size:0.65rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--e-gold); font-weight:700; }
+  .e-h2 { font-family:var(--e-serif); font-size:1.8rem; font-weight:500; color:var(--e-charcoal); margin-bottom:1.5rem; }
+  .e-prose { font-size:1rem; line-height:1.8; color:var(--e-muted); font-weight:300; }
   .e-contact-input {
-    width: 100%;
-    padding: 12px 16px;
-    font-family: inherit;
-    font-size: 0.9rem;
-    border: 1px solid var(--e-beige);
-    background: var(--e-white);
-    outline: none;
-    transition: all 0.25s;
-    border-radius: 4px;
+    width:100%; padding:12px 16px; font-family:inherit; font-size:0.9rem;
+    border:1px solid var(--e-beige); background:var(--e-white);
+    outline:none; transition:all 0.25s; border-radius:0; box-sizing:border-box;
   }
-  .e-contact-input:focus {
-    border-color: var(--e-gold);
-    background: var(--e-cream);
+  .e-contact-input:focus { border-color:var(--e-gold); background:var(--e-cream); }
+  .e-btn-primary {
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    padding:14px 28px; background:var(--e-charcoal); color:var(--e-white);
+    border:1px solid var(--e-charcoal); font-size:0.72rem; font-weight:700;
+    letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;
+    transition:all 0.3s; text-decoration:none; width:100%; border-radius:0;
   }
-
-  .e-btn-fill {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 14px 28px;
-    background: var(--e-charcoal);
-    color: var(--e-white);
-    border: 1px solid var(--e-charcoal);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-decoration: none;
-    width: 100%;
-  }
-  .e-btn-fill:hover {
-    background: var(--e-gold);
-    border-color: var(--e-gold);
-  }
-
+  .e-btn-primary:hover { background:var(--e-gold); border-color:var(--e-gold); }
   .e-btn-outline {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 14px 28px;
-    background: transparent;
-    color: var(--e-charcoal);
-    border: 1px solid var(--e-beige);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-decoration: none;
-    width: 100%;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    padding:14px 28px; background:transparent; color:var(--e-charcoal);
+    border:1px solid var(--e-beige); font-size:0.72rem; font-weight:700;
+    letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;
+    transition:all 0.3s; text-decoration:none; width:100%; border-radius:0;
   }
-  .e-btn-outline:hover {
-    border-color: var(--e-charcoal);
-    background: var(--e-cream);
-  }
+  .e-btn-outline:hover { border-color:var(--e-charcoal); background:var(--e-cream); }
+  .e-gold-divider { height:3px; background:linear-gradient(90deg, var(--e-gold), rgba(200,168,75,0.25), transparent); }
+  .e-stats-bar { display:flex; align-items:stretch; border-bottom:1px solid var(--e-beige); background:var(--e-white); overflow-x:auto; }
+  .e-stats-bar-item { flex:1; min-width:130px; display:flex; flex-direction:column; gap:4px; padding:1.25rem 1.6rem; border-right:1px solid var(--e-beige); }
+  .e-stats-bar-item:last-child { border-right:none; }
+  .e-stats-bar-label { font-size:0.57rem; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--e-muted); opacity:0.65; }
+  .e-stats-bar-value { font-family:var(--e-serif); font-size:1rem; font-weight:500; color:var(--e-charcoal); }
+  .e-stats-bar-gold { color:var(--e-gold) !important; }
 `;
 
 export default function PropertyDetailPage({ property, errorMessage, recommendations }: PropertyDetailPageProps) {
   const router = useRouter();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [scrolled, setScrolled] = useState(false);
   const [contactSent, setContactSent] = useState(false);
   const reveals = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 80);
-    window.addEventListener("scroll", handleScroll);
-
     const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-          }
-        });
-      },
+      (entries) => entries.forEach((e) => e.isIntersecting && e.target.classList.add("visible")),
       { threshold: 0.1 }
     );
-
     reveals.current.forEach((el) => el && observer.observe(el));
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
 
   const handlePostClick = () => {
     const token = typeof window !== "undefined" ? window.localStorage.getItem("estate_manager_token") : null;
-    if (!token) router.push("/auth/login?redirect=/provider/properties/create");
-    else router.push("/provider/properties/create");
+    router.push(token ? "/provider/properties/create" : "/auth/login?redirect=/provider/properties/create");
   };
 
   if (!property) {
@@ -269,7 +117,7 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
           <h1 style={{ fontFamily: "var(--e-serif)", fontSize: "2rem", marginBottom: "1.5rem" }}>
             {errorMessage || "Không tìm thấy bất động sản"}
           </h1>
-          <Link href="/" className="e-btn-fill" style={{ width: "auto", display: "inline-flex" }}>
+          <Link href="/" className="e-btn-primary" style={{ width: "auto", display: "inline-flex" }}>
             Quay lại trang chủ
           </Link>
         </main>
@@ -283,129 +131,74 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
   const pricePerSqm = property.area && property.area > 0 ? Math.round(property.price / property.area) : null;
   const coords = property.location?.coordinates ?? [];
   const hasMapCoords = Number.isFinite(coords[1]) && Number.isFinite(coords[0]) && !(coords[1] === 0 && coords[0] === 0);
-
-  const handleContactSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setContactSent(true);
-  };
+  const typeVI = TYPE_LABEL_VI[property.type] ?? "Bất Động Sản";
+  const recCount = Math.min(recommendations.length, 4);
+  const shortAddress = (() => {
+    const parts = (property.address || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+    return parts.length > 3 ? parts.slice(0, 3).join(", ") + "…" : property.address;
+  })();
+  const handleContactSubmit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); setContactSent(true); };
 
   return (
     <>
-      <Head>
-        <title>{property.title} — Estoria Luxury Portal</title>
-      </Head>
+      <Head><title>{property.title} — Estoria Luxury Portal</title></Head>
       <style>{GLOBAL_STYLE}</style>
-
-      <div className="estoria min-h-screen bg-white">
-        {/* Navbar — Dynamic transparency */}
+      <div className="estoria min-h-screen" style={{ background: "var(--e-white)" }}>
         <LuxuryNavbar onPostClick={handlePostClick} />
 
-        {/* 01 — CINEMATIC HERO */}
-        <section style={{ position: "relative", height: "100vh", minHeight: "600px" }}>
+        {/* 01 HERO */}
+        <section style={{ position: "relative", height: "100vh", minHeight: "620px" }}>
           <div style={{ position: "absolute", inset: 0 }}>
             {images.length > 0 ? (
-              <Image
-                src={images[activeImageIndex]}
-                alt={property.title}
-                fill
-                priority
-                unoptimized
-                style={{ objectFit: "cover" }}
-              />
+              <Image src={images[activeImageIndex]} alt={property.title} fill priority unoptimized style={{ objectFit: "cover" }} />
             ) : (
               <div style={{ width: "100%", height: "100%", background: "var(--e-charcoal)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Building2 size={80} color="var(--e-gold)" opacity={0.2} />
               </div>
             )}
           </div>
-
           <div className="e-hero-overlay" style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 
-          <div style={{ position: "relative", zIndex: 2, height: "100%", display: "flex", alignItems: "flex-end", padding: "0 5vw 130px" }}>
-            <div style={{ maxWidth: "800px" }}>
-              <div style={{ display: "flex", gap: "10px", marginBottom: "1.5rem" }}>
-                <span style={{ padding: "6px 14px", border: "1px solid var(--e-white)", borderRadius: "30px", fontSize: "0.62rem", color: "white", textTransform: "uppercase", letterSpacing: "0.15em", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)" }}>
-                  {property.type}
-                </span>
-                <span style={{ padding: "6px 14px", border: "1px solid var(--e-gold)", borderRadius: "30px", fontSize: "0.62rem", color: "var(--e-gold-light)", textTransform: "uppercase", letterSpacing: "0.15em", background: "rgba(140, 110, 63, 0.15)", backdropFilter: "blur(8px)" }}>
-                  Luxury Collection
-                </span>
+          {/* Hero text */}
+          <div style={{ position: "relative", zIndex: 2, height: "100%", display: "flex", alignItems: "flex-end", padding: "0 5vw 140px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", maxWidth: "720px" }}>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <span style={{ padding: "4px 12px", borderRadius: "30px", fontSize: "0.6rem", color: "white", textTransform: "uppercase", letterSpacing: "0.15em", border: "1px solid rgba(255,255,255,0.35)", background: "rgba(0,0,0,0.28)" }}>{typeVI}</span>
+                <span style={{ padding: "4px 12px", borderRadius: "30px", fontSize: "0.6rem", color: "var(--e-gold)", textTransform: "uppercase", letterSpacing: "0.15em", border: "1px solid var(--e-gold)", background: "rgba(0,0,0,0.28)" }}>Luxury Collection</span>
               </div>
-
-              <h1 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2.5rem, 5vw, 4rem)", color: "white", lineHeight: 1, marginBottom: "1.5rem" }}>
-                {property.title}
-              </h1>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "2.5rem", flexWrap: "wrap", color: "rgba(255,255,255,0.8)" }}>
-                <div style={{ fontSize: "1.5rem", fontWeight: 500, color: "var(--e-gold-light)" }}>
-                  {formatCurrency(property.price)}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
-                  <MapPin size={18} /> {property.address}
-                </div>
+              <h1 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2.2rem, 4.5vw, 3.8rem)", color: "white", lineHeight: 1.05, margin: 0 }}>{property.title}</h1>
+              <div style={{ fontSize: "1.35rem", fontWeight: 600, color: "var(--e-gold)", lineHeight: 1 }}>{formatCurrency(property.price)}</div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "7px", fontSize: "0.85rem", color: "rgba(255,255,255,0.7)", lineHeight: 1.4 }}>
+                <MapPin size={14} style={{ flexShrink: 0, marginTop: "2px" }} />
+                <span>{shortAddress}</span>
               </div>
             </div>
-
-
           </div>
 
-          {/* BOTTOM OVERLAY (Specs & Thumbnails) */}
-          <div style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 10,
-            background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)",
-            backdropFilter: "blur(12px)",
-            padding: "2rem 5vw",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: "2rem",
-            borderTop: "1px solid rgba(255,255,255,0.1)"
-          }}>
-            {/* Specs */}
-            <div style={{ display: "flex", gap: "3.5rem", flexWrap: "wrap", paddingBottom: "5px" }}>
+          {/* Specs + thumbnails */}
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10, background: "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.65) 50%, transparent 100%)", padding: "1.5rem 5vw", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "2rem" }}>
+            <div style={{ display: "flex", gap: "3rem", flexWrap: "wrap" }}>
               {[
-                { icon: <BedDouble size={22} />, label: "Phòng ngủ", value: property.bedrooms },
-                { icon: <Bath size={22} />, label: "Phòng tắm", value: property.bathrooms },
-                { icon: <Maximize2 size={22} />, label: "Diện tích", value: `${property.area} m²` },
-                { icon: <CalendarClock size={22} />, label: "Xây dựng", value: property.yearBuilt || "2024" }
-              ].map((spec, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "15px", color: "white" }}>
-                  <div style={{ color: "var(--e-gold-light)" }}>{spec.icon}</div>
+                { icon: <BedDouble size={20} />, label: "Phòng ngủ", value: property.bedrooms },
+                { icon: <Bath size={20} />, label: "Phòng tắm", value: property.bathrooms },
+                { icon: <Maximize2 size={20} />, label: "Diện tích", value: `${property.area} m²` },
+                { icon: <CalendarClock size={20} />, label: "Xây dựng", value: property.yearBuilt || "2024" },
+              ].map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", color: "white" }}>
+                  <div style={{ color: "var(--e-gold)" }}>{s.icon}</div>
                   <div>
-                    <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.15em", opacity: 0.6 }}>{spec.label}</div>
-                    <div style={{ fontSize: "1.05rem", fontWeight: 500 }}>{spec.value}</div>
+                    <div style={{ fontSize: "0.58rem", textTransform: "uppercase", letterSpacing: "0.15em", opacity: 0.5 }}>{s.label}</div>
+                    <div style={{ fontSize: "1rem", fontWeight: 500 }}>{s.value}</div>
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Gallery Thumbnails Overlay */}
             {images.length > 1 && (
-              <div style={{ display: "flex", gap: "8px", overflowX: "auto", maxWidth: "400px", paddingBottom: "5px" }}>
-                {images.map((img, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveImageIndex(i)}
-                    className={`e-thumbnail ${activeImageIndex === i ? 'active' : ''}`}
-                    style={{
-                      position: "relative",
-                      width: "70px",
-                      height: "45px",
-                      flexShrink: 0,
-                      padding: 0,
-                      border: "1px solid transparent",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      overflow: "hidden",
-                      borderColor: activeImageIndex === i ? "var(--e-gold)" : "rgba(255,255,255,0.2)"
-                    }}
-                  >
-                    <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    {activeImageIndex !== i && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />}
+              <div style={{ display: "flex", gap: "6px", overflowX: "auto", maxWidth: "340px" }}>
+                {images.map((img: string, i: number) => (
+                  <button key={i} onClick={() => setActiveImageIndex(i)} style={{ position: "relative", width: "64px", height: "42px", flexShrink: 0, padding: 0, borderRadius: "3px", cursor: "pointer", overflow: "hidden", border: `2px solid ${activeImageIndex === i ? "var(--e-gold)" : "rgba(255,255,255,0.2)"}`, outline: "none", background: "none", boxShadow: "none" }}>
+                    <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    {activeImageIndex !== i && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />}
                   </button>
                 ))}
               </div>
@@ -413,154 +206,161 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
           </div>
         </section>
 
-        {/* 03 — MAIN CONTENT GRID */}
-        <main style={{ padding: "5rem 5vw" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "6rem", alignItems: "start" }}>
-            {/* Left Column — Detailed Info */}
+        {/* 02 STATS BRIDGE BAR */}
+        <div className="e-gold-divider" />
+        <div className="e-stats-bar">
+          {[
+            { label: "Mã BĐS", value: property._id?.slice(-8).toUpperCase() ?? "—" },
+            { label: "Loại hình", value: typeVI },
+            { label: "Diện tích", value: property.area ? `${property.area} m²` : "—" },
+            { label: "Giá", value: formatCurrency(property.price), gold: true },
+            { label: "Trạng thái", value: "Còn Trống" },
+          ].map((item, i) => (
+            <div key={i} className="e-stats-bar-item">
+              <span className="e-stats-bar-label">{item.label}</span>
+              <span className={`e-stats-bar-value${item.gold ? " e-stats-bar-gold" : ""}`}>{item.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* 03 MAIN CONTENT */}
+        <main style={{ padding: "4rem 5vw 5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "5rem", alignItems: "start" }}>
             <div>
+              {/* Overview */}
               <div ref={(el) => { reveals.current[0] = el; }} className="e-reveal e-detail-section" style={{ paddingTop: 0 }}>
-                <div className="e-category-tag" style={{ marginBottom: "1rem" }}>Premium Listing</div>
+                <div className="e-category-tag" style={{ marginBottom: "0.75rem" }}>Premium Listing</div>
                 <h2 className="e-h2">Giới Thiệu Tổng Quan</h2>
-                <div className="e-prose">
-                  {property.description || "Bất động sản cao cấp này hiện đại, sang trọng và đầy đủ tiện nghi, tọa lạc tại một trong những vị trí đắc địa nhất. Với không gian rộng rãi, thiết kế tinh tế và tầm nhìn tuyệt đẹp, đây chắc chắn là sự lựa chọn hoàn hảo cho phong cách sống thượng lưu."}
-                </div>
+                <p className="e-prose">{property.description || "Bất động sản cao cấp này hiện đại, sang trọng và đầy đủ tiện nghi, tọa lạc tại một trong những vị trí đắc địa nhất. Với không gian rộng rãi, thiết kế tinh tế và tầm nhìn tuyệt đẹp, đây chắc chắn là sự lựa chọn hoàn hảo cho phong cách sống thượng lưu."}</p>
               </div>
 
+              {/* Amenities with heading */}
               <div ref={(el) => { reveals.current[1] = el; }} className="e-reveal e-detail-section">
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem" }}>
-                  {(property.amenities?.length
-                    ? property.amenities
-                    : ["Hồ bơi", "Bảo vệ 24/7", "Sân vườn", "Điều hoà", "Bãi đỗ xe", "Phòng gym"]
-                  ).map((item, i) => (
-                    <div key={i} style={{
-                      display: "flex", alignItems: "center", gap: "12px",
-                      padding: "12px 16px",
-                      background: "var(--e-cream)",
-                      border: "1px solid var(--e-beige)",
-                    }}>
-                      <div style={{
-                        width: 34, height: 34,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        border: "1px solid var(--e-beige)",
-                        color: "var(--e-gold)",
-                        flexShrink: 0,
-                      }}>
-                        {AMENITY_ICONS[item] ?? <Sparkles size={16} />}
+                <div className="e-category-tag" style={{ marginBottom: "0.75rem" }}>Tiện Ích</div>
+                <h2 className="e-h2">Tiện Nghi Nổi Bật</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "0.75rem" }}>
+                  {(property.amenities?.length ? property.amenities : ["Hồ bơi", "Bảo vệ 24/7", "Sân vườn", "Điều hoà", "Bãi đỗ xe", "Phòng gym"]).map((item: string, i: number) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 15px", background: "var(--e-cream)", border: "1px solid var(--e-beige)" }}>
+                      <div style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--e-beige)", color: "var(--e-gold)", flexShrink: 0 }}>
+                        {AMENITY_ICONS[item] ?? <Sparkles size={15} />}
                       </div>
-                      <span style={{ fontSize: "0.88rem", color: "var(--e-charcoal)", fontWeight: 500 }}>{item}</span>
+                      <span style={{ fontSize: "0.85rem", color: "var(--e-charcoal)", fontWeight: 500 }}>{item}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div ref={(el) => { reveals.current[2] = el; }} className="e-reveal e-detail-section" style={{ paddingLeft: 0, paddingRight: 0 }}>
+              {/* Map — 240px height */}
+              <div ref={(el) => { reveals.current[2] = el; }} className="e-reveal e-detail-section">
+                <div className="e-category-tag" style={{ marginBottom: "0.75rem" }}>Vị Trí</div>
                 <h2 className="e-h2">Vị Trí Đắc Địa</h2>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "2rem", color: "var(--e-muted)" }}>
-                  <MapPin size={20} color="var(--e-gold)" />
-                  <span style={{ fontSize: "1rem" }}>{property.address}</span>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "1.25rem", color: "var(--e-muted)" }}>
+                  <MapPin size={18} color="var(--e-gold)" style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <span style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{property.address}</span>
                 </div>
                 {hasMapCoords ? (
-                  <div style={{ height: "320px", background: "var(--e-cream)", border: "none", borderRadius: "0", overflow: "hidden", margin: "0 -2px" }}>
-                    <AddressMap lat={coords[1]} lng={coords[0]} interactive={false}  />
+                  <div style={{ height: "240px", overflow: "hidden", border: "1px solid var(--e-beige)" }}>
+                    <AddressMap lat={coords[1]} lng={coords[0]} interactive={false} />
                   </div>
                 ) : (
-                  <div style={{ height: "200px", background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--e-beige)", color: "var(--e-muted)" }}>
+                  <div style={{ height: "150px", background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--e-beige)", color: "var(--e-muted)", fontSize: "0.85rem" }}>
                     Bản đồ hiện đang được cập nhật
                   </div>
                 )}
               </div>
 
+              {/* Legal — Vietnamese only, 4 cells */}
               <div ref={(el) => { reveals.current[3] = el; }} className="e-reveal e-detail-section" style={{ borderBottom: "none" }}>
+                <div className="e-category-tag" style={{ marginBottom: "0.75rem" }}>Pháp Lý</div>
                 <h2 className="e-h2">Thông Tin Pháp Lý</h2>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                  <div style={{ padding: "1.5rem", background: "var(--e-cream)", border: "1px solid var(--e-beige)" }}>
-                    <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.5rem" }}>Trạng Thái</div>
-                    <div style={{ fontSize: "1.1rem", fontFamily: "var(--e-serif)" }}>Sổ Hồng Riêng / Chính Chủ</div>
-                  </div>
-                  <div style={{ padding: "1.5rem", background: "var(--e-cream)", border: "1px solid var(--e-beige)" }}>
-                    <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.5rem" }}>Loại Hình</div>
-                    <div style={{ fontSize: "1.1rem", fontFamily: "var(--e-serif)" }}>{property.type} Cao Cấp</div>
-                  </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  {[
+                    { label: "Trạng Thái", value: "Sổ Hồng Riêng / Chính Chủ" },
+                    { label: "Loại Hình", value: `${typeVI} Cao Cấp` },
+                    { label: "Năm Xây", value: String(property.yearBuilt || "2024") },
+                    { label: "Diện Tích", value: property.area ? `${property.area} m²` : "—" },
+                  ].map((item, i) => (
+                    <div key={i} style={{ padding: "1.2rem 1.4rem", background: "var(--e-cream)", border: "1px solid var(--e-beige)" }}>
+                      <div style={{ fontSize: "0.58rem", textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--e-muted)", marginBottom: "0.35rem" }}>{item.label}</div>
+                      <div style={{ fontSize: "1rem", fontFamily: "var(--e-serif)", color: "var(--e-charcoal)" }}>{item.value}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Right Column — Sticky Sidebar */}
+            {/* Sticky sidebar */}
             <aside className="e-sticky-sidebar">
-              <div className="e-glass-card" style={{ padding: "2.5rem" }}>
-                <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+              <div style={{ background: "var(--e-white)", border: "1px solid var(--e-beige)", boxShadow: "0 8px 40px -8px rgba(26,23,20,0.08)" }}>
+                {/* Price */}
+                <div style={{ padding: "2rem", textAlign: "center", borderBottom: "1px solid var(--e-beige)" }}>
                   <div className="e-category-tag" style={{ marginBottom: "0.5rem" }}>Liên Hệ Tư Vấn</div>
-                  <div style={{ fontFamily: "var(--e-serif)", fontSize: "2rem", color: "var(--e-charcoal)" }}>{formatCurrency(property.price)}</div>
-                  {pricePerSqm && (
-                    <div style={{ fontSize: "0.8rem", color: "var(--e-muted)", marginTop: "4px" }}>
-                      ≈ {pricePerSqm.toLocaleString()} ₫ / m²
+                  <div style={{ fontFamily: "var(--e-serif)", fontSize: "1.85rem", color: "var(--e-charcoal)", lineHeight: 1.1 }}>{formatCurrency(property.price)}</div>
+                  {pricePerSqm && <div style={{ fontSize: "0.76rem", color: "var(--e-muted)", marginTop: "5px" }}>≈ {pricePerSqm.toLocaleString()} ₫ / m²</div>}
+                </div>
+
+                {/* Agent */}
+                <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid var(--e-beige)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.9rem", marginBottom: "1.2rem" }}>
+                    <div style={{ width: "44px", height: "44px", borderRadius: "50%", flexShrink: 0, background: "var(--e-charcoal)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontFamily: "var(--e-serif)", fontSize: "1rem" }}>
+                      {owner?.name?.[0]?.toUpperCase() || "A"}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--e-charcoal)" }}>{owner?.name || "Premium Agent"}</div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--e-gold)", letterSpacing: "0.04em" }}>Đại Lý Chuyên Nghiệp</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <a href={`tel:${owner?.phone}`} className="e-btn-primary"><Phone size={15} /> Gọi Ngay</a>
+                    <a href={`mailto:${owner?.email}`} className="e-btn-outline"><Mail size={15} /> Gửi Email</a>
+                  </div>
+                </div>
+
+                {/* Form */}
+                <div style={{ padding: "1.5rem 2rem 2rem" }}>
+                  <div style={{ fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--e-muted)", marginBottom: "0.9rem" }}>Gửi Lời Nhắn</div>
+                  <form onSubmit={handleContactSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                    <input type="text" placeholder="Tên của bạn" className="e-contact-input" required />
+                    <input type="tel" placeholder="Số điện thoại" className="e-contact-input" required />
+                    <textarea placeholder="Tôi muốn tư vấn về bất động sản này..." className="e-contact-input" style={{ minHeight: "88px", resize: "none" }} required />
+                    <button type="submit" className="e-btn-primary">Gửi Yêu Cầu <ArrowRight size={15} /></button>
+                  </form>
+                  {contactSent && (
+                    <div style={{ marginTop: "0.65rem", padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: "0.8rem", textAlign: "center" }}>
+                      ✓ Yêu cầu đã được gửi thành công!
                     </div>
                   )}
                 </div>
-
-                <div style={{ borderTop: "1px solid var(--e-beige)", paddingTop: "2rem", marginBottom: "2rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
-                    <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "var(--e-charcoal)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontFamily: "var(--e-serif)" }}>
-                      {owner?.name?.[0] || "O"}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>{owner?.name || "Premium Agent"}</div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--e-gold)" }}>Professional Partner</div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <a href={`tel:${owner?.phone}`} className="e-btn-fill">
-                      <Phone size={16} /> Gọi Ngay
-                    </a>
-                    <a href={`mailto:${owner?.email}`} className="e-btn-outline">
-                      <Mail size={16} /> Gửi Email
-                    </a>
-                  </div>
-                </div>
-
-                <form onSubmit={handleContactSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--e-muted)" }}>Gửi Lời Nhắn</div>
-                  <input type="text" placeholder="Tên của bạn" className="e-contact-input" required />
-                  <input type="tel" placeholder="Số điện thoại" className="e-contact-input" required />
-                  <textarea placeholder="Tôi muốn tư vấn về bất động sản này..." className="e-contact-input" style={{ minHeight: "100px", resize: "none" }} required></textarea>
-                  <button type="submit" className="e-btn-fill" style={{ background: "var(--e-gold)", borderColor: "var(--e-gold)" }}>
-                    Gửi Yêu Cầu <ArrowRight size={16} />
-                  </button>
-                </form>
-
-                {contactSent && (
-                  <div style={{ marginTop: "1rem", padding: "12px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: "0.85rem", textAlign: "center", borderRadius: "4px" }}>
-                    Yêu cầu của bạn đã được gửi thành công!
-                  </div>
-                )}
               </div>
 
-              {/* Security Badge */}
-              <div style={{ marginTop: "1.5rem", padding: "1rem", border: "1px dashed var(--e-gold)", display: "flex", alignItems: "center", gap: "12px", color: "var(--e-gold)" }}>
-                <CheckCircle2 size={24} />
+              {/* Verified badge */}
+              <div style={{ marginTop: "0.85rem", padding: "1rem 1.2rem", border: "1px solid rgba(184,151,74,0.3)", background: "rgba(200,168,75,0.04)", display: "flex", alignItems: "center", gap: "11px" }}>
+                <CheckCircle2 size={20} color="var(--e-gold)" style={{ flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Tin Đăng Đã Xác Thực</div>
-                  <div style={{ fontSize: "0.65rem", opacity: 0.8 }}>Pháp lý và thông tin đã được đội ngũ Estoria kiểm soát</div>
+                  <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--e-charcoal)" }}>Tin Đăng Đã Xác Thực</div>
+                  <div style={{ fontSize: "0.63rem", color: "var(--e-muted)", marginTop: "2px" }}>Pháp lý và thông tin đã được kiểm soát bởi Estoria</div>
                 </div>
               </div>
             </aside>
           </div>
         </main>
 
-        {/* 04 — RECOMMENDATIONS */}
+        {/* 04 RECOMMENDATIONS */}
         {recommendations.length > 0 && (
-          <section style={{ padding: "5rem 5vw", background: "var(--e-cream)", borderTop: "1px solid var(--e-beige)" }}>
+          <section style={{ padding: "5rem 5vw", background: "#F2F5F8", borderTop: "1px solid var(--e-beige)" }}>
             <div style={{ maxWidth: "1240px", margin: "0 auto" }}>
-              <div style={{ textAlign: "center", marginBottom: "4rem" }}>
-                <div className="e-category-tag">Gợi Ý</div>
-                <h2 className="e-h2" style={{ fontSize: "2.4rem", marginTop: "1rem" }}>Bất Động Sản Tương Tự</h2>
+              <div style={{ textAlign: "center", marginBottom: "3.5rem" }}>
+                <div className="e-category-tag">Gợi Ý Cho Bạn</div>
+                <h2 className="e-h2" style={{ fontSize: "2.2rem", marginTop: "0.75rem", marginBottom: 0 }}>Bất Động Sản Tương Tự</h2>
               </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "2.5rem" }}>
-                {recommendations.slice(0, 4).map((rec) => (
-                  <LuxuryListingCard key={rec._id} property={rec} />
-                ))}
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${recCount}, minmax(0, 1fr))`, gap: "1.75rem", alignItems: "stretch", maxWidth: recCount === 1 ? "320px" : recCount === 2 ? "680px" : "100%", margin: "0 auto" }}>
+                  {recommendations.slice(0, 4).map((rec: Property) => (
+                    <div key={rec._id} style={{ height: "100%" }}>
+                      <LuxuryListingCard property={rec} />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
