@@ -258,24 +258,7 @@ export default function GallerySection() {
                     -webkit-text-stroke-color: rgba(200,168,75,0.9);
                 }
 
-                .cs-tag {
-                    position: absolute;
-                    top: 1.2rem; right: 1.2rem;
-                    z-index: 4;
-                    font-family: var(--e-sans);
-                    font-size: 0.52rem;
-                    font-weight: 700;
-                    letter-spacing: 0.14em;
-                    text-transform: uppercase;
-                    color: var(--e-gold, #C8A84B);
-                    background: rgba(200,168,75,0.12);
-                    border: 1px solid rgba(200,168,75,0.3);
-                    padding: 5px 12px;
-                    backdrop-filter: blur(8px);
-                    opacity: 0;
-                    transform: translateY(-4px);
-                    transition: opacity 0.3s, transform 0.3s;
-                }
+            
                 .cs-card.is-active .cs-tag { opacity: 1; transform: translateY(0); }
 
                 .cs-overlay {

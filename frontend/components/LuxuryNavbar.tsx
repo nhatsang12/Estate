@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
+import LuxuryLoginModal from './LuxuryLoginModal';
 
 interface LuxuryNavbarProps {
     onPostClick?: () => void;
@@ -11,8 +12,8 @@ interface LuxuryNavbarProps {
 const NAV_LINKS = [
     { href: '#featured', label: 'Nổi Bật' },
     { href: '#listings', label: 'Danh Sách' },
-    { href: '#vision', label: 'Về Chúng Tôi' },
-    { href: '#gallery', label: 'Thư Viện' },
+    { href: '#about', label: 'Về Chúng Tôi' },
+    { href: '#showcase', label: 'Thư Viện' },
 ];
 
 function getInitials(name?: string | null): string {
@@ -33,6 +34,7 @@ export default function LuxuryNavbar({ onPostClick, variant = 'default' }: Luxur
     const [scrolled, setScrolled] = useState(false);
     const [hovered, setHovered] = useState<string | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [showLoginModal, setShowLoginModal] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const isLoggedIn = !!user;
@@ -285,8 +287,8 @@ export default function LuxuryNavbar({ onPostClick, variant = 'default' }: Luxur
                     </div>
                 ) : (
                     /* ── Nút Đăng Nhập khi chưa login ── */
-                    <Link
-                        href="/auth/login"
+                    <button
+                        onClick={() => setShowLoginModal(true)}
                         style={{
                             display: 'inline-flex', alignItems: 'center',
                             padding: '0.55rem 1.4rem',
@@ -297,27 +299,32 @@ export default function LuxuryNavbar({ onPostClick, variant = 'default' }: Luxur
                             color: isScrolled ? 'var(--e-charcoal)' : 'var(--e-white)',
                             background: 'transparent',
                             transition: 'all 0.25s cubic-bezier(0.22,1,0.36,1)',
+                            cursor: 'pointer',
                         }}
                         onMouseEnter={e => {
-                            (e.currentTarget as HTMLAnchorElement).style.background =
+                            (e.currentTarget as HTMLButtonElement).style.background =
                                 isScrolled ? 'var(--e-charcoal)' : 'var(--e-white)';
-                            (e.currentTarget as HTMLAnchorElement).style.color =
+                            (e.currentTarget as HTMLButtonElement).style.color =
                                 isScrolled ? 'var(--e-white)' : 'var(--e-charcoal)';
-                            (e.currentTarget as HTMLAnchorElement).style.borderColor =
+                            (e.currentTarget as HTMLButtonElement).style.borderColor =
                                 isScrolled ? 'var(--e-charcoal)' : 'var(--e-white)';
                         }}
                         onMouseLeave={e => {
-                            (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-                            (e.currentTarget as HTMLAnchorElement).style.color =
+                            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                            (e.currentTarget as HTMLButtonElement).style.color =
                                 isScrolled ? 'var(--e-charcoal)' : 'var(--e-white)';
-                            (e.currentTarget as HTMLAnchorElement).style.borderColor =
+                            (e.currentTarget as HTMLButtonElement).style.borderColor =
                                 isScrolled ? 'var(--e-charcoal)' : 'rgba(255,255,255,0.6)';
                         }}
                     >
                         Đăng Nhập
-                    </Link>
+                    </button>
                 )}
             </div>
+
+            {showLoginModal && (
+                <LuxuryLoginModal onClose={() => setShowLoginModal(false)} />
+            )}
 
             <style>{`
                 @keyframes dropdownIn {

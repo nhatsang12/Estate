@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, MapPin, SlidersHorizontal, X, Check, Building2 } from 'lucide-react';
 import { propertyService, FilterOptionsData } from '@/services/propertyService';
 
@@ -140,14 +141,22 @@ function AdvancedModal({
     selectedAreaRanges, toggleAreaRange,
     toggleArr,
 }: any) {
-    return (
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = ''; };
+    }, []);
+
+    const modalContent = (
         <div
             style={{
                 position: 'fixed',
                 top: 0, left: 0, width: '100vw', height: '100vh',
                 background: 'rgba(26, 23, 20, 0.4)',
                 backdropFilter: 'blur(8px)',
-                zIndex: 1000,
+                zIndex: 999999,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -255,6 +264,9 @@ function AdvancedModal({
             </div>
         </div>
     );
+
+    if (!mounted) return null;
+    return createPortal(modalContent, document.body);
 }
 
 /* ══════════════════════════════════════════
@@ -358,10 +370,10 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         boxShadow: '0 8px 30px -8px rgba(26,23,20,0.07)'
                     }}>
                         {/* Location */}
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1.4rem', borderRight: '1px solid var(--e-beige)' }}>
-                            <MapPin size={18} color="var(--e-gold)" />
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Địa điểm</div>
+                        <div className="ss-item" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.8rem', borderRight: '1px solid var(--e-beige)' }}>
+                            <MapPin size={18} color="var(--e-gold)" style={{ flexShrink: 0 }} />
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                <div className="ss-label" style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', overflow: 'hidden', fontFamily: 'var(--e-sans)' }}>Địa điểm</div>
                                 <input
                                     ref={inputRef}
                                     type="text"
@@ -385,14 +397,15 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
 
                         {/* Type */}
                         <div
+                            className="ss-item"
                             onClick={() => setIsAdvancedOpen(true)}
-                            style={{ flex: 0.55, display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.4rem', cursor: 'pointer', borderRight: '1px solid var(--e-beige)', transition: 'background 0.2s' }}
+                            style={{ flex: 0.55, display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', borderRight: '1px solid var(--e-beige)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--e-cream)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'var(--e-white)'}
                         >
-                            <Building2 size={18} color="var(--e-gold)" />
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Loại BĐS</div>
+                            <Building2 size={18} color="var(--e-gold)" style={{ flexShrink: 0 }} />
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                <div className="ss-label" style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', overflow: 'hidden', fontFamily: 'var(--e-sans)' }}>Loại BĐS</div>
                                 <div style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>{typeLabel}</div>
                             </div>
                         </div>
@@ -402,10 +415,10 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                             {PRICE_SORT_OPTIONS.map((opt, i) => (
                                 <button
                                     key={opt.key}
+                                    className="ss-price-btn"
                                     onClick={() => setPriceSortOrder(priceSortOrder === opt.key ? '' : opt.key)}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: 5,
-                                        padding: '0 1rem',
                                         background: priceSortOrder === opt.key ? 'var(--e-charcoal)' : 'transparent',
                                         color: priceSortOrder === opt.key ? 'var(--e-white)' : 'var(--e-muted)',
                                         border: 'none',
@@ -414,7 +427,6 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                                         fontSize: '0.72rem', fontWeight: 600,
                                         letterSpacing: '0.04em', textTransform: 'uppercase',
                                         fontFamily: 'var(--e-sans)',
-                                        transition: 'all 0.2s',
                                         whiteSpace: 'nowrap',
                                     }}
                                     onMouseEnter={e => { if (priceSortOrder !== opt.key) e.currentTarget.style.color = 'var(--e-charcoal)'; }}
@@ -427,13 +439,14 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
 
                         {/* Advanced toggle */}
                         <button
+                            className="ss-btn-filter"
                             onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 7,
-                                padding: '0 1.6rem', background: 'var(--e-cream)',
+                                background: 'var(--e-cream)',
                                 border: 'none', cursor: 'pointer', color: 'var(--e-charcoal)',
                                 fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
-                                fontFamily: 'var(--e-sans)', transition: 'background 0.2s',
+                                fontFamily: 'var(--e-sans)',
                                 position: 'relative', whiteSpace: 'nowrap'
                             }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--e-beige)'}
@@ -453,14 +466,15 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
 
                         {/* Search */}
                         <button
+                            className="ss-btn-search"
                             onClick={handleSearch}
                             disabled={loading}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: 8, padding: '0 2rem',
+                                display: 'flex', alignItems: 'center', gap: 8,
                                 background: 'var(--e-charcoal)', color: 'var(--e-white)', border: 'none',
                                 cursor: loading ? 'not-allowed' : 'pointer',
                                 fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                                fontFamily: 'var(--e-sans)', transition: 'background 0.2s', opacity: loading ? .8 : 1,
+                                fontFamily: 'var(--e-sans)', opacity: loading ? .8 : 1,
                                 whiteSpace: 'nowrap'
                             }}
                             onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--e-gold)'; }}

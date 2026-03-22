@@ -8,7 +8,7 @@ import {
   ShieldCheck, ShieldAlert, CheckCircle2, UserRoundSearch,
   Clock, Home, Users, FileText, Key, DollarSign,
   BedDouble, Ruler, MapPin, ChevronDown, ChevronUp,
-  SlidersHorizontal, Search,
+  SlidersHorizontal, Search, Phone,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -19,6 +19,8 @@ import { adminService } from "@/services/adminService";
 import { userService } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import KycStatusBadge from "@/components/KycStatusBadge";
+import LuxuryNavbar from "@/components/LuxuryNavbar";
+import LuxuryFooter from "@/components/LuxuryFooter";
 import type { Property } from "@/types/property";
 import type { KycStatus, User } from "@/types/user";
 import { formatVNDShort } from "@/utils/formatPrice";
@@ -256,10 +258,10 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
   };
 
   return (
-    <div style={{ padding: "2.5rem 2.5vw" }}>
-      <div style={{ marginBottom: "1.8rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)" }}>
-        <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Admin Dashboard</p>
-        <h1 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(1.6rem, 2.8vw, 2.4rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, lineHeight: 1.2 }}>
+    <div style={{ padding: "1rem" }}>
+      <div style={{ marginBottom: "2.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)" }}>
+        <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Admin Dashboard</p>
+        <h1 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2rem, 3vw, 2.8rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
           Bảng <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>Điều Khiển</em>
         </h1>
       </div>
@@ -274,7 +276,7 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
               onMouseLeave={e => e.currentTarget.style.background = "rgba(154,124,69,0.07)"}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ color: "var(--e-gold)", fontSize: "1rem" }}>⚠</span>
+                <span style={{ color: "var(--e-gold)", display: "flex" }}><ShieldAlert size={16} /></span>
                 <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--e-charcoal)" }}>{stats?.pendingPropertiesCount} tin đang chờ duyệt</span>
               </div>
               <span style={{ fontSize: "0.65rem", color: "var(--e-gold)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Duyệt Ngay →</span>
@@ -287,7 +289,7 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
               onMouseLeave={e => e.currentTarget.style.background = "rgba(154,124,69,0.07)"}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ color: "var(--e-gold)", fontSize: "1rem" }}>◈</span>
+                <span style={{ color: "var(--e-gold)", display: "flex" }}><UserRoundSearch size={16} /></span>
                 <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--e-charcoal)" }}>{stats?.totalPendingProviders} provider chờ xác minh</span>
               </div>
               <span style={{ fontSize: "0.65rem", color: "var(--e-gold)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Xác Minh →</span>
@@ -630,12 +632,12 @@ function PropertiesView() {
   };
 
   return (
-    <div style={{ padding: "2.5rem 2.5vw" }}>
-      <div style={{ marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+    <div style={{ padding: "1rem" }}>
+      <div style={{ marginBottom: "2.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Quản Lý</p>
-          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(1.5rem, 2.5vw, 2rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0 }}>
-            Duyệt <span style={{ fontFamily: "var(--e-sans)", fontWeight: 400, color: "var(--e-light-muted)", fontSize: "clamp(1.1rem, 2vw, 1.5rem)" }}>Bất Động Sản</span>
+          <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Quản Lý Bất Động Sản</p>
+          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2rem, 3vw, 2.8rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+            Duyệt <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>Tin Đăng</em>
           </h2>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -744,11 +746,9 @@ function ProviderModerationRow({ provider, onApprove, onReject, isLoading }: {
           <h3 style={{ fontFamily: "var(--e-sans)", fontSize: "1rem", fontWeight: 700, color: "var(--e-charcoal)", marginBottom: 3, lineHeight: 1.3 }}>{provider.name}</h3>
           <p style={{ fontSize: "0.76rem", color: "var(--e-light-muted)", marginBottom: 6, fontFamily: "var(--e-sans)" }}>{provider.email}</p>
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-            {provider.phone && <span style={{ fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>📞 {provider.phone}</span>}
-            {provider.address && <span style={{ fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>📍 {provider.address}</span>}
-            <span style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--e-gold)", border: "1px solid rgba(154,124,69,0.3)", padding: "2px 8px", borderRadius: "5px", fontFamily: "var(--e-sans)" }}>
-              {provider.kycStatus || "pending"}
-            </span>
+            {provider.phone && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}><Phone size={12} /> {provider.phone}</span>}
+            {provider.address && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}><MapPin size={12} /> {provider.address}</span>}
+            <KycStatusBadge status={provider.kycStatus || "pending"} />
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
@@ -856,12 +856,12 @@ function ProvidersView() {
   };
 
   return (
-    <div style={{ padding: "2.5rem 2.5vw" }}>
-      <div style={{ marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+    <div style={{ padding: "1rem" }}>
+      <div style={{ marginBottom: "2.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Quản Lý</p>
-          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(1.5rem, 2.5vw, 2rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0 }}>
-            Xác Minh <span style={{ fontFamily: "var(--e-sans)", fontWeight: 400, color: "var(--e-light-muted)", fontSize: "clamp(1.1rem, 2vw, 1.5rem)" }}>Nhà Cung Cấp</span>
+          <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Quản Lý Đối Tác</p>
+          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2rem, 3vw, 2.8rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+            Xác Minh <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>Nhà Cung Cấp</em>
           </h2>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -999,12 +999,12 @@ function KycView() {
   };
 
   return (
-    <div style={{ padding: "2.5rem 2.5vw" }}>
-      <div style={{ marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+    <div style={{ padding: "1rem" }}>
+      <div style={{ marginBottom: "2.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(154,124,69,0.15)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Quản Lý</p>
-          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(1.5rem, 2.5vw, 2rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0 }}>
-            Quản Lý <span style={{ fontFamily: "var(--e-sans)", fontWeight: 400, color: "var(--e-light-muted)", fontSize: "clamp(1.1rem, 2vw, 1.5rem)" }}>KYC</span>
+          <p style={{ fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>Quản Trị Người Dùng</p>
+          <h2 style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(2rem, 3vw, 2.8rem)", fontWeight: 500, color: "var(--e-charcoal)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+            Quản Lý <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>Hồ Sơ KYC</em>
           </h2>
         </div>
         <button onClick={() => void loadUsers()}
@@ -1182,11 +1182,11 @@ function KycView() {
 /* ═══════════════════════════════════════════════════════════
    NAV + MAIN PAGE
 ═══════════════════════════════════════════════════════════ */
-const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
-  { view: "dashboard", label: "Tổng Quan", icon: "▦" },
-  { view: "properties", label: "Duyệt Tin", icon: "✓" },
-  { view: "providers", label: "Xác Minh Provider", icon: "◈" },
-  { view: "kyc", label: "Quản Lý KYC", icon: "✦" },
+const NAV_ITEMS: { view: View; label: string; icon: React.ReactNode }[] = [
+  { view: "dashboard", label: "Tổng Quan", icon: <SlidersHorizontal size={14} /> },
+  { view: "properties", label: "Duyệt Tin", icon: <FileText size={14} /> },
+  { view: "providers", label: "Provider", icon: <Home size={14} /> },
+  { view: "kyc", label: "Quản Lý KYC", icon: <ShieldCheck size={14} /> },
 ];
 
 export default function AdminDashboard() {
@@ -1218,6 +1218,9 @@ export default function AdminDashboard() {
     if (!isAuthLoading) void init();
   }, [router, user, isAuthLoading]);
 
+  // Handle scroll for fake LuxuryNavbar sync if needed (Navbar expects page scroll)
+  // We're letting the window scroll naturally.
+
   if (loading) return (
     <div className="estoria" style={{ minHeight: "100vh", background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--e-sans)" }}>
       <div style={{ textAlign: "center" }}>
@@ -1234,97 +1237,103 @@ export default function AdminDashboard() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         .e-glass-card {
-          background: #ffffff; border: 1px solid var(--e-beige); border-radius: 16px;
-          box-shadow: 0 4px 24px rgba(0,0,0,0.02);
-          transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1);
+          background: #ffffff; border: 1px solid var(--e-beige); border-radius: 12px;
+          box-shadow: 0 10px 40px -10px rgba(0,0,0,0.04);
+          transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s cubic-bezier(0.16,1,0.3,1);
           position: relative;
         }
-        .e-glass-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(154,124,69,0.08); border-color: rgba(154,124,69,0.3); }
+        .e-glass-card:hover { transform: translateY(-3px); box-shadow: 0 15px 45px -10px rgba(154,124,69,0.12); border-color: rgba(154,124,69,0.3); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.2); border-radius: 10px; }
+        .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.4); }
       `}</style>
 
-      <div className="estoria min-h-screen flex overflow-hidden font-[var(--e-sans)]">
-
-        {/* ── Sidebar ── */}
+      <div className="estoria min-h-screen flex overflow-hidden font-[var(--e-sans)] bg-[var(--e-cream)]">
+        
+        {/* ── Luxury Vertical Sidebar ── */}
         <aside className="w-64 flex flex-col h-screen fixed top-0 left-0 z-50 shadow-2xl overflow-hidden"
-          style={{ backgroundImage: "url('https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1600&q=85')", backgroundSize: "cover", backgroundPosition: "center" }}>
-          <div className="absolute inset-0 bg-black/55 pointer-events-none z-0" />
-          <div className="relative z-10 flex flex-col h-full">
-
-            <div className="p-8 pb-4">
-              <Link href="/" className="flex items-center gap-2 no-underline group">
-                <span className="text-2xl font-extrabold text-white tracking-tighter" style={{ fontFamily: "var(--e-serif)" }}>
-                  Esto<span className="text-[var(--e-gold-light)] group-hover:text-white transition-colors">ria</span>
+          style={{ backgroundImage: "url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&q=85')", backgroundSize: "cover", backgroundPosition: "center" }}>
+          
+          <div className="absolute inset-0 bg-gradient-to-b from-[#111c14]/95 to-[#111c14]/90 backdrop-blur-md pointer-events-none z-0" />
+          
+          <div className="relative z-10 flex flex-col h-full border-r border-[#D4AF37]/10">
+            {/* Header/Brand */}
+            <div className="p-8 pb-6 border-b border-[#D4AF37]/10">
+              <Link href="/" className="flex items-center gap-2 no-underline group block">
+                <span className="text-3xl font-extrabold text-white tracking-tighter" style={{ fontFamily: "var(--e-serif)" }}>
+                  Esto<span className="text-[var(--e-gold-light)] group-hover:text-white transition-colors duration-500">ria</span>
                 </span>
               </Link>
-              <div className="text-[0.58rem] uppercase tracking-[0.22em] text-white/30 font-bold mt-1 ml-0.5" style={{ fontFamily: "var(--e-sans)" }}>Admin Control</div>
+              <div className="text-[0.55rem] uppercase tracking-[0.25em] text-[var(--e-gold-light)] font-bold mt-2 ml-0.5" style={{ fontFamily: "var(--e-sans)" }}>
+                Hệ Thống Quản Trị
+              </div>
             </div>
 
-            <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
+            {/* Navigation */}
+            <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
               {NAV_ITEMS.map(item => {
                 const isActive = view === item.view;
                 const badge = item.view === "properties" ? stats?.pendingPropertiesCount : item.view === "providers" ? stats?.totalPendingProviders : undefined;
                 return (
                   <button key={item.view} onClick={() => handleSetView(item.view)}
-                    className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-300 group ${isActive ? "bg-white/10 text-white shadow-[0_4px_12px_rgba(0,0,0,0.1)]" : "text-white/70 hover:text-white hover:bg-white/5"}`}
+                    className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden ${isActive ? "bg-[#D4AF37]/10 border border-[#D4AF37]/20 shadow-lg text-white" : "text-white/60 hover:text-white hover:bg-white/5 border border-transparent"}`}
                     style={{ fontFamily: "var(--e-sans)" }}>
-                    <span className={`transition-transform duration-300 ${isActive ? "text-[var(--e-gold-light)] scale-110" : "group-hover:scale-110"}`}>{item.icon}</span>
-                    <span className={`text-[0.8rem] font-semibold tracking-wide flex-1 text-left ${isActive ? "opacity-100" : "opacity-90"}`}>{item.label}</span>
+                    
+                    {/* Active vertical bar */}
+                    {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--e-gold-light)] shadow-[0_0_10px_var(--e-gold)]" />}
+
+                    <span className={`transition-transform duration-300 z-10 ${isActive ? "text-[var(--e-gold-light)] scale-110" : "group-hover:scale-110"}`}>{item.icon}</span>
+                    <span className={`text-[0.8rem] font-semibold tracking-wide flex-1 text-left z-10 ${isActive ? "opacity-100" : "opacity-90"}`}>{item.label}</span>
+                    
                     {badge != null && badge > 0 && (
-                      <span style={{ fontSize: "0.6rem", fontWeight: 700, background: "var(--e-gold)", color: "#fff", padding: "2px 7px", borderRadius: "4px", minWidth: 20, textAlign: "center" }}>{badge}</span>
+                      <span className="z-10" style={{ fontSize: "0.6rem", fontWeight: 700, background: "var(--e-gold)", color: "#fff", padding: "2px 7px", borderRadius: "6px", minWidth: 24, textAlign: "center", boxShadow: '0 0 10px rgba(212,175,55,0.4)' }}>{badge}</span>
                     )}
-                    {isActive && !(badge && badge > 0) && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--e-gold-light)] shadow-[0_0_8px_var(--e-gold)]" />}
                   </button>
                 );
               })}
 
-              <div className="h-px bg-white/5 my-6 mx-2" />
-              <a href="/" className="flex items-center gap-3.5 px-4 py-3 text-white/30 hover:text-white/60 hover:bg-white/5 rounded-xl transition-all duration-300" style={{ fontFamily: "var(--e-sans)" }}>
+              <div className="h-px bg-[#D4AF37]/10 my-8 mx-2" />
+              <a href="/" className="flex items-center gap-4 px-5 py-3.5 text-white/40 hover:text-[var(--e-gold-light)] hover:bg-[#D4AF37]/5 rounded-xl transition-all duration-300 border border-transparent" style={{ fontFamily: "var(--e-sans)" }}>
                 <span className="opacity-90">←</span>
-                <span className="text-[0.78rem] font-medium">Về Trang Chủ</span>
+                <span className="text-[0.8rem] font-medium tracking-wide">Về Trang Chủ</span>
               </a>
             </nav>
 
-            {/* User footer → profile/settings */}
-            <div className="p-4 mt-auto">
-              <Link href="/profile/settings" className="bg-white/5 rounded-2xl p-4 flex items-center gap-3 border border-white/5 group hover:bg-white/[0.08] transition-all cursor-pointer no-underline block">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--e-gold)] to-[var(--e-gold-light)] flex items-center justify-center text-white text-sm font-bold shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform" style={{ fontFamily: "var(--e-serif)" }}>
+            {/* User Footer */}
+            <div className="p-5 border-t border-[#D4AF37]/10 bg-black/20">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[var(--e-gold)] to-[var(--e-gold-light)] flex items-center justify-center text-white text-[1.1rem] font-bold shadow-lg flex-shrink-0" style={{ fontFamily: "var(--e-serif)" }}>
                   {user?.name?.charAt(0)?.toUpperCase() ?? "A"}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[0.7rem] font-bold text-[var(--e-gold-light)] truncate leading-tight mb-0" style={{ fontFamily: "var(--e-sans)" }}>Administrator</p>
-                  <p className="text-[0.63rem] text-white/50 truncate mt-0.5 mb-0" style={{ fontFamily: "var(--e-sans)" }}>{user?.email}</p>
+                  <p className="text-[0.75rem] font-bold text-white truncate leading-tight mb-0.5" style={{ fontFamily: "var(--e-sans)" }}>{user?.name || "Administrator"}</p>
+                  <p className="text-[0.63rem] text-[var(--e-gold-light)]/80 truncate mt-0 mb-0 tracking-wider" style={{ fontFamily: "var(--e-sans)" }}>{user?.email}</p>
                 </div>
-              </Link>
+              </div>
             </div>
           </div>
         </aside>
 
-        {/* ── Main ── */}
+        {/* ── Main Content ── */}
         <main className="flex-1 ml-64 min-h-screen relative overflow-y-auto">
-          <div style={{ position: "fixed", top: 0, left: "16rem", right: 0, bottom: 0, backgroundImage: "url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&q=80')", backgroundSize: "cover", backgroundPosition: "center", filter: "blur(4px) brightness(0.88)", transform: "scale(1.06)", zIndex: 0 }} />
-          <div style={{ position: "fixed", top: 0, left: "16rem", right: 0, bottom: 0, background: "rgba(255,252,248,0.88)", zIndex: 1 }} />
-
-          <div className="relative z-10 p-8 md:p-12 min-h-full flex flex-col">
-            <div className="max-w-6xl w-full mx-auto flex-1">
+          {/* Subtle background layer to prevent completely flat white */}
+          <div style={{ position: "fixed", top: 0, left: "16rem", right: 0, bottom: 0, backgroundImage: "url('https://images.unsplash.com/photo-1628624747186-a941c476b7ef?w=1600&q=85')", backgroundSize: "cover", backgroundPosition: "center", filter: "blur(20px) opacity(0.06)", zIndex: 0, pointerEvents: 'none' }} />
+          
+          <div className="relative z-10 min-h-full flex flex-col p-8 lg:p-12">
+            <div className="w-full max-w-7xl mx-auto flex-1">
+              {/* Context Header Area could go here if needed, but the Views handle their own headers */}
               {view === "dashboard" && <ViewWrapper><DashboardView stats={stats} onNavigate={handleSetView} /></ViewWrapper>}
               {view === "properties" && <ViewWrapper><PropertiesView /></ViewWrapper>}
               {view === "providers" && <ViewWrapper><ProvidersView /></ViewWrapper>}
               {view === "kyc" && <ViewWrapper><KycView /></ViewWrapper>}
             </div>
-            <footer className="mt-20 pt-8 border-t border-[var(--e-beige)] text-center pb-8">
-              <p className="text-[0.68rem] uppercase tracking-widest text-[var(--e-muted)] font-medium" style={{ fontFamily: "var(--e-sans)" }}>
-                &copy; {new Date().getFullYear()} Estoria Luxury Real Estate — Admin Control System
-              </p>
+            
+            <footer className="mt-16 pt-8 border-t border-[var(--e-beige)] text-center text-[0.68rem] uppercase tracking-widest text-[var(--e-muted)] font-medium" style={{ fontFamily: "var(--e-sans)" }}>
+              &copy; {new Date().getFullYear()} Estoria Luxury Real Estate
             </footer>
           </div>
         </main>
-
-        <style jsx global>{`
-          .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
-          .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
-        `}</style>
       </div>
     </>
   );

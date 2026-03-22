@@ -1,5 +1,5 @@
 import type { GetServerSideProps } from 'next';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
@@ -62,6 +62,26 @@ export default function HomePage({
 
   // FIX: initialTotalPages guaranteed ≥ 1 so pagination always renders
   const [totalPages, setTotalPages] = useState(Math.max(initialTotalPages, 1));
+
+  const searchSentinelRef = useRef<HTMLDivElement>(null);
+  const stickyWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!searchSentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+          if (!stickyWrapRef.current) return;
+          if (!entries[0].isIntersecting) {
+              stickyWrapRef.current.classList.add('is-stuck');
+          } else {
+              stickyWrapRef.current.classList.remove('is-stuck');
+          }
+      },
+      { rootMargin: '-61px 0px 0px 0px', threshold: 0 }
+    );
+    observer.observe(searchSentinelRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const PER_PAGE = 6;
 
@@ -334,8 +354,8 @@ export default function HomePage({
         .sticky-search-wrap {
             position: sticky;
             top: 60px;
-            z-index: 200;          /* ↑ raised from 80 — above GallerySection stacking context */
-            isolation: isolate;    /* own stacking context so children don't leak */
+            z-index: 200;
+            isolation: isolate;
             background: rgba(255,255,255,0.97);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -343,10 +363,36 @@ export default function HomePage({
             box-shadow:
                 0 1px 0 rgba(212,175,55,0.08),
                 0 6px 32px -6px rgba(26,23,20,0.12);
+            transition: margin-bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            margin-bottom: 0px;
         }
+        .sticky-search-wrap.is-stuck {
+            margin-bottom: 38px;
+        }
+        
         .sticky-search-inner {
             padding: 0.75rem clamp(1.5rem, 5vw, 5rem);
+            transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        .sticky-search-wrap.is-stuck .sticky-search-inner {
+            padding: 0.4rem clamp(1.5rem, 5vw, 5rem);
+        }
+
+        /* Animated inner elements */
+        .ss-item { padding: 0.85rem 1.4rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+        .sticky-search-wrap.is-stuck .ss-item { padding: 0.45rem 1.2rem; }
+
+        .ss-label { height: 14px; margin-bottom: 2px; opacity: 1; transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+        .sticky-search-wrap.is-stuck .ss-label { height: 0; margin-bottom: 0; opacity: 0; }
+
+        .ss-btn-search { padding: 0 2rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+        .sticky-search-wrap.is-stuck .ss-btn-search { padding: 0 1.5rem; }
+
+        .ss-btn-filter { padding: 0 1.6rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+        .sticky-search-wrap.is-stuck .ss-btn-filter { padding: 0 1.2rem; }
+
+        .ss-price-btn { padding: 0 1rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+        .sticky-search-wrap.is-stuck .ss-price-btn { padding: 0 0.8rem; }
         @media (max-width: 768px) {
             .sticky-search-wrap { top: 60px; }
             .sticky-search-inner { padding: 0.65rem 1rem; }
@@ -362,8 +408,11 @@ export default function HomePage({
         {/* Marquee */}
         <MarqueeStrip />
 
+        {/* Sticky Search Sentinel */}
+        <div ref={searchSentinelRef} style={{ height: 1, pointerEvents: 'none', marginBottom: -1 }} />
+
         {/* Sticky Search */}
-        <div className="sticky-search-wrap">
+        <div ref={stickyWrapRef} className="sticky-search-wrap">
           <div className="sticky-search-inner">
             <SearchSection onSearch={handleSearch} loading={searchLoading} compact />
           </div>

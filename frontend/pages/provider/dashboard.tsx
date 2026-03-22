@@ -9,6 +9,7 @@ import {
   CheckCircle, Clock, XCircle, LoaderCircle,
   AlertTriangle, CheckCircle2, FileUp, IdCard, ShieldCheck, UploadCloud, X,
   Eye, MousePointerClick, Calendar,
+  LayoutDashboard, Building2, Layers, Settings,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,7 +38,7 @@ const STATUS_META: Record<string, { label: string; icon: React.ReactNode; color:
 type View = "dashboard" | "properties" | "plans" | "create" | "edit" | "kyc";
 
 /* ═══════════════════════════════════════════════════════════
-   VIEW WRAPPER — container trong suốt
+   VIEW WRAPPER
 ═══════════════════════════════════════════════════════════ */
 function ViewWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -778,15 +779,15 @@ function KycView() {
 
 /* ═══════════════════════════════════════════════════════════
    MAIN DASHBOARD PAGE
+   ─── NAV_ITEMS: dùng Lucide icons, giống Admin Dashboard ───
 ═══════════════════════════════════════════════════════════ */
-const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
-  { view: "dashboard", label: "Tổng Quan", icon: "▦" },
-  { view: "properties", label: "Bất Động Sản", icon: "⊞" },
-  { view: "create", label: "Đăng Tin Mới", icon: "+" },
-  { view: "plans", label: "Gói Dịch Vụ", icon: "◈" },
-  { view: "kyc", label: "Xác Minh KYC", icon: "✦" },
+const NAV_ITEMS: { view: View; label: string; icon: React.ReactNode }[] = [
+  { view: "dashboard", label: "Tổng Quan", icon: <LayoutDashboard size={14} /> },
+  { view: "properties", label: "Bất Động Sản", icon: <Building2 size={14} /> },
+  { view: "create", label: "Đăng Tin Mới", icon: <Plus size={14} /> },
+  { view: "plans", label: "Gói Dịch Vụ", icon: <Layers size={14} /> },
+  { view: "kyc", label: "Xác Minh KYC", icon: <ShieldCheck size={14} /> },
 ];
-const EXTRA_LINKS = [{ href: "/profile/settings", label: "Cài Đặt", icon: "⚙" }];
 
 export default function ProviderDashboard() {
   const router = useRouter();
@@ -798,24 +799,32 @@ export default function ProviderDashboard() {
 
   useEffect(() => {
     const queryView = router.query.view as string | undefined;
-    if (queryView && ["dashboard", "properties", "plans", "create", "edit", "kyc"].includes(queryView)) setView(queryView as View);
+    if (queryView && ["dashboard", "properties", "plans", "create", "edit", "kyc"].includes(queryView))
+      setView(queryView as View);
   }, [router.query.view]);
 
   const handleSetView = useCallback((newView: View) => {
     setView(newView);
-    void router.replace({ pathname: "/provider/dashboard", query: newView === "dashboard" ? {} : { view: newView } }, undefined, { shallow: true });
+    void router.replace(
+      { pathname: "/provider/dashboard", query: newView === "dashboard" ? {} : { view: newView } },
+      undefined, { shallow: true }
+    );
   }, [router]);
 
   const fetchProperties = useCallback(async () => {
     if (!user || user.role !== "provider") return;
-    try { const res = await propertyService.getAllProperties({ ownerId: user._id, limit: 100 }); setProperties(res.data.properties); }
-    catch (err) { console.error(err); }
+    try {
+      const res = await propertyService.getAllProperties({ ownerId: user._id, limit: 100 });
+      setProperties(res.data.properties);
+    } catch (err) { console.error(err); }
   }, [user]);
 
   useEffect(() => {
     const init = async () => {
-      try { if (!user || user.role !== "provider") { router.push("/"); return; } await fetchProperties(); }
-      catch (err) { console.error(err); }
+      try {
+        if (!user || user.role !== "provider") { router.push("/"); return; }
+        await fetchProperties();
+      } catch (err) { console.error(err); }
       finally { setLoading(false); }
     };
     if (!isAuthLoading) void init();
@@ -838,11 +847,16 @@ export default function ProviderDashboard() {
     avgPrice: properties.length > 0 ? properties.reduce((s, p) => s + p.price, 0) / properties.length : 0,
   };
 
+  /* Badge counts for nav items */
+  const pendingCount = stats.pending;
+
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--e-sans)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", color: "var(--e-light-muted)", fontSize: "0.85rem" }}>
-        <LoaderCircle size={16} className="animate-spin" /> Đang tải…
+    <div className="estoria" style={{ minHeight: "100vh", background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--e-sans)" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 44, height: 44, border: "2px solid rgba(154,124,69,0.2)", borderTopColor: "var(--e-gold)", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto" }} />
+        <p style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--e-muted)", letterSpacing: "0.12em", textTransform: "uppercase" }}>Đang tải…</p>
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 
@@ -851,124 +865,237 @@ export default function ProviderDashboard() {
       <Head><title>Dashboard — Estoria Provider</title></Head>
 
       <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
         .e-glass-card {
           background: #ffffff;
           border: 1px solid var(--e-beige);
-          border-radius: 16px;
-          box-shadow: 0 4px 24px rgba(0,0,0,0.02);
-          transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1);
+          border-radius: 12px;
+          box-shadow: 0 10px 40px -10px rgba(0,0,0,0.04);
+          transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s cubic-bezier(0.16,1,0.3,1);
           position: relative;
         }
-        .e-glass-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(154,124,69,0.08); border-color: rgba(154,124,69,0.3); }
-        .e-glass-card-dark {
-          background: #ffffff; border: 1px solid var(--e-gold); border-radius: 16px;
-          box-shadow: 0 4px 20px rgba(154,124,69,0.1); position: relative; overflow: hidden;
-          transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1);
+        .e-glass-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 15px 45px -10px rgba(154,124,69,0.12);
+          border-color: rgba(154,124,69,0.3);
         }
-        .e-glass-card-dark::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(201,169,110,0.08), transparent 70%); pointer-events: none; }
+        .e-glass-card-dark {
+          background: #ffffff;
+          border: 1px solid var(--e-gold);
+          border-radius: 12px;
+          box-shadow: 0 4px 20px rgba(154,124,69,0.1);
+          position: relative;
+          overflow: hidden;
+          transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s cubic-bezier(0.16,1,0.3,1);
+        }
+        .e-glass-card-dark::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at top right, rgba(201,169,110,0.08), transparent 70%);
+          pointer-events: none;
+        }
         .e-glass-card-dark:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(154,124,69,0.15); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.2); border-radius: 10px; }
+        .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.4); }
       `}</style>
 
-      <div className="estoria min-h-screen flex overflow-hidden font-[var(--e-sans)]">
+      <div className="estoria min-h-screen flex overflow-hidden font-[var(--e-sans)] bg-[var(--e-cream)]">
 
-        {/* ── Sidebar ── */}
-        <aside className="w-64 flex flex-col h-screen fixed top-0 left-0 z-50 shadow-2xl overflow-hidden"
-          style={{ backgroundImage: "url('https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1600&q=85')", backgroundSize: "cover", backgroundPosition: "center" }}>
-          <div className="absolute inset-0 bg-black/50 pointer-events-none z-0" />
-          <div className="relative z-10 flex flex-col h-full">
-            <div className="p-8 pb-4">
-              <Link href="/" className="flex items-center gap-2 no-underline group">
-                <span className="text-2xl font-extrabold text-white tracking-tighter" style={{ fontFamily: "var(--e-serif)" }}>
-                  Esto<span className="text-[var(--e-gold-light)] group-hover:text-white transition-colors">ria</span>
+        {/* ════════════════════════════════════════════
+            SIDEBAR — synced với Admin Dashboard style
+        ════════════════════════════════════════════ */}
+        <aside
+          className="w-64 flex flex-col h-screen fixed top-0 left-0 z-50 shadow-2xl overflow-hidden"
+          style={{
+            backgroundImage: "url('https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1600&q=85')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          {/* Gradient overlay — identical to admin */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#111c14]/95 to-[#111c14]/90 backdrop-blur-md pointer-events-none z-0" />
+
+          <div className="relative z-10 flex flex-col h-full border-r border-[#D4AF37]/10">
+
+            {/* ── Brand ── */}
+            <div className="p-8 pb-6 border-b border-[#D4AF37]/10">
+              <Link href="/" className="flex items-center gap-2 no-underline group block">
+                <span className="text-3xl font-extrabold text-white tracking-tighter" style={{ fontFamily: "var(--e-serif)" }}>
+                  Esto<span className="text-[var(--e-gold-light)] group-hover:text-white transition-colors duration-500">ria</span>
                 </span>
               </Link>
-              <div className="text-[0.58rem] uppercase tracking-[0.22em] text-white/30 font-bold mt-1 ml-0.5" style={{ fontFamily: "var(--e-sans)" }}>Provider Portal</div>
+              <div
+                className="text-[0.55rem] uppercase tracking-[0.25em] text-[var(--e-gold-light)] font-bold mt-2 ml-0.5"
+                style={{ fontFamily: "var(--e-sans)" }}
+              >
+                Provider Portal
+              </div>
             </div>
 
-            <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
+            {/* ── Navigation ── */}
+            <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
               {NAV_ITEMS.map((item) => {
                 const isActive = view === item.view;
+                /* badge: pending properties on "properties" view */
+                const badge =
+                  item.view === "properties" && pendingCount > 0 ? pendingCount : undefined;
+
                 return (
-                  <button key={item.view} onClick={() => handleSetView(item.view)}
-                    className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-300 group ${isActive ? "bg-white/10 text-white shadow-[0_4px_12px_rgba(0,0,0,0.1)]" : "text-white/70 hover:text-white hover:bg-white/5"}`}
-                    style={{ fontFamily: "var(--e-sans)" }}>
-                    <span className={`transition-transform duration-300 ${isActive ? "text-[var(--e-gold-light)] scale-110" : "group-hover:scale-110"}`}>{item.icon}</span>
-                    <span className={`text-[0.8rem] font-semibold tracking-wide ${isActive ? "opacity-100" : "opacity-90"}`}>{item.label}</span>
-                    {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--e-gold-light)] shadow-[0_0_8px_var(--e-gold)]" />}
+                  <button
+                    key={item.view}
+                    onClick={() => handleSetView(item.view)}
+                    className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden
+                      ${isActive
+                        ? "bg-[#D4AF37]/10 border border-[#D4AF37]/20 shadow-lg text-white"
+                        : "text-white/60 hover:text-white hover:bg-white/5 border border-transparent"
+                      }`}
+                    style={{ fontFamily: "var(--e-sans)" }}
+                  >
+                    {/* Active left bar */}
+                    {isActive && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--e-gold-light)] shadow-[0_0_10px_var(--e-gold)]" />
+                    )}
+
+                    <span className={`transition-transform duration-300 z-10 ${isActive ? "text-[var(--e-gold-light)] scale-110" : "group-hover:scale-110"}`}>
+                      {item.icon}
+                    </span>
+                    <span className={`text-[0.8rem] font-semibold tracking-wide flex-1 text-left z-10 ${isActive ? "opacity-100" : "opacity-90"}`}>
+                      {item.label}
+                    </span>
+
+                    {badge != null && (
+                      <span
+                        className="z-10"
+                        style={{
+                          fontSize: "0.6rem", fontWeight: 700,
+                          background: "var(--e-gold)", color: "#fff",
+                          padding: "2px 7px", borderRadius: "6px",
+                          minWidth: 24, textAlign: "center",
+                          boxShadow: "0 0 10px rgba(212,175,55,0.4)",
+                        }}
+                      >
+                        {badge}
+                      </span>
+                    )}
                   </button>
                 );
               })}
-              <div className="h-px bg-white/5 my-6 mx-2" />
-              {EXTRA_LINKS.map((item) => (
-                <a key={item.href} href={item.href} className="flex items-center gap-3.5 px-4 py-3 text-white/30 hover:text-white/60 hover:bg-white/5 rounded-xl transition-all duration-300" style={{ fontFamily: "var(--e-sans)" }}>
-                  <span className="opacity-90">{item.icon}</span>
-                  <span className="text-[0.78rem] font-medium">{item.label}</span>
-                </a>
-              ))}
+
+              {/* Divider */}
+              <div className="h-px bg-[#D4AF37]/10 my-8 mx-2" />
+
+              {/* Settings link */}
+              <a
+                href="/profile/settings"
+                className="flex items-center gap-4 px-5 py-3.5 text-white/40 hover:text-[var(--e-gold-light)] hover:bg-[#D4AF37]/5 rounded-xl transition-all duration-300 border border-transparent"
+                style={{ fontFamily: "var(--e-sans)" }}
+              >
+                <Settings size={14} className="opacity-90" />
+                <span className="text-[0.8rem] font-medium tracking-wide">Cài Đặt</span>
+              </a>
             </nav>
 
-            <div className="p-4 mt-auto">
-              <Link href="/profile/settings" className="bg-white/5 rounded-2xl p-4 flex items-center gap-3 border border-white/5 group hover:bg-white/[0.08] transition-all cursor-pointer no-underline block">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--e-gold)] to-[var(--e-gold-light)] flex items-center justify-center text-white text-sm font-bold shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform" style={{ fontFamily: "var(--e-serif)" }}>
+            {/* ── User footer ── */}
+            <div className="p-5 border-t border-[#D4AF37]/10 bg-black/20">
+              <Link
+                href="/profile/settings"
+                className="flex items-center gap-3 no-underline group"
+              >
+                <div
+                  className="w-11 h-11 rounded-xl bg-gradient-to-br from-[var(--e-gold)] to-[var(--e-gold-light)] flex items-center justify-center text-white text-[1.1rem] font-bold shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform"
+                  style={{ fontFamily: "var(--e-serif)" }}
+                >
                   {user?.name?.charAt(0)?.toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[0.8rem] font-bold text-white truncate leading-tight mb-0" style={{ fontFamily: "var(--e-sans)" }}>{user?.name}</p>
-                  <p className="text-[0.63rem] text-white/50 truncate mt-0.5 mb-0" style={{ fontFamily: "var(--e-sans)" }}>{user?.email}</p>
+                  <p className="text-[0.75rem] font-bold text-white truncate leading-tight mb-0.5" style={{ fontFamily: "var(--e-sans)" }}>
+                    {user?.name}
+                  </p>
+                  <p className="text-[0.63rem] text-[var(--e-gold-light)]/80 truncate mt-0 mb-0 tracking-wider" style={{ fontFamily: "var(--e-sans)" }}>
+                    {user?.email}
+                  </p>
                 </div>
               </Link>
             </div>
+
           </div>
         </aside>
 
-        {/* ── Main Content ── */}
+        {/* ════════════════════════════════════════════
+            MAIN CONTENT — synced subtle bg như admin
+        ════════════════════════════════════════════ */}
         <main className="flex-1 ml-64 min-h-screen relative overflow-y-auto">
 
-          {/* ── Background full màn hình ── */}
+          {/* Subtle background — identical treatment to admin */}
           <div style={{
             position: "fixed",
             top: 0, left: "16rem", right: 0, bottom: 0,
             backgroundImage: "url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&q=80')",
             backgroundSize: "cover",
             backgroundPosition: "center",
-            filter: "blur(4px) brightness(0.88)",
-            transform: "scale(1.06)",
+            filter: "blur(20px) opacity(0.06)",
             zIndex: 0,
-          }} />
-          {/* Overlay trắng mờ */}
-          <div style={{
-            position: "fixed",
-            top: 0, left: "16rem", right: 0, bottom: 0,
-            background: "rgba(255,252,248,0.88)",
-            zIndex: 1,
+            pointerEvents: "none",
           }} />
 
-          <div className="relative z-10 p-8 md:p-12 min-h-full flex flex-col">
-            <div className="max-w-6xl w-full mx-auto flex-1">
+          <div className="relative z-10 min-h-full flex flex-col p-8 lg:p-12">
+            <div className="w-full max-w-6xl mx-auto flex-1">
 
-              {view === "dashboard" && <ViewWrapper><DashboardView provider={user} stats={stats} properties={properties} recentProperties={properties.slice(0, 5)} onNavigate={handleSetView} /></ViewWrapper>}
-              {view === "properties" && <ViewWrapper><PropertiesView properties={properties} onDelete={handleDelete} onEdit={handleEditProperty} /></ViewWrapper>}
-              {view === "plans" && <ViewWrapper><PlansView currentPlan={user?.subscription?.plan ?? "Free"} listingsUsed={user?.listingsCount ?? 0} /></ViewWrapper>}
-              {view === "create" && <ViewWrapper><CreateView onCreated={handlePropertyCreated} /></ViewWrapper>}
-              {view === "edit" && editPropertyId && <ViewWrapper><EditView propertyId={editPropertyId} onUpdated={handlePropertyUpdated} onCancel={() => handleSetView("properties")} /></ViewWrapper>}
-              {view === "kyc" && <ViewWrapper><KycView /></ViewWrapper>}
+              {view === "dashboard" && (
+                <ViewWrapper>
+                  <DashboardView
+                    provider={user}
+                    stats={stats}
+                    properties={properties}
+                    recentProperties={properties.slice(0, 5)}
+                    onNavigate={handleSetView}
+                  />
+                </ViewWrapper>
+              )}
+              {view === "properties" && (
+                <ViewWrapper>
+                  <PropertiesView properties={properties} onDelete={handleDelete} onEdit={handleEditProperty} />
+                </ViewWrapper>
+              )}
+              {view === "plans" && (
+                <ViewWrapper>
+                  <PlansView
+                    currentPlan={user?.subscription?.plan ?? "Free"}
+                    listingsUsed={user?.listingsCount ?? 0}
+                  />
+                </ViewWrapper>
+              )}
+              {view === "create" && (
+                <ViewWrapper>
+                  <CreateView onCreated={handlePropertyCreated} />
+                </ViewWrapper>
+              )}
+              {view === "edit" && editPropertyId && (
+                <ViewWrapper>
+                  <EditView
+                    propertyId={editPropertyId}
+                    onUpdated={handlePropertyUpdated}
+                    onCancel={() => handleSetView("properties")}
+                  />
+                </ViewWrapper>
+              )}
+              {view === "kyc" && (
+                <ViewWrapper>
+                  <KycView />
+                </ViewWrapper>
+              )}
 
             </div>
 
-            <footer className="mt-20 pt-8 border-t border-[var(--e-beige)] text-center pb-8">
-              <p className="text-[0.68rem] uppercase tracking-widest text-[var(--e-muted)] font-medium" style={{ fontFamily: "var(--e-sans)" }}>
-                &copy; {new Date().getFullYear()} Estoria Luxury Real Estate — Provider Management System
-              </p>
+            <footer className="mt-16 pt-8 border-t border-[var(--e-beige)] text-center text-[0.68rem] uppercase tracking-widest text-[var(--e-muted)] font-medium pb-8" style={{ fontFamily: "var(--e-sans)" }}>
+              &copy; {new Date().getFullYear()} Estoria Luxury Real Estate — Provider Management System
             </footer>
           </div>
         </main>
 
-        <style jsx global>{`
-          .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
-          .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
-        `}</style>
       </div>
     </>
   );

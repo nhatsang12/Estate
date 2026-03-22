@@ -7,7 +7,7 @@ const STATS = [
 
 export default function StatsSection() {
     return (
-        <section style={{ position: 'relative', overflow: 'hidden' }}>
+        <section style={{ position: 'relative', overflow: 'hidden' }} id="about">
             <style>{`
                 /* ═══════════════════════════════════════
                    STATS SECTION — Pure White
