@@ -868,12 +868,14 @@ function EditView({ propertyId, onUpdated, onCancel }: {
   );
 
   return (
-    <>
-      <div style={{ padding: "1rem 2vw 0", display: "flex", justifyContent: "flex-end" }}>
+    <div style={{ position: "relative" }}>
+      <div style={{
+        position: "absolute", top: "1.4rem", right: "2vw", zIndex: 10,
+      }}>
         <ActionBtn variant="ghost" onClick={onCancel}>← Quay lại</ActionBtn>
       </div>
       <PropertyForm initialData={property} onSubmit={handleSubmit} isLoading={isLoading} />
-    </>
+    </div>
   );
 }
 
