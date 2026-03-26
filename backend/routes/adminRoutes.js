@@ -56,6 +56,7 @@ router.patch('/properties/:id/moderate', adminController.moderateProperty);
 
 // Provider Verification
 router.get('/providers/pending', adminController.getPendingProviders);
+router.get('/providers/:id/subscriptions', adminController.getProviderSubscriptions);
 router.patch('/providers/:id/verify', adminController.verifyProvider);
 
 module.exports = router;

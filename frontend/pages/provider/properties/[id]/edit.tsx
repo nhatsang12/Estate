@@ -278,7 +278,7 @@ export default function EditProperty() {
 
       if (isQuotaError) {
         const goUpgrade = confirm("Bạn đã đạt giới hạn. Nâng cấp gói ngay không?");
-        if (goUpgrade) router.push("/subscription/plans");
+        if (goUpgrade) router.push("/provider/dashboard?view=plans");
         return;
       }
 

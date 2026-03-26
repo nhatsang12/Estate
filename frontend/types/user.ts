@@ -45,6 +45,9 @@ export interface User {
   kycComparisonResult?: KycComparisonResult | null;
   kycRejectionReason?: string;
   subscription?: SubscriptionInfo;
+  subscriptionPlan?: SubscriptionPlan;
+  subscriptionStartedAt?: string;
+  subscriptionExpiresAt?: string;
   listingsCount?: number;
   createdAt?: string;
   updatedAt?: string;

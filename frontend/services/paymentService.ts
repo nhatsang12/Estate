@@ -1,7 +1,9 @@
 import { requestJson } from "@/services/apiClient";
 
 export type SubscriptionPlan = "Pro" | "ProPlus";
+export type SubscriptionTier = "Free" | SubscriptionPlan;
 export type PaymentMethod = "VNPay" | "PayPal";
+export type TransactionStatus = "pending" | "success" | "failed" | "cancelled";
 
 interface CreateCheckoutPayload {
   subscriptionPlan: SubscriptionPlan;
@@ -13,6 +15,29 @@ interface CreateCheckoutResponse {
   status: string;
   data: {
     checkoutUrl: string;
+  };
+}
+
+export interface SubscriptionTransaction {
+  _id: string;
+  subscriptionPlan: SubscriptionTier;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  status: TransactionStatus;
+  orderedAt: string;
+  expiresAt: string;
+  paymentGatewayTransactionId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface SubscriptionHistoryResponse {
+  status: string;
+  results: number;
+  totalPages?: number;
+  currentPage?: number;
+  data: {
+    subscriptions: SubscriptionTransaction[];
   };
 }
 
@@ -28,10 +53,22 @@ export const paymentService = {
     const params = new URLSearchParams();
     params.set("redirect", String(redirect));
     const query = params.toString() ? `?${params.toString()}` : "";
-    return requestJson<CreateCheckoutResponse>(`/payments/create-checkout${query}`, {
+    return requestJson<CreateCheckoutResponse, CreateCheckoutPayload>(`/payments/create-checkout${query}`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: payload,
     });
+  },
+
+  async getMySubscriptions(page = 1, limit = 10) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+
+    return requestJson<SubscriptionHistoryResponse>(
+      `/payments/subscriptions/me?${params.toString()}`,
+      { method: "GET" }
+    );
   },
 
   // Subscription plans pricing

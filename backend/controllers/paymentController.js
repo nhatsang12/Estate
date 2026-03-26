@@ -11,6 +11,13 @@ const checkoutSchema = Joi.object({
 }).options({ stripUnknown: true });
 
 const PENDING_TRANSACTION_EXPIRE_MINUTES = 10;
+const SUBSCRIPTION_DURATION_MONTHS = 1;
+
+const addSubscriptionDuration = (baseDate) => {
+  const next = new Date(baseDate);
+  next.setMonth(next.getMonth() + SUBSCRIPTION_DURATION_MONTHS);
+  return next;
+};
 
 const clientBaseUrl = process.env.CLIENT_URL || 'http://localhost:3000';
 
@@ -80,7 +87,17 @@ const ensureSubscriptionApplied = async (transaction) => {
   const user = await User.findById(transaction.userId);
   if (!user) throw new Error('User not found for subscription update');
 
+  const now = new Date();
+  const subscriptionExpiresAt = addSubscriptionDuration(now);
+
+  transaction.subscriptionExpiresAt = subscriptionExpiresAt;
+  // Keep legacy field aligned for consumers still reading "expiresAt".
+  transaction.expiresAt = subscriptionExpiresAt;
+  await transaction.save({ validateBeforeSave: false });
+
   user.subscriptionPlan = transaction.subscriptionPlan;
+  user.subscriptionStartedAt = now;
+  user.subscriptionExpiresAt = subscriptionExpiresAt;
   user.listingsCount = 0;
   await user.save({ validateBeforeSave: false });
 };
@@ -131,6 +148,42 @@ const findTransactionByMethodAndReference = async ({
   });
 };
 
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+};
+
+const resolveSubscriptionExpiry = (transaction) => {
+  if (transaction.subscriptionExpiresAt) return transaction.subscriptionExpiresAt;
+
+  if (
+    transaction.status === 'success' &&
+    transaction.subscriptionPlan &&
+    transaction.subscriptionPlan !== 'Free' &&
+    transaction.orderedAt
+  ) {
+    return addSubscriptionDuration(new Date(transaction.orderedAt));
+  }
+
+  return transaction.expiresAt;
+};
+
+const serializeTransaction = (transaction) => ({
+  _id: transaction._id,
+  subscriptionPlan: transaction.subscriptionPlan,
+  amount: transaction.amount,
+  paymentMethod: transaction.paymentMethod,
+  status: transaction.status,
+  orderedAt: transaction.orderedAt,
+  expiresAt: resolveSubscriptionExpiry(transaction),
+  checkoutExpiresAt: transaction.checkoutExpiresAt,
+  subscriptionExpiresAt: resolveSubscriptionExpiry(transaction),
+  paymentGatewayTransactionId: transaction.paymentGatewayTransactionId,
+  createdAt: transaction.createdAt,
+  updatedAt: transaction.updatedAt,
+});
+
 // ─── Create Checkout ─────────────────────────────────────────
 // POST /api/payments/create-checkout
 exports.createCheckout = async (req, res, next) => {
@@ -151,9 +204,10 @@ exports.createCheckout = async (req, res, next) => {
     );
 
     const orderedAt = new Date();
-    const expiresAt = new Date(
+    const checkoutExpiresAt = new Date(
       orderedAt.getTime() + PENDING_TRANSACTION_EXPIRE_MINUTES * 60 * 1000
     );
+    const subscriptionExpiresAt = addSubscriptionDuration(orderedAt);
 
     const transaction = await Transaction.create({
       userId: req.user.id,
@@ -162,7 +216,10 @@ exports.createCheckout = async (req, res, next) => {
       paymentMethod,
       status: 'pending',
       orderedAt,
-      expiresAt,
+      checkoutExpiresAt,
+      subscriptionExpiresAt,
+      // Keep legacy field for backward compatibility in existing UIs.
+      expiresAt: subscriptionExpiresAt,
       paymentGatewayResponse: {
         phase: 'checkout_initialized',
       },
@@ -230,6 +287,8 @@ exports.createCheckout = async (req, res, next) => {
         paymentMethod,
         subscriptionPlan,
         amount: transactionAmount,
+        checkoutExpiresAt,
+        subscriptionExpiresAt,
         checkoutUrl,
       },
     });
@@ -241,6 +300,36 @@ exports.createCheckout = async (req, res, next) => {
       status: 'error',
       message,
     });
+  }
+};
+
+// ─── Get My Subscription Transactions ───────────────────────
+// GET /api/payments/subscriptions/me
+exports.getMySubscriptions = async (req, res, next) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const limit = Math.min(parsePositiveInt(req.query.limit, 10), 50);
+    const skip = (page - 1) * limit;
+
+    const [total, transactions] = await Promise.all([
+      Transaction.countDocuments({ userId: req.user.id }),
+      Transaction.find({ userId: req.user.id })
+        .sort({ orderedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      results: transactions.length,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      currentPage: page,
+      data: {
+        subscriptions: transactions.map(serializeTransaction),
+      },
+    });
+  } catch (err) {
+    next(err);
   }
 };
 

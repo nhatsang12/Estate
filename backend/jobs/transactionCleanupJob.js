@@ -22,11 +22,16 @@ const runTransactionCleanup = async () => {
     const expiredTransactions = await Transaction.find({
       status: 'pending',
       $or: [
-        { expiresAt: { $lt: now } },
-        { expiresAt: { $exists: false }, orderedAt: { $lt: fallbackCutoff } },
+        { checkoutExpiresAt: { $lt: now } },
+        { checkoutExpiresAt: { $exists: false }, expiresAt: { $lt: now } },
+        {
+          checkoutExpiresAt: { $exists: false },
+          expiresAt: { $exists: false },
+          orderedAt: { $lt: fallbackCutoff },
+        },
       ],
     })
-      .select('_id paymentGatewayResponse expiresAt')
+      .select('_id paymentGatewayResponse checkoutExpiresAt expiresAt')
       .lean();
 
     if (!expiredTransactions.length) {

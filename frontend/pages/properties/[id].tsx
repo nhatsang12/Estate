@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import type { FormEvent } from "react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
@@ -11,6 +10,8 @@ import { Bath, BedDouble, Building2, CalendarClock, CheckCircle2, Mail, MapPin, 
 import LuxuryNavbar from "@/components/LuxuryNavbar";
 import LuxuryFooter from "@/components/LuxuryFooter";
 import LuxuryListingCard from "@/components/LuxuryListingCard";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMessaging } from "@/contexts/MessagingContext";
 import { ApiError } from "@/services/apiClient";
 import { propertyService } from "@/services/propertyService";
 import type { Property, PropertyOwner } from "@/types/property";
@@ -123,9 +124,11 @@ const GLOBAL_STYLE = `
 
 export default function PropertyDetailPage({ property, errorMessage, recommendations }: PropertyDetailPageProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const { openPropertyPrefill } = useMessaging();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [prevImageIndex, setPrevImageIndex] = useState<number | null>(null);
-  const [contactSent, setContactSent] = useState(false);
+  const [contactFeedback, setContactFeedback] = useState<string | null>(null);
   const reveals = useRef<(HTMLDivElement | null)[]>([]);
 
   // Scroll reveal
@@ -198,7 +201,42 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
     const parts = (property.address || "").split(",").map((s: string) => s.trim()).filter(Boolean);
     return parts.length > 3 ? parts.slice(0, 3).join(", ") + "…" : property.address;
   })();
-  const handleContactSubmit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); setContactSent(true); };
+  const handleContactOwner = () => {
+    if (!owner?._id) {
+      setContactFeedback("Hiện chưa xác định được thông tin chủ sở hữu.");
+      return;
+    }
+
+    if (!user) {
+      void router.push(`/auth/login?redirect=${encodeURIComponent(router.asPath)}`);
+      return;
+    }
+
+    if (user.role !== "user" && user.role !== "provider") {
+      setContactFeedback("Tài khoản hiện tại chưa được hỗ trợ chat trực tiếp.");
+      return;
+    }
+
+    if (String(user._id) === String(owner._id)) {
+      setContactFeedback("Bạn đang xem chính tin đăng của mình.");
+      return;
+    }
+
+    openPropertyPrefill({
+      receiverId: String(owner._id),
+      receiverName: owner.name,
+      property: {
+        propertyId: property._id,
+        title: property.title,
+        address: property.address,
+        price: property.price,
+        description: property.description,
+        imageUrl: property.images?.[0] || "",
+      },
+    });
+
+    setContactFeedback("Đã mở khung chat. Vui lòng xác nhận nội dung trước khi gửi.");
+  };
 
   return (
     <>
@@ -412,16 +450,13 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
 
                 {/* Form */}
                 <div style={{ padding: "1.5rem 2rem 2rem" }}>
-                  <div style={{ fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--e-muted)", marginBottom: "0.9rem" }}>Gửi Lời Nhắn</div>
-                  <form onSubmit={handleContactSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-                    <input type="text" placeholder="Tên của bạn" className="e-contact-input" required />
-                    <input type="tel" placeholder="Số điện thoại" className="e-contact-input" required />
-                    <textarea placeholder="Tôi muốn tư vấn về bất động sản này..." className="e-contact-input" style={{ minHeight: "88px", resize: "none" }} required />
-                    <button type="submit" className="e-btn-primary">Gửi Yêu Cầu <ArrowRight size={15} /></button>
-                  </form>
-                  {contactSent && (
+                  <div style={{ fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--e-muted)", marginBottom: "0.9rem" }}>  Hoặc</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                    <button type="button" onClick={handleContactOwner} className="e-btn-primary">Chat với chủ sở hữu <ArrowRight size={15} /></button>
+                  </div>
+                  {contactFeedback && (
                     <div style={{ marginTop: "0.65rem", padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: "0.8rem", textAlign: "center" }}>
-                      ✓ Yêu cầu đã được gửi thành công!
+                      {contactFeedback}
                     </div>
                   )}
                 </div>

@@ -77,6 +77,13 @@ const userSchema = new mongoose.Schema({
     enum: ['Free', 'Pro', 'ProPlus'],
     default: 'Free',
   },
+  subscriptionStartedAt: {
+    type: Date,
+  },
+  subscriptionExpiresAt: {
+    type: Date,
+    index: true,
+  },
   listingsCount: {
     type: Number,
     default: 0,
@@ -133,28 +140,63 @@ userSchema.methods.createPasswordResetToken = function () {
 };
 
 /**
+ * Return effective plan at a given time.
+ * If paid plan has expired, user is treated as Free plan.
+ */
+userSchema.methods.getEffectiveSubscriptionPlan = function (now = new Date()) {
+  const currentPlan = this.subscriptionPlan || 'Free';
+  if (currentPlan === 'Free') return 'Free';
+
+  // Backward compatibility for historical paid users without expiry metadata.
+  if (!this.subscriptionExpiresAt) return currentPlan;
+
+  const expiresAt = new Date(this.subscriptionExpiresAt);
+  if (Number.isNaN(expiresAt.getTime())) return currentPlan;
+  if (expiresAt <= now) return 'Free';
+
+  return currentPlan;
+};
+
+/**
+ * If paid plan is expired, downgrade user to Free.
+ * Returns true if a downgrade was applied.
+ */
+userSchema.methods.ensureSubscriptionValidity = async function (now = new Date()) {
+  const effectivePlan = this.getEffectiveSubscriptionPlan(now);
+  if (effectivePlan !== 'Free' || this.subscriptionPlan === 'Free') return false;
+
+  this.subscriptionPlan = 'Free';
+  this.subscriptionStartedAt = undefined;
+  this.subscriptionExpiresAt = undefined;
+  await this.save({ validateBeforeSave: false });
+  return true;
+};
+
+/**
  * Check if user can create more listings based on subscription plan
  * Free: 3 listings, Pro: 20 listings, ProPlus: unlimited
  */
 userSchema.methods.canCreateListing = function () {
+  const plan = this.getEffectiveSubscriptionPlan();
   const limits = {
     Free: 3,
     Pro: 20,
     ProPlus: Infinity,
   };
-  return this.listingsCount < (limits[this.subscriptionPlan] || 0);
+  return this.listingsCount < (limits[plan] || 0);
 };
 
 /**
  * Get the maximum number of listings allowed for this user
  */
 userSchema.methods.getListingLimit = function () {
+  const plan = this.getEffectiveSubscriptionPlan();
   const limits = {
     Free: 3,
     Pro: 20,
     ProPlus: Infinity,
   };
-  return limits[this.subscriptionPlan] || 0;
+  return limits[plan] || 0;
 };
 
 module.exports = mongoose.model('User', userSchema);

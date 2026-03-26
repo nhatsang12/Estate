@@ -10,7 +10,7 @@ import {
   AlertTriangle, CheckCircle2, FileUp, IdCard, ShieldCheck, UploadCloud, X,
   Eye, MousePointerClick, Calendar,
   LayoutDashboard, Building2, Layers, Settings,
-  Check, Sparkles, Zap, Crown, ArrowRight, MapPin, Phone, FileText,
+  Check, Sparkles, Zap, Crown, ArrowRight, MapPin, Phone, FileText, Landmark, CreditCard,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -22,6 +22,12 @@ import { ApiError } from "@/services/apiClient";
 import propertyService from "@/services/propertyService";
 import { userService } from "@/services/userService";
 import { geocodeAddress } from "@/services/geocodeService";
+import {
+  paymentService,
+  type PaymentMethod as CheckoutPaymentMethod,
+  type SubscriptionPlan as PaidSubscriptionPlan,
+  type SubscriptionTransaction,
+} from "@/services/paymentService";
 import PropertyForm from "@/components/PropertyForm";
 import type { Property } from "@/types/property";
 import type { SubscriptionPlan, User } from "@/types/user";
@@ -44,6 +50,46 @@ const fmtNum = (n: number): string =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(n);
+
+const fmtDateTime = (value?: string) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const SUBSCRIPTION_PAYMENT_STATUS_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  success: {
+    label: "Thành công",
+    color: "#2E8B75",
+    bg: "rgba(46,139,117,0.08)",
+    border: "rgba(46,139,117,0.25)",
+  },
+  pending: {
+    label: "Đang xử lý",
+    color: "#C9A96E",
+    bg: "rgba(201,169,110,0.1)",
+    border: "rgba(201,169,110,0.32)",
+  },
+  failed: {
+    label: "Thất bại",
+    color: "#b84a2a",
+    bg: "rgba(184,74,42,0.07)",
+    border: "rgba(184,74,42,0.26)",
+  },
+  cancelled: {
+    label: "Đã hủy",
+    color: "#556177",
+    bg: "rgba(85,97,119,0.08)",
+    border: "rgba(85,97,119,0.2)",
+  },
+};
 
 /* ═══════════════════════════════════════════════════════════
    DESIGN TOKENS / SHARED CONSTANTS
@@ -623,19 +669,93 @@ const PLANS_CONFIG = [
 
 const PLAN_LIMITS: Record<string, number | string> = { Free: 3, Pro: 20, ProPlus: "∞" };
 
-function PlansView({ currentPlan, listingsUsed, onCheckout }: {
+function isPaidPlan(plan: SubscriptionPlan | null): plan is PaidSubscriptionPlan {
+  return plan === "Pro" || plan === "ProPlus";
+}
+
+function PlansView({ currentPlan, listingsUsed }: {
   currentPlan: SubscriptionPlan;
   listingsUsed: number;
-  onCheckout?: (plan: SubscriptionPlan, method: "VNPay" | "PayPal") => void;
 }) {
   const [selected, setSelected] = useState<SubscriptionPlan | null>(null);
-  const [payMethod, setPayMethod] = useState<"VNPay" | "PayPal">("VNPay");
+  const [payMethod, setPayMethod] = useState<CheckoutPaymentMethod>("VNPay");
+  const [processing, setProcessing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<SubscriptionTransaction[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
   const limit = PLAN_LIMITS[currentPlan];
   // For unlimited plan, show actual count vs a soft reference of 50 (purely visual)
   const usagePct = limit === "∞"
     ? Math.min(95, (listingsUsed / 50) * 100)
     : Math.min(100, listingsUsed > 0 ? (listingsUsed / (limit as number)) * 100 : 0);
   const selectedConfig = PLANS_CONFIG.find(p => p.plan === selected);
+  const canCheckout = Boolean(selected && selected !== currentPlan && isPaidPlan(selected));
+
+  const loadTransactions = useCallback(async (page = 1) => {
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      const response = await paymentService.getMySubscriptions(page, 8);
+      setTransactions(response.data?.subscriptions ?? []);
+      setHistoryPage(response.currentPage ?? page);
+      setHistoryTotalPages(response.totalPages ?? 1);
+    } catch (caughtError) {
+      const fallbackMessage = "Không thể tải lịch sử thanh toán.";
+      const message = caughtError instanceof Error ? caughtError.message : fallbackMessage;
+      setHistoryError(message || fallbackMessage);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setCheckoutError(null);
+  }, [selected, payMethod]);
+
+  useEffect(() => {
+    void loadTransactions(historyPage);
+  }, [historyPage, loadTransactions]);
+
+  const handleCheckout = async () => {
+    if (!selected || selected === currentPlan) {
+      return;
+    }
+
+    if (!isPaidPlan(selected)) {
+      setCheckoutError("Vui lòng chọn gói Pro hoặc Pro Plus để thanh toán.");
+      return;
+    }
+
+    try {
+      setProcessing(true);
+      setCheckoutError(null);
+
+      const response = await paymentService.createCheckout(
+        {
+          subscriptionPlan: selected,
+          paymentMethod: payMethod,
+        },
+        false
+      );
+
+      const checkoutUrl = response.data?.checkoutUrl;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
+      }
+
+      setCheckoutError("Không nhận được liên kết thanh toán. Vui lòng thử lại sau.");
+    } catch (caughtError) {
+      const fallbackMessage = "Không thể tạo phiên thanh toán lúc này.";
+      const message = caughtError instanceof Error ? caughtError.message : fallbackMessage;
+      setCheckoutError(message || fallbackMessage);
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
     <div style={{ padding: "2.5rem 2vw" }}>
@@ -723,34 +843,270 @@ function PlansView({ currentPlan, listingsUsed, onCheckout }: {
       </div>
 
       {/* Checkout */}
-      {selected && selected !== currentPlan && selectedConfig && (
+      {canCheckout && selectedConfig && (
         <GlassCard style={{ padding: "1.6rem 1.8rem", marginBottom: "1.6rem" }}>
           <p style={{ fontSize: "0.55rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: "1rem", fontFamily: "var(--e-sans)" }}>Xác Nhận Thanh Toán</p>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1.2rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <div style={{ width: 44, height: 44, borderRadius: 11, background: selectedConfig.accentLight, border: `1px solid ${selectedConfig.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", color: selectedConfig.accent }}>
-                {selectedConfig.icon}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: "0.9rem", marginBottom: "0.9rem" }}>
+            <div style={{ border: "1px solid rgba(154,124,69,0.14)", borderRadius: 12, background: "rgba(255,255,255,0.82)", padding: "1rem 1.1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.8rem", marginBottom: "0.8rem" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: selectedConfig.accentLight, border: `1px solid ${selectedConfig.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", color: selectedConfig.accent }}>
+                  {selectedConfig.icon}
+                </div>
+                <div>
+                  <p style={{ fontFamily: "var(--e-serif)", fontSize: "1.05rem", fontWeight: 600, color: "var(--e-charcoal)", margin: 0 }}>{selectedConfig.name}</p>
+                  <p style={{ fontSize: "0.7rem", color: "var(--e-muted)", marginTop: 2, fontFamily: "var(--e-sans)" }}>
+                    Chu kỳ thanh toán: 30 ngày
+                  </p>
+                </div>
               </div>
-              <div>
-                <p style={{ fontFamily: "var(--e-serif)", fontSize: "1.2rem", fontWeight: 600, color: "var(--e-charcoal)", margin: 0 }}>{selectedConfig.name}</p>
-                <p style={{ fontSize: "0.73rem", color: "var(--e-muted)", marginTop: 3, fontFamily: "var(--e-sans)" }}><span style={{ fontWeight: 700, color: "var(--e-charcoal)" }}>{selectedConfig.price}₫</span> {selectedConfig.priceUnit}</p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "var(--e-sans)", fontSize: "0.74rem", color: "var(--e-muted)" }}>
+                <span>Tổng thanh toán</span>
+                <span style={{ fontFamily: "var(--e-serif)", fontSize: "1.08rem", color: "var(--e-charcoal)", fontWeight: 600 }}>
+                  {selectedConfig.price}₫
+                </span>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", gap: "0.35rem", background: "rgba(154,124,69,0.05)", padding: 4, borderRadius: 9, border: "1px solid rgba(154,124,69,0.12)" }}>
-                {(["VNPay", "PayPal"] as const).map(m => (
-                  <button key={m} onClick={() => setPayMethod(m)} style={{ padding: "6px 16px", borderRadius: 7, border: payMethod === m ? "1px solid rgba(154,124,69,0.3)" : "1px solid transparent", background: payMethod === m ? "#fff" : "transparent", color: payMethod === m ? "var(--e-charcoal)" : "var(--e-muted)", fontSize: "0.72rem", fontWeight: payMethod === m ? 700 : 500, cursor: "pointer", fontFamily: "var(--e-sans)", boxShadow: payMethod === m ? "0 2px 8px rgba(0,0,0,0.06)" : "none", transition: "all 0.18s" }}>
-                    {m}
-                  </button>
-                ))}
+
+            <div style={{ border: "1px solid rgba(154,124,69,0.14)", borderRadius: 12, background: "rgba(255,255,255,0.82)", padding: "1rem 0.8rem" }}>
+              <p style={{ fontSize: "0.58rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", margin: "0 0 0.65rem", fontFamily: "var(--e-sans)", fontWeight: 700 }}>
+                Phương thức
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+                {([
+                  { value: "VNPay" as CheckoutPaymentMethod, icon: <Landmark size={13} />, desc: "Ngân hàng, ví điện tử" },
+                  { value: "PayPal" as CheckoutPaymentMethod, icon: <CreditCard size={13} />, desc: "Thẻ quốc tế, tài khoản PP" },
+                ]).map(method => {
+                  const active = payMethod === method.value;
+                  return (
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => setPayMethod(method.value)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.6rem",
+                        textAlign: "left",
+                        border: active ? "1px solid rgba(154,124,69,0.34)" : "1px solid rgba(154,124,69,0.14)",
+                        background: active ? "rgba(154,124,69,0.08)" : "#fff",
+                        borderRadius: 10,
+                        padding: "0.55rem 0.7rem",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: active ? "var(--e-charcoal)" : "var(--e-muted)", fontSize: "0.72rem", fontWeight: active ? 700 : 600, fontFamily: "var(--e-sans)" }}>
+                        {method.icon}
+                        {method.value}
+                      </span>
+                      <span style={{ fontSize: "0.64rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>{method.desc}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <ActionBtn variant="dark" onClick={() => onCheckout?.(selected, payMethod)}>
-                Thanh Toán <ArrowRight size={13} />
-              </ActionBtn>
             </div>
+          </div>
+
+          {checkoutError && (
+            <div style={{ marginBottom: "0.9rem", border: "1px solid rgba(184,74,42,0.28)", background: "rgba(184,74,42,0.06)", padding: "0.75rem 0.9rem", fontSize: "0.72rem", color: "#b84a2a", lineHeight: 1.55, borderRadius: 9, fontFamily: "var(--e-sans)" }}>
+              {checkoutError}
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={handleCheckout}
+              disabled={processing}
+              style={{
+                minWidth: 210,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+                padding: "10px 18px",
+                borderRadius: 10,
+                border: "1px solid var(--e-charcoal)",
+                background: "var(--e-charcoal)",
+                color: "#fff",
+                cursor: processing ? "wait" : "pointer",
+                fontFamily: "var(--e-sans)",
+                fontSize: "0.66rem",
+                fontWeight: 700,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                opacity: processing ? 0.75 : 1,
+                transition: "all 0.22s",
+                boxShadow: "0 4px 12px rgba(17,28,20,0.2)",
+              }}
+            >
+              {processing ? (
+                <>
+                  <LoaderCircle size={13} className="animate-spin" />
+                  Đang xử lý...
+                </>
+              ) : (
+                <>
+                  Thanh Toán Với {payMethod}
+                  <ArrowRight size={13} />
+                </>
+              )}
+            </button>
           </div>
         </GlassCard>
       )}
+
+      <GlassCard style={{ padding: "1.6rem 1.8rem", marginBottom: "1.6rem" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "0.8rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <div>
+            <p style={{ fontSize: "0.55rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 4, fontFamily: "var(--e-sans)" }}>Quản Lý Đăng Ký</p>
+            <h3 style={{ fontFamily: "var(--e-serif)", fontSize: "1.15rem", fontWeight: 600, color: "var(--e-charcoal)", margin: 0 }}>Lịch Sử Thanh Toán Gói</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadTransactions(historyPage)}
+            disabled={historyLoading}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(154,124,69,0.2)",
+              background: "rgba(255,255,255,0.85)",
+              color: "var(--e-charcoal)",
+              cursor: historyLoading ? "wait" : "pointer",
+              fontFamily: "var(--e-sans)",
+              fontSize: "0.63rem",
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            {historyLoading ? <LoaderCircle size={12} className="animate-spin" /> : <Eye size={12} />}
+            Làm mới
+          </button>
+        </div>
+
+        {historyError && (
+          <div style={{ marginBottom: "0.9rem", border: "1px solid rgba(184,74,42,0.28)", background: "rgba(184,74,42,0.06)", padding: "0.75rem 0.9rem", fontSize: "0.72rem", color: "#b84a2a", lineHeight: 1.55, borderRadius: 9, fontFamily: "var(--e-sans)" }}>
+            {historyError}
+          </div>
+        )}
+
+        <div style={{ border: "1px solid rgba(154,124,69,0.12)", borderRadius: 12, overflow: "hidden", background: "rgba(255,255,255,0.78)" }}>
+          {historyLoading && transactions.length === 0 ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 140, color: "var(--e-muted)", fontFamily: "var(--e-sans)", fontSize: "0.78rem" }}>
+              <LoaderCircle size={14} className="animate-spin" />
+              Đang tải lịch sử thanh toán...
+            </div>
+          ) : transactions.length > 0 ? (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "rgba(248,245,240,0.7)" }}>
+                    {["Mã GD", "Gói", "Phương thức", "Số tiền", "Trạng thái", "Đặt lúc", "Hết hạn"].map(head => (
+                      <th
+                        key={head}
+                        style={{
+                          textAlign: "left",
+                          padding: "11px 12px",
+                          fontSize: "0.58rem",
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "var(--e-muted)",
+                          fontWeight: 700,
+                          borderBottom: "1px solid rgba(154,124,69,0.12)",
+                          fontFamily: "var(--e-sans)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {head}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((tx, index) => {
+                    const statusMeta = SUBSCRIPTION_PAYMENT_STATUS_META[tx.status] ?? SUBSCRIPTION_PAYMENT_STATUS_META.pending;
+                    return (
+                      <tr key={tx._id} style={{ borderBottom: index < transactions.length - 1 ? "1px solid rgba(154,124,69,0.1)" : "none" }}>
+                        <td style={{ padding: "10px 12px", fontSize: "0.71rem", color: "var(--e-charcoal)", fontWeight: 700, fontFamily: "var(--e-sans)", whiteSpace: "nowrap" }}>
+                          #{tx._id.slice(-8).toUpperCase()}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: "0.74rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)", whiteSpace: "nowrap" }}>{tx.subscriptionPlan}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "0.74rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)", whiteSpace: "nowrap" }}>{tx.paymentMethod}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "0.74rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)", fontWeight: 700, whiteSpace: "nowrap" }}>{fmtVND(tx.amount)}</td>
+                        <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 20, fontSize: "0.58rem", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 700, color: statusMeta.color, background: statusMeta.bg, border: `1px solid ${statusMeta.border}`, fontFamily: "var(--e-sans)" }}>
+                            {statusMeta.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: "0.72rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)", whiteSpace: "nowrap" }}>{fmtDateTime(tx.orderedAt)}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "0.72rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)", whiteSpace: "nowrap" }}>{fmtDateTime(tx.expiresAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ minHeight: 140, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--e-sans)", color: "var(--e-light-muted)", fontSize: "0.8rem" }}>
+              Chưa có giao dịch đăng ký nào.
+            </div>
+          )}
+        </div>
+
+        {historyTotalPages > 1 && (
+          <div style={{ marginTop: "0.9rem", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.5rem" }}>
+            <button
+              type="button"
+              onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
+              disabled={historyPage === 1 || historyLoading}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 8,
+                border: "1px solid rgba(154,124,69,0.2)",
+                background: "rgba(255,255,255,0.85)",
+                color: "var(--e-charcoal)",
+                opacity: historyPage === 1 ? 0.45 : 1,
+                cursor: historyPage === 1 ? "not-allowed" : "pointer",
+                fontFamily: "var(--e-sans)",
+                fontSize: "0.66rem",
+                fontWeight: 700,
+              }}
+            >
+              ← Trước
+            </button>
+            <span style={{ fontSize: "0.67rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)", fontWeight: 700 }}>
+              {historyPage}/{historyTotalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setHistoryPage(prev => Math.min(historyTotalPages, prev + 1))}
+              disabled={historyPage === historyTotalPages || historyLoading}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 8,
+                border: "1px solid rgba(154,124,69,0.2)",
+                background: "rgba(255,255,255,0.85)",
+                color: "var(--e-charcoal)",
+                opacity: historyPage === historyTotalPages ? 0.45 : 1,
+                cursor: historyPage === historyTotalPages ? "not-allowed" : "pointer",
+                fontFamily: "var(--e-sans)",
+                fontSize: "0.66rem",
+                fontWeight: 700,
+              }}
+            >
+              Sau →
+            </button>
+          </div>
+        )}
+      </GlassCard>
 
       {/* FAQ */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.7rem" }}>
@@ -802,7 +1158,7 @@ function CreateView({ onCreated }: { onCreated: () => void }) {
       const isQuotaError = error instanceof ApiError && error.statusCode === 403 && message.toLowerCase().match(/quota|plan|upgrade|nâng cấp|gói/);
       if (isQuotaError) {
         const goUpgrade = confirm("Bạn đã đạt giới hạn tin đăng. Nâng cấp ngay không?");
-        if (goUpgrade) router.push("/subscription/plans");
+        if (goUpgrade) router.push("/provider/dashboard?view=plans");
         return;
       }
       alert(message);
@@ -852,7 +1208,7 @@ function EditView({ propertyId, onUpdated, onCancel }: {
       const isQuotaError = error instanceof ApiError && error.statusCode === 403 && message.toLowerCase().match(/quota|plan|upgrade|nâng cấp|gói/);
       if (isQuotaError) {
         const goUpgrade = confirm("Bạn đã đạt giới hạn. Nâng cấp gói ngay không?");
-        if (goUpgrade) router.push("/subscription/plans");
+        if (goUpgrade) router.push("/provider/dashboard?view=plans");
         return;
       }
       alert(message);
@@ -1101,12 +1457,12 @@ function KycView() {
         {/* ID number input */}
         <div style={{ maxWidth: 420, marginBottom: "1.5rem" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.56rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700 }}>Số CCCD (Không bắt buộc)</span>
+            <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.56rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700 }}>Số CCCD</span>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", border: "1px solid rgba(154,124,69,0.2)", padding: "0 12px", background: "rgba(255,252,248,0.8)", borderRadius: 10, transition: "border-color 0.2s" }}
               onFocusCapture={e => (e.currentTarget.style.borderColor = "var(--e-gold)")}
               onBlurCapture={e => (e.currentTarget.style.borderColor = "rgba(154,124,69,0.2)")}>
               <IdCard size={14} color="var(--e-gold)" style={{ flexShrink: 0, opacity: 0.7 }} />
-              <input type="text" value={declaredIdNumber} onChange={e => setDeclaredIdNumber(e.target.value)} placeholder="Nhập số CCCD để tăng độ chính xác OCR"
+              <input type="text" value={declaredIdNumber} onChange={e => setDeclaredIdNumber(e.target.value)} placeholder="Nhập số CCCD"
                 style={{ flex: 1, border: "none", background: "none", padding: "10px 0", fontFamily: "var(--e-sans)", fontSize: "0.84rem", color: "var(--e-charcoal)", outline: "none" }} />
             </div>
           </label>
@@ -1125,7 +1481,7 @@ function KycView() {
             {submitting ? <LoaderCircle size={14} className="animate-spin" /> : <FileUp size={14} />}
             {submitting ? "Đang xử lý…" : "Nộp Hồ Sơ KYC"}
           </button>
-          <span style={{ fontSize: "0.68rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>OCR sẽ chạy tự động sau khi nộp.</span>
+          <span style={{ fontSize: "0.68rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}></span>
         </div>
 
         {errorMessage && (

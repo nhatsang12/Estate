@@ -53,6 +53,7 @@ const router = express.Router();
  *         description: Unauthorized
  */
 router.post('/create-checkout', authController.protect, paymentController.createCheckout);
+router.get('/subscriptions/me', authController.protect, paymentController.getMySubscriptions);
 
 /**
  * @swagger

@@ -72,6 +72,10 @@ const setAuthCookies = (res, token, refreshToken) => {
 };
 
 const createSendToken = async (user, statusCode, res) => {
+  if (typeof user.ensureSubscriptionValidity === 'function') {
+    await user.ensureSubscriptionValidity();
+  }
+
   const token = signToken(user._id);
   const refreshToken = signRefreshToken(user._id);
 
@@ -169,6 +173,10 @@ exports.protect = async (req, res, next) => {
       });
     }
 
+    if (typeof currentUser.ensureSubscriptionValidity === 'function') {
+      await currentUser.ensureSubscriptionValidity();
+    }
+
     req.user = currentUser;
     next();
   } catch (err) {
@@ -197,6 +205,10 @@ exports.optionalProtect = async (req, res, next) => {
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {
       return next();
+    }
+
+    if (typeof currentUser.ensureSubscriptionValidity === 'function') {
+      await currentUser.ensureSubscriptionValidity();
     }
 
     req.user = currentUser;

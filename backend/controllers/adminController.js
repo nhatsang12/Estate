@@ -1,6 +1,7 @@
 const Property = require('../models/Property');
 const User = require('../models/User');
 const RoleRequest = require('../models/RoleRequest');
+const Transaction = require('../models/Transaction');
 const Joi = require('joi');
 
 // ─── Validation Schemas ──────────────────────────────────────
@@ -21,10 +22,71 @@ const verifyProviderSchema = Joi.object({
   kycRejectionReason: Joi.string().trim().allow('', null),
 }).or('isVerified', 'kycStatus').options({ stripUnknown: true });
 
+const SUBSCRIPTION_DURATION_MONTHS = 1;
+
+const addSubscriptionDuration = (baseDate) => {
+  const next = new Date(baseDate);
+  next.setMonth(next.getMonth() + SUBSCRIPTION_DURATION_MONTHS);
+  return next;
+};
+
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+};
+
+const normalizeExpiredSubscriptions = async (now = new Date()) => {
+  const result = await User.updateMany(
+    {
+      subscriptionPlan: { $in: ['Pro', 'ProPlus'] },
+      subscriptionExpiresAt: { $exists: true, $lte: now },
+    },
+    {
+      $set: { subscriptionPlan: 'Free' },
+      $unset: { subscriptionStartedAt: 1, subscriptionExpiresAt: 1 },
+    }
+  );
+  return Number(result.modifiedCount || 0);
+};
+
+const resolveSubscriptionExpiry = (transaction) => {
+  if (transaction.subscriptionExpiresAt) return transaction.subscriptionExpiresAt;
+
+  if (
+    transaction.status === 'success' &&
+    transaction.subscriptionPlan &&
+    transaction.subscriptionPlan !== 'Free' &&
+    transaction.orderedAt
+  ) {
+    return addSubscriptionDuration(new Date(transaction.orderedAt));
+  }
+
+  return transaction.expiresAt;
+};
+
+const serializeTransaction = (transaction) => ({
+  _id: transaction._id,
+  subscriptionPlan: transaction.subscriptionPlan,
+  amount: transaction.amount,
+  paymentMethod: transaction.paymentMethod,
+  status: transaction.status,
+  orderedAt: transaction.orderedAt,
+  expiresAt: resolveSubscriptionExpiry(transaction),
+  checkoutExpiresAt: transaction.checkoutExpiresAt,
+  subscriptionExpiresAt: resolveSubscriptionExpiry(transaction),
+  paymentGatewayTransactionId: transaction.paymentGatewayTransactionId,
+  createdAt: transaction.createdAt,
+  updatedAt: transaction.updatedAt,
+});
+
 // ─── Dashboard Statistics ────────────────────────────────────
 // GET /api/admin/dashboard
 exports.getDashboardStats = async (req, res, next) => {
   try {
+    const now = new Date();
+    await normalizeExpiredSubscriptions(now);
+
     const [
       totalUsers,
       totalProviders,
@@ -36,6 +98,9 @@ exports.getDashboardStats = async (req, res, next) => {
       pendingProvidersRoleRequests,
       verifiedProviders,
       rejectedProviders,
+      subscriptionSalesByPlan,
+      subscriptionSalesByMethod,
+      activePaidProviders,
     ] = await Promise.all([
       User.countDocuments({ role: 'user' }),
       User.countDocuments({ role: 'provider' }),
@@ -49,7 +114,76 @@ exports.getDashboardStats = async (req, res, next) => {
       RoleRequest.countDocuments({ status: 'pending' }),
       User.countDocuments({ kycStatus: 'verified' }),
       User.countDocuments({ kycStatus: 'rejected' }),
+      Transaction.aggregate([
+        {
+          $match: {
+            status: 'success',
+            subscriptionPlan: { $in: ['Pro', 'ProPlus'] },
+          },
+        },
+        {
+          $group: {
+            _id: '$subscriptionPlan',
+            totalSold: { $sum: 1 },
+            totalRevenue: { $sum: '$amount' },
+          },
+        },
+      ]),
+      Transaction.aggregate([
+        {
+          $match: {
+            status: 'success',
+            subscriptionPlan: { $in: ['Pro', 'ProPlus'] },
+          },
+        },
+        {
+          $group: {
+            _id: '$paymentMethod',
+            totalSold: { $sum: 1 },
+            totalRevenue: { $sum: '$amount' },
+          },
+        },
+      ]),
+      User.countDocuments({
+        role: 'provider',
+        subscriptionPlan: { $in: ['Pro', 'ProPlus'] },
+        $or: [
+          { subscriptionExpiresAt: { $gt: now } },
+          { subscriptionExpiresAt: { $exists: false } },
+        ],
+      }),
     ]);
+
+    const planStats = {
+      Pro: { totalSold: 0, totalRevenue: 0 },
+      ProPlus: { totalSold: 0, totalRevenue: 0 },
+    };
+    for (const row of subscriptionSalesByPlan) {
+      if (row?._id === 'Pro' || row?._id === 'ProPlus') {
+        planStats[row._id] = {
+          totalSold: Number(row.totalSold || 0),
+          totalRevenue: Number(row.totalRevenue || 0),
+        };
+      }
+    }
+
+    const paymentMethodStats = {
+      VNPay: { totalSold: 0, totalRevenue: 0 },
+      PayPal: { totalSold: 0, totalRevenue: 0 },
+    };
+    for (const row of subscriptionSalesByMethod) {
+      if (row?._id === 'VNPay' || row?._id === 'PayPal') {
+        paymentMethodStats[row._id] = {
+          totalSold: Number(row.totalSold || 0),
+          totalRevenue: Number(row.totalRevenue || 0),
+        };
+      }
+    }
+
+    const totalSubscriptionSales =
+      planStats.Pro.totalSold + planStats.ProPlus.totalSold;
+    const totalSubscriptionRevenue =
+      planStats.Pro.totalRevenue + planStats.ProPlus.totalRevenue;
 
     res.status(200).json({
       status: 'success',
@@ -63,6 +197,13 @@ exports.getDashboardStats = async (req, res, next) => {
         pendingPropertiesCount: pendingProperties,
         totalPropertyApprovals: approvedProperties,
         totalPropertyRejections: rejectedProperties,
+        activePaidProviders,
+        subscriptionSales: {
+          totalSold: totalSubscriptionSales,
+          totalRevenue: totalSubscriptionRevenue,
+          byPlan: planStats,
+          byPaymentMethod: paymentMethodStats,
+        },
       },
     });
   } catch (err) {
@@ -74,6 +215,8 @@ exports.getDashboardStats = async (req, res, next) => {
 // GET /api/admin/properties/pending
 exports.getPendingProperties = async (req, res, next) => {
   try {
+    await normalizeExpiredSubscriptions(new Date());
+
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit, 10) || 20, 1);
     const skip = (page - 1) * limit;
@@ -243,10 +386,57 @@ exports.verifyProvider = async (req, res, next) => {
   }
 };
 
+// ─── Get Provider Subscription Transactions ─────────────────
+// GET /api/admin/providers/:id/subscriptions
+exports.getProviderSubscriptions = async (req, res, next) => {
+  try {
+    await normalizeExpiredSubscriptions(new Date());
+
+    const providerId = req.params.id;
+    const page = parsePositiveInt(req.query.page, 1);
+    const limit = Math.min(parsePositiveInt(req.query.limit, 10), 50);
+    const skip = (page - 1) * limit;
+
+    const provider = await User.findById(providerId).select(
+      'name email role subscriptionPlan listingsCount isVerified kycStatus'
+    );
+
+    if (!provider) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Provider not found',
+      });
+    }
+
+    const [total, transactions] = await Promise.all([
+      Transaction.countDocuments({ userId: providerId }),
+      Transaction.find({ userId: providerId })
+        .sort({ orderedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      results: transactions.length,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      currentPage: page,
+      data: {
+        provider,
+        subscriptions: transactions.map(serializeTransaction),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ─── Get Unverified Providers ────────────────────────────────
 // GET /api/admin/providers/pending
 exports.getPendingProviders = async (req, res, next) => {
   try {
+    await normalizeExpiredSubscriptions(new Date());
+
     // 1. Get users who are already providers but unverified, or have submitted KYC
     const unverifiedProviders = await User.find({
       $or: [{ role: 'provider', isVerified: false }, { kycStatus: 'submitted' }],
@@ -254,7 +444,7 @@ exports.getPendingProviders = async (req, res, next) => {
 
     // 2. Get users who have a pending role change request to provider
     const roleRequests = await RoleRequest.find({ status: 'pending' })
-      .populate('userId', 'name email phone avatar address kycStatus isVerified createdAt')
+      .populate('userId', 'name email phone avatar address kycStatus isVerified subscriptionPlan subscriptionExpiresAt listingsCount createdAt')
       .sort('-createdAt');
 
     // Combine them into a single list

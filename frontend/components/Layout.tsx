@@ -87,8 +87,8 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                     Admin Dashboard
                   </Link>
                 )}
-                {user && user.role === "user" && (
-                  <Link href="/subscription/plans" className="nav-link text-purple-600 font-semibold whitespace-nowrap">
+                {user?.role === "provider" && (
+                  <Link href="/provider/dashboard?view=plans" className="nav-link text-purple-600 font-semibold whitespace-nowrap">
                     Upgrade
                   </Link>
                 )}
@@ -182,10 +182,10 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                         </Link>
                       </div>
                     )}
-                    {user.role === "user" && (
+                    {user.role === "provider" && (
                       <div className="mt-1">
                         <Link
-                          href="/subscription/plans"
+                          href="/provider/dashboard?view=plans"
                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-primary-light hover:bg-indigo-50"
                         >
                           Upgrade to Pro

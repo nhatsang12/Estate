@@ -9,7 +9,7 @@ import {
   Clock, Home, Users, FileText, Key,
   MapPin, ChevronDown, ChevronRight,
   SlidersHorizontal, Search, Phone,
-  BadgeCheck, AlertTriangle, Eye, User as UserIcon,
+  BadgeCheck, AlertTriangle, Eye, CreditCard, User as UserIcon,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -17,6 +17,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from "recharts";
 import { adminService } from "@/services/adminService";
+import type { SubscriptionTransaction } from "@/services/paymentService";
 import { userService } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import KycStatusBadge from "@/components/KycStatusBadge";
@@ -37,6 +38,19 @@ interface DashboardStats {
   totalPropertyApprovals: number; totalPropertyRejections: number;
   totalVerifiedProviders: number; totalPendingProviders: number;
   totalRejectedProviders: number; pendingPropertiesCount: number;
+  activePaidProviders: number;
+  subscriptionSales: {
+    totalSold: number;
+    totalRevenue: number;
+    byPlan: {
+      Pro: { totalSold: number; totalRevenue: number };
+      ProPlus: { totalSold: number; totalRevenue: number };
+    };
+    byPaymentMethod: {
+      VNPay: { totalSold: number; totalRevenue: number };
+      PayPal: { totalSold: number; totalRevenue: number };
+    };
+  };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -61,6 +75,33 @@ const fmtVND = (n: number) => formatVNDShort(n);
 function isImageUrl(url: string) {
   return /\/image\/upload\//.test(url) || /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(url);
 }
+
+const SUBSCRIPTION_STATUS_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  success: {
+    label: "Thành công",
+    color: "#2E8B75",
+    bg: "rgba(46,139,117,0.08)",
+    border: "rgba(46,139,117,0.24)",
+  },
+  pending: {
+    label: "Đang xử lý",
+    color: "#7a5e28",
+    bg: "rgba(154,124,69,0.08)",
+    border: "rgba(154,124,69,0.22)",
+  },
+  failed: {
+    label: "Thất bại",
+    color: "#9a3820",
+    bg: "rgba(184,74,42,0.07)",
+    border: "rgba(184,74,42,0.22)",
+  },
+  cancelled: {
+    label: "Đã hủy",
+    color: "#556177",
+    bg: "rgba(85,97,119,0.08)",
+    border: "rgba(85,97,119,0.2)",
+  },
+};
 
 /* ═══════════════════════════════════════════════════════════
    ANIMATED SELECT
@@ -234,6 +275,12 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
     background: "rgba(255,255,255,0.97)", backdropFilter: "blur(8px)",
     boxShadow: "0 8px 24px rgba(0,0,0,0.08)", fontFamily: "var(--e-sans)", fontSize: "0.8rem",
   };
+  const subscriptionSales = stats?.subscriptionSales;
+  const totalSubscriptionSold = subscriptionSales?.totalSold ?? 0;
+  const totalSubscriptionRevenue = subscriptionSales?.totalRevenue ?? 0;
+  const proSold = subscriptionSales?.byPlan?.Pro?.totalSold ?? 0;
+  const proPlusSold = subscriptionSales?.byPlan?.ProPlus?.totalSold ?? 0;
+  const proPlusShare = totalSubscriptionSold > 0 ? Math.round((proPlusSold / totalSubscriptionSold) * 100) : 0;
 
   return (
     <div style={{ padding: "1rem" }}>
@@ -278,6 +325,56 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
         <StatCard label="Nhà Cung Cấp" value={stats?.totalProviders || 0} icon={<Home size={20} />} />
         <StatCard label="Tổng Bất Động Sản" value={stats?.totalProperties || 0} icon={<FileText size={20} />} />
         <StatCard label="Chờ Phê Duyệt" value={stats?.pendingPropertiesCount || 0} icon={<Clock size={20} />} warn />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
+        <StatCard label="Doanh Thu Gói" value={fmtVND(totalSubscriptionRevenue)} icon={<CreditCard size={20} />} accent />
+        <StatCard label="Tổng Gói Đã Bán" value={totalSubscriptionSold} icon={<CheckCircle2 size={20} />} />
+        <StatCard label="Provider Gói Trả Phí" value={stats?.activePaidProviders || 0} icon={<BadgeCheck size={20} />} />
+        <StatCard label="Tỷ Trọng Pro Plus" value={`${proPlusShare}%`} icon={<SlidersHorizontal size={20} />} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div className="e-glass-card" style={{ padding: "1.6rem", background: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)" }}>
+          <p style={{ fontSize: "0.58rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 4, fontFamily: "var(--e-sans)" }}>Doanh Thu Gói</p>
+          <h3 style={{ fontFamily: "var(--e-serif)", fontSize: "1.1rem", fontWeight: 600, color: "var(--e-charcoal)", marginBottom: "1rem" }}>Theo Từng Gói Đăng Ký</h3>
+          <div style={{ display: "grid", gap: "0.65rem" }}>
+            {[
+              { label: "Pro", sold: proSold, revenue: subscriptionSales?.byPlan?.Pro?.totalRevenue ?? 0 },
+              { label: "Pro Plus", sold: proPlusSold, revenue: subscriptionSales?.byPlan?.ProPlus?.totalRevenue ?? 0 },
+            ].map(item => (
+              <div key={item.label} style={{ border: "1px solid rgba(154,124,69,0.14)", borderRadius: 10, padding: "0.8rem 0.9rem", background: "rgba(255,255,255,0.78)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.76rem", fontWeight: 700, color: "var(--e-charcoal)" }}>{item.label}</span>
+                  <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.69rem", color: "var(--e-muted)" }}>{item.sold} gói</span>
+                </div>
+                <div style={{ marginTop: 4, fontFamily: "var(--e-serif)", fontSize: "1.02rem", color: "var(--e-charcoal)", fontWeight: 600 }}>
+                  {fmtVND(item.revenue)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="e-glass-card" style={{ padding: "1.6rem", background: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)" }}>
+          <p style={{ fontSize: "0.58rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 4, fontFamily: "var(--e-sans)" }}>Kênh Thanh Toán</p>
+          <h3 style={{ fontFamily: "var(--e-serif)", fontSize: "1.1rem", fontWeight: 600, color: "var(--e-charcoal)", marginBottom: "1rem" }}>Theo Phương Thức</h3>
+          <div style={{ display: "grid", gap: "0.65rem" }}>
+            {[
+              { label: "VNPay", sold: subscriptionSales?.byPaymentMethod?.VNPay?.totalSold ?? 0, revenue: subscriptionSales?.byPaymentMethod?.VNPay?.totalRevenue ?? 0 },
+              { label: "PayPal", sold: subscriptionSales?.byPaymentMethod?.PayPal?.totalSold ?? 0, revenue: subscriptionSales?.byPaymentMethod?.PayPal?.totalRevenue ?? 0 },
+            ].map(item => (
+              <div key={item.label} style={{ border: "1px solid rgba(154,124,69,0.14)", borderRadius: 10, padding: "0.8rem 0.9rem", background: "rgba(255,255,255,0.78)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.76rem", fontWeight: 700, color: "var(--e-charcoal)" }}>{item.label}</span>
+                  <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.69rem", color: "var(--e-muted)" }}>{item.sold} giao dịch</span>
+                </div>
+                <div style={{ marginTop: 4, fontFamily: "var(--e-serif)", fontSize: "1.02rem", color: "var(--e-charcoal)", fontWeight: 600 }}>
+                  {fmtVND(item.revenue)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
@@ -631,11 +728,44 @@ function ProviderModerationRow({ provider, onApprove, onReject, isLoading }: {
   onReject: (reason: string) => Promise<void>; isLoading: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [subscriptionsExpanded, setSubscriptionsExpanded] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  const [subscriptions, setSubscriptions] = useState<SubscriptionTransaction[]>([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
+  const [subscriptionsPage, setSubscriptionsPage] = useState(1);
+  const [subscriptionsTotalPages, setSubscriptionsTotalPages] = useState(1);
   const handleReject = async () => { if (!reason.trim()) { alert("Vui lòng nhập lý do từ chối."); return; } await onReject(reason); };
   const AVATAR_GRADIENTS = ["linear-gradient(135deg, var(--e-gold), var(--e-gold-light))", "linear-gradient(135deg, #7b9e6e, #a8c896)", "linear-gradient(135deg, #7e6a9e, #a89cc8)"];
   const avatarGrad = AVATAR_GRADIENTS[(provider.name?.charCodeAt(0) ?? 0) % 3];
+
+  const loadSubscriptions = useCallback(async (page = 1) => {
+    try {
+      setSubscriptionsLoading(true);
+      setSubscriptionsError(null);
+      const response = await adminService.getProviderSubscriptions(provider._id, page, 5);
+      setSubscriptions(response.data?.subscriptions ?? []);
+      setSubscriptionsPage(response.currentPage ?? page);
+      setSubscriptionsTotalPages(response.totalPages ?? 1);
+    } catch (caughtError) {
+      const fallbackMessage = "Không thể tải thông tin gói đăng ký.";
+      const message = caughtError instanceof Error ? caughtError.message : fallbackMessage;
+      setSubscriptionsError(message || fallbackMessage);
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  }, [provider._id]);
+
+  const handleToggleSubscriptions = () => {
+    setSubscriptionsExpanded(prev => {
+      const next = !prev;
+      if (next) {
+        void loadSubscriptions(subscriptionsPage);
+      }
+      return next;
+    });
+  };
   return (
     <div style={{ background: "#fff", border: "1px solid rgba(154,124,69,0.15)", borderRadius: "18px", overflow: "hidden", position: "relative", transition: "box-shadow 0.35s cubic-bezier(0.16,1,0.3,1), border-color 0.3s" }}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 20px 56px rgba(154,124,69,0.11)"; e.currentTarget.style.borderColor = "rgba(201,169,110,0.35)"; }}
@@ -659,10 +789,11 @@ function ProviderModerationRow({ provider, onApprove, onReject, isLoading }: {
             {(provider.kycDocuments?.length ?? 0) > 0 && <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.7rem", color: "#1a6fa8", fontFamily: "var(--e-sans)" }}><FileText size={12} /> {provider.kycDocuments!.length} tài liệu CCCD</span>}
           </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: "0.42rem", padding: "1.1rem 1.1rem 1.1rem 0.9rem", borderLeft: "1px solid rgba(154,124,69,0.1)", background: "rgba(248,245,240,0.45)", minWidth: 108 }}>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: "0.42rem", padding: "1.1rem 1.1rem 1.1rem 0.9rem", borderLeft: "1px solid rgba(154,124,69,0.1)", background: "rgba(248,245,240,0.45)", minWidth: 118 }}>
           {[
             { label: "Xác minh", icon: <ShieldCheck size={13} />, cls: "approve", onClick: onApprove },
             { label: "Từ chối", icon: <XCircle size={13} />, cls: "reject", onClick: () => setRejecting(v => !v) },
+            { label: "Gói", icon: <CreditCard size={12} />, cls: "detail", onClick: handleToggleSubscriptions },
             { label: "Tài liệu", icon: <ChevronDown size={12} />, cls: "detail", onClick: () => setExpanded(v => !v) },
           ].map(btn => (
             <button key={btn.label} onClick={btn.onClick} disabled={isLoading && btn.cls === "approve"}
@@ -681,6 +812,100 @@ function ProviderModerationRow({ provider, onApprove, onReject, isLoading }: {
               <button onClick={() => { setRejecting(false); setReason(""); }} style={{ padding: "9px 18px", background: "transparent", color: "var(--e-muted)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", cursor: "pointer", fontFamily: "var(--e-sans)", fontSize: "0.64rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Hủy</button>
             </div>
           </div>
+        </div>
+      </div>
+      <div style={{ maxHeight: subscriptionsExpanded ? 460 : 0, overflow: "hidden", transition: "max-height 0.42s cubic-bezier(0.16,1,0.3,1)" }}>
+        <div style={{ borderTop: "1px solid rgba(154,124,69,0.1)", background: "rgba(248,245,240,0.5)", padding: "1.3rem 1.6rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.8rem", marginBottom: "0.8rem", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ fontSize: "0.53rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Gói Đăng Ký Provider</p>
+              <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>
+                Gói hiện tại: <strong>{provider.subscriptionPlan || "Free"}</strong> · Tin đã đăng: <strong>{provider.listingsCount ?? 0}</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadSubscriptions(subscriptionsPage)}
+              disabled={subscriptionsLoading}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "7px 12px",
+                borderRadius: 8,
+                border: "1px solid rgba(154,124,69,0.2)",
+                background: "rgba(255,255,255,0.9)",
+                color: "var(--e-charcoal)",
+                fontFamily: "var(--e-sans)",
+                fontSize: "0.63rem",
+                fontWeight: 700,
+                cursor: subscriptionsLoading ? "wait" : "pointer",
+              }}
+            >
+              {subscriptionsLoading ? <LoaderCircle size={12} className="animate-spin" /> : <RefreshCcw size={12} />}
+              Làm mới
+            </button>
+          </div>
+
+          {subscriptionsError && (
+            <div style={{ marginBottom: "0.8rem", border: "1px solid rgba(184,74,42,0.25)", background: "rgba(184,74,42,0.06)", borderRadius: 9, padding: "0.65rem 0.8rem", color: "#9a3820", fontSize: "0.75rem", fontFamily: "var(--e-sans)" }}>
+              {subscriptionsError}
+            </div>
+          )}
+
+          <div style={{ border: "1px solid rgba(154,124,69,0.16)", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+            {subscriptionsLoading && subscriptions.length === 0 ? (
+              <div style={{ minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--e-muted)", fontFamily: "var(--e-sans)", fontSize: "0.78rem" }}>
+                <LoaderCircle size={14} className="animate-spin" />
+                Đang tải giao dịch...
+              </div>
+            ) : subscriptions.length > 0 ? (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", minWidth: 680, borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "rgba(248,245,240,0.8)" }}>
+                      {["Mã GD", "Gói", "P.thức", "Số tiền", "Trạng thái", "Thời gian"].map(head => (
+                        <th key={head} style={{ textAlign: "left", padding: "10px 11px", borderBottom: "1px solid rgba(154,124,69,0.14)", fontSize: "0.56rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>
+                          {head}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subscriptions.map((tx, index) => {
+                      const statusMeta = SUBSCRIPTION_STATUS_META[tx.status] ?? SUBSCRIPTION_STATUS_META.pending;
+                      return (
+                        <tr key={tx._id} style={{ borderBottom: index < subscriptions.length - 1 ? "1px solid rgba(154,124,69,0.1)" : "none" }}>
+                          <td style={{ padding: "9px 11px", whiteSpace: "nowrap", fontSize: "0.71rem", fontWeight: 700, color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>#{tx._id.slice(-8).toUpperCase()}</td>
+                          <td style={{ padding: "9px 11px", whiteSpace: "nowrap", fontSize: "0.73rem", color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>{tx.subscriptionPlan}</td>
+                          <td style={{ padding: "9px 11px", whiteSpace: "nowrap", fontSize: "0.73rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>{tx.paymentMethod}</td>
+                          <td style={{ padding: "9px 11px", whiteSpace: "nowrap", fontSize: "0.73rem", fontWeight: 700, color: "var(--e-charcoal)", fontFamily: "var(--e-sans)" }}>{fmtVND(tx.amount)}</td>
+                          <td style={{ padding: "9px 11px", whiteSpace: "nowrap" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 9px", borderRadius: 18, border: `1px solid ${statusMeta.border}`, background: statusMeta.bg, color: statusMeta.color, fontSize: "0.56rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, fontFamily: "var(--e-sans)" }}>
+                              {statusMeta.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 11px", whiteSpace: "nowrap", fontSize: "0.72rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)" }}>{formatDate(tx.orderedAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)", fontSize: "0.78rem" }}>
+                Provider này chưa có lịch sử thanh toán gói.
+              </div>
+            )}
+          </div>
+
+          {subscriptionsTotalPages > 1 && (
+            <div style={{ marginTop: "0.65rem", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.45rem" }}>
+              <button onClick={() => void loadSubscriptions(Math.max(1, subscriptionsPage - 1))} disabled={subscriptionsPage === 1 || subscriptionsLoading} style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid rgba(154,124,69,0.2)", background: "#fff", opacity: subscriptionsPage === 1 ? 0.45 : 1, cursor: subscriptionsPage === 1 ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.64rem", fontWeight: 700 }}>← Trước</button>
+              <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.66rem", color: "var(--e-muted)", fontWeight: 700 }}>{subscriptionsPage}/{subscriptionsTotalPages}</span>
+              <button onClick={() => void loadSubscriptions(Math.min(subscriptionsTotalPages, subscriptionsPage + 1))} disabled={subscriptionsPage === subscriptionsTotalPages || subscriptionsLoading} style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid rgba(154,124,69,0.2)", background: "#fff", opacity: subscriptionsPage === subscriptionsTotalPages ? 0.45 : 1, cursor: subscriptionsPage === subscriptionsTotalPages ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.64rem", fontWeight: 700 }}>Sau →</button>
+            </div>
+          )}
         </div>
       </div>
       <div style={{ maxHeight: expanded ? 300 : 0, overflow: "hidden", transition: "max-height 0.4s cubic-bezier(0.16,1,0.3,1)" }}>

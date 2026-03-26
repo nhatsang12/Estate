@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -9,6 +10,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const connectDB = require('./config/db');
 const { startTransactionCleanupJob } = require('./jobs/transactionCleanupJob');
+const { initSocketServer } = require('./services/socketService');
 
 // Load env vars
 dotenv.config();
@@ -57,6 +59,7 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/properties', require('./routes/propertyRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
+app.use('/api/messages', require('./routes/messageRoutes'));
 
 // ─── 404 Handler ─────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -124,7 +127,11 @@ const startServer = async () => {
         await connectDB();
         startTransactionCleanupJob();
         const port = process.env.PORT || 5000;
-        app.listen(port, () => {
+
+        const httpServer = http.createServer(app);
+        initSocketServer(httpServer);
+
+        httpServer.listen(port, () => {
             console.log(`EstateManager API running on port ${port}`);
             console.log(`API Docs: http://localhost:${port}/api-docs`);
         });
@@ -138,4 +145,4 @@ if (require.main === module) {
     startServer();
 }
 
-module.exports = app; // Export for testing
+module.exports = app;

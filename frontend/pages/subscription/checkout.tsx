@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
 import { paymentService, type SubscriptionPlan, type PaymentMethod } from "@/services/paymentService";
 import { useAuth } from "@/contexts/AuthContext";
-import { Lock } from "lucide-react";
+import { CreditCard, Landmark, Loader2, Lock } from "lucide-react";
 
 export default function SubscriptionCheckout() {
   const router = useRouter();
-  const { plan } = router.query;
+  const { plan, method } = router.query;
   const { user, isAuthLoading } = useAuth();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("VNPay");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +24,16 @@ export default function SubscriptionCheckout() {
     }
   }, [user, isAuthLoading, router]);
 
+  useEffect(() => {
+    const methodParam = Array.isArray(method) ? method[0] : method;
+    if (methodParam === "VNPay" || methodParam === "PayPal") {
+      setPaymentMethod(methodParam);
+    }
+  }, [method]);
+
+  const planParam = Array.isArray(plan) ? plan[0] : plan;
+  const isValidPlan = planParam === "Pro" || planParam === "ProPlus";
+
   if (loading) {
     return (
       <Layout>
@@ -37,14 +47,14 @@ export default function SubscriptionCheckout() {
     );
   }
 
-  if (!plan || (plan !== "Pro" && plan !== "ProPlus")) {
+  if (!isValidPlan) {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-8 max-w-2xl">
           <div className="text-center">
             <p className="text-red-600 mb-4">Gói không hợp lệ</p>
             <button
-              onClick={() => router.push("/subscription/plans")}
+              onClick={() => router.push("/provider/dashboard?view=plans")}
               className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
             >
               ← Quay lại gói dịch vụ
@@ -55,15 +65,10 @@ export default function SubscriptionCheckout() {
     );
   }
 
-  const selectedPlan = paymentService.SUBSCRIPTION_PLANS[plan as SubscriptionPlan];
-  const planType = plan as SubscriptionPlan;
+  const planType = planParam as SubscriptionPlan;
+  const selectedPlan = paymentService.SUBSCRIPTION_PLANS[planType];
 
   const handleCheckout = async () => {
-    if (!paymentMethod) {
-      setError("Vui lòng chọn phương thức thanh toán");
-      return;
-    }
-
     try {
       setProcessing(true);
       setError(null);
@@ -72,18 +77,44 @@ export default function SubscriptionCheckout() {
           subscriptionPlan: planType,
           paymentMethod,
         },
-        true // redirect=true
+        false // redirect=false: receive checkoutUrl JSON then navigate client-side to avoid CORS on fetch redirect
       );
-      // The response should contain a redirect URL
-      if (response.data?.checkoutUrl) {
-        window.location.href = response.data.checkoutUrl;
+
+      const checkoutUrl = response.data?.checkoutUrl;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
       }
-    } catch (error: any) {
-      setError(error.message || "Lỗi khi tạo checkout");
+
+      setError("Không nhận được liên kết thanh toán. Vui lòng thử lại sau.");
+    } catch (caughtError) {
+      const fallbackMessage = "Lỗi khi tạo checkout";
+      const message = caughtError instanceof Error ? caughtError.message : fallbackMessage;
+      setError(message || fallbackMessage);
     } finally {
       setProcessing(false);
     }
   };
+
+  const paymentOptions: Array<{
+    value: PaymentMethod;
+    title: string;
+    description: string;
+    icon: ComponentType<{ size?: number; className?: string }>;
+  }> = [
+    {
+      value: "VNPay",
+      title: "VNPay",
+      description: "Chuyển khoản ngân hàng, ví điện tử (0₫ phí)",
+      icon: Landmark,
+    },
+    {
+      value: "PayPal",
+      title: "PayPal",
+      description: "Thẻ tín dụng, tài khoản PayPal",
+      icon: CreditCard,
+    },
+  ];
 
   return (
     <Layout>
@@ -91,9 +122,9 @@ export default function SubscriptionCheckout() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Thanh toán</h1>
         <p className="text-gray-600 mb-8">Hoàn thành thanh toán để nâng cấp gói dịch vụ</p>
 
-        <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+        <div className="glass-panel border border-slate-200/70 space-y-6">
           {/* Order Summary */}
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
             <h2 className="font-bold text-gray-900 mb-4">Tóm tắt đơn hàng</h2>
             <div className="space-y-3">
               <div className="flex justify-between">
@@ -119,47 +150,47 @@ export default function SubscriptionCheckout() {
           <div>
             <h2 className="font-bold text-gray-900 mb-4">Chọn phương thức thanh toán</h2>
             <div className="space-y-3">
-              {/* VNPay */}
-              <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition"
-                style={{ borderColor: paymentMethod === "VNPay" ? "#2563eb" : "#d1d5db" }}
-              >
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="VNPay"
-                  checked={paymentMethod === "VNPay"}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="ml-3">
-                  <span className="font-semibold text-gray-900">VNPay</span>
-                  <p className="text-sm text-gray-600">Chuyển khoản ngân hàng, ví điện tử (0₫ phí)</p>
-                </span>
-              </label>
+              {paymentOptions.map((option) => {
+                const isSelected = paymentMethod === option.value;
+                const OptionIcon = option.icon;
 
-              {/* PayPal */}
-              <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition"
-                style={{ borderColor: paymentMethod === "PayPal" ? "#2563eb" : "#d1d5db" }}
-              >
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="PayPal"
-                  checked={paymentMethod === "PayPal"}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="ml-3">
-                  <span className="font-semibold text-gray-900">PayPal</span>
-                  <p className="text-sm text-gray-600">Thẻ tín dụng, tài khoản PayPal</p>
-                </span>
-              </label>
+                return (
+                  <label
+                    key={option.value}
+                    className={`flex items-center gap-3 rounded-2xl border p-4 cursor-pointer transition-all duration-300 ${
+                      isSelected
+                        ? "border-indigo-500 bg-indigo-50/60 shadow-sm"
+                        : "border-slate-200 bg-white/70 hover:border-indigo-300 hover:bg-white/85"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value={option.value}
+                      checked={isSelected}
+                      onChange={() => setPaymentMethod(option.value)}
+                      className="h-4 w-4 text-indigo-600"
+                    />
+                    <span
+                      className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+                        isSelected ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      <OptionIcon size={18} />
+                    </span>
+                    <span>
+                      <span className="font-semibold text-gray-900">{option.title}</span>
+                      <p className="text-sm text-gray-600">{option.description}</p>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="p-4 bg-red-100 text-red-700 rounded-lg">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-rose-700">
               {error}
             </div>
           )}
@@ -167,17 +198,27 @@ export default function SubscriptionCheckout() {
           {/* Action Buttons */}
           <div className="flex gap-3">
             <button
-              onClick={() => router.push("/subscription/plans")}
-              className="flex-1 px-6 py-2 bg-gray-300 text-gray-900 rounded-lg font-semibold hover:bg-gray-400 transition"
+              onClick={() => router.push("/provider/dashboard?view=plans")}
+              className="glass-button flex-1 justify-center px-6 py-3 font-semibold"
             >
               ← Quay lại
             </button>
             <button
               onClick={handleCheckout}
-              disabled={!paymentMethod || processing}
-              className="flex-1 px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              disabled={processing}
+              className="glass-button-primary flex-1 justify-center px-6 py-3 font-semibold"
             >
-              {processing ? "Đang xử lý..." : "Thanh toán ngay"}
+              {processing ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 size={16} className="animate-spin" />
+                  Đang xử lý...
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  {paymentMethod === "VNPay" ? <Landmark size={16} /> : <CreditCard size={16} />}
+                  {paymentMethod === "VNPay" ? "Thanh toán với VNPay" : "Thanh toán với PayPal"}
+                </span>
+              )}
             </button>
           </div>
 

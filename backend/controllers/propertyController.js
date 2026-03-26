@@ -98,10 +98,20 @@ exports.createProperty = async (req, res, next) => {
 
     if (req.user.role !== 'admin') {
       const owner = await User.findById(req.user.id);
+      if (!owner) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Owner account not found',
+        });
+      }
+      if (owner && typeof owner.ensureSubscriptionValidity === 'function') {
+        await owner.ensureSubscriptionValidity();
+      }
+      const effectivePlan = owner?.getEffectiveSubscriptionPlan?.() || owner?.subscriptionPlan || 'Free';
       if (!owner.canCreateListing()) {
         return res.status(403).json({
           status: 'error',
-          message: `Listing quota reached. Your "${owner.subscriptionPlan}" plan allows ${owner.getListingLimit()} listings. Please upgrade your plan.`,
+          message: `Listing quota reached. Your "${effectivePlan}" plan allows ${owner.getListingLimit()} listings. Please upgrade your plan.`,
         });
       }
     }
