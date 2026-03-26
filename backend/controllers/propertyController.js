@@ -4,7 +4,6 @@ const APIFeatures = require('../utils/apiFeatures');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
 exports.getAllProperties = async (req, res, next) => {
-   console.log('>>> getAllProperties v2 - có total'); 
   try {
     let filter = {};
 

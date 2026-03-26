@@ -107,7 +107,7 @@ function buildPropertyBody(data: CreatePropertyPayload | UpdatePropertyPayload) 
 }
 
 function buildPropertiesQuery(filters?: PropertyFilters) {
-  console.log('buildPropertiesQuery filters:', JSON.stringify(filters));
+  
   if (!filters) {
     return "";
   }
