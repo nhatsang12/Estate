@@ -300,7 +300,7 @@ export default function LuxuryLoginModal({ onClose, initialMode = 'login' }: { o
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Họ & Tên</label>
-                                    <input type="text" name="name" required value={regForm.name} onChange={handleRegChange} placeholder="Nguyễn Văn A" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--e-gold)'} onBlur={e => e.target.style.borderColor = 'rgba(154,124,69,0.25)'} />
+                                    <input type="text" name="name" required value={regForm.name} onChange={handleRegChange} placeholder="Họ tên phải trùng với CCCD/CMND" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--e-gold)'} onBlur={e => e.target.style.borderColor = 'rgba(154,124,69,0.25)'} />
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Email</label>
