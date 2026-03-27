@@ -292,7 +292,7 @@ export default function RegisterPage() {
                                     {/* Name */}
                                     <div>
                                         <label style={labelStyle}>Họ & Tên</label>
-                                        <input type="text" name="name" required value={form.name} onChange={handleChange} placeholder="Nguyễn Văn A" style={inputStyle}
+                                        <input type="text" name="name" required value={form.name} onChange={handleChange} placeholder="Họ tên phải đúng với CCCD/CMND" style={inputStyle}
                                             onFocus={e => e.target.style.borderColor = 'var(--e-gold)'}
                                             onBlur={e => e.target.style.borderColor = 'rgba(154,124,69,0.25)'} />
                                     </div>
