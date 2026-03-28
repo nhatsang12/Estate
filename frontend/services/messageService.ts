@@ -48,6 +48,58 @@ interface ChatbotResponse {
     answer: string;
     createdAt: string;
     suggestions?: string[];
+    intent?: "property" | "navigation" | "mixed";
+    properties?: Array<{
+      _id: string;
+      title: string;
+      address: string;
+      price: number;
+      url: string;
+    }>;
+    navigation?: {
+      routes?: Array<{
+        route: string;
+        title: string;
+        summary: string;
+        steps?: string[];
+      }>;
+      workflows?: Array<{
+        title: string;
+        routes?: string[];
+        guidance?: string[];
+      }>;
+      guideSections?: Array<{
+        title: string;
+        excerpt: string;
+      }>;
+    };
+  };
+}
+
+export interface ChatbotHistoryItem {
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: string;
+}
+
+interface ChatbotMemoryResponse {
+  status: string;
+  data: {
+    summary?: string;
+    preferenceProfile?: {
+      budgetMin?: number | null;
+      budgetMax?: number | null;
+      locationKeyword?: string;
+      bedrooms?: number | null;
+      bathrooms?: number | null;
+      propertyTypes?: string[];
+      amenities?: string[];
+      lastIntent?: "property" | "navigation" | "mixed" | "unknown";
+      lastUpdatedAt?: string;
+    };
+    recentMessages?: ChatbotHistoryItem[];
+    turnsSinceSummary?: number;
+    updatedAt?: string;
   };
 }
 
@@ -61,6 +113,7 @@ export interface SendMessagePayload {
   propertyPrice?: number;
   propertyDescription?: string;
   propertyImageUrl?: string;
+  propertyUrl?: string;
 }
 
 const appendIfPresent = (formData: FormData, key: string, value: unknown) => {
@@ -102,6 +155,7 @@ export const messageService = {
     appendIfPresent(formData, "propertyPrice", payload.propertyPrice);
     appendIfPresent(formData, "propertyDescription", payload.propertyDescription);
     appendIfPresent(formData, "propertyImageUrl", payload.propertyImageUrl);
+    appendIfPresent(formData, "propertyUrl", payload.propertyUrl);
     if (payload.image instanceof File) {
       formData.append("image", payload.image);
     }
@@ -128,14 +182,31 @@ export const messageService = {
     return response.data.unreadCount || 0;
   },
 
-  async askChatbot(prompt: string) {
-    const response = await requestJson<ChatbotResponse, { prompt: string }>(
-      "/messages/chatbot",
+  async askChatbot(prompt: string, history: ChatbotHistoryItem[] = []) {
+    const response = await requestJson<
+      ChatbotResponse,
+      { question: string; history?: ChatbotHistoryItem[] }
+    >(
+      "/chatbot/query",
       {
         method: "POST",
-        body: { prompt },
+        body: { question: prompt, history },
       }
     );
+    return response.data;
+  },
+
+  async getChatbotMemory() {
+    const response = await requestJson<ChatbotMemoryResponse>("/chatbot/memory", {
+      method: "GET",
+    });
+    return response.data;
+  },
+
+  async clearChatbotMemory() {
+    const response = await requestJson<ChatbotMemoryResponse>("/chatbot/memory", {
+      method: "DELETE",
+    });
     return response.data;
   },
 };

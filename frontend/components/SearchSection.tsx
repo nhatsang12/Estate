@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, MapPin, SlidersHorizontal, X, Check, Building2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { propertyService, FilterOptionsData } from '@/services/propertyService';
 
 /* ══════════════════════════════════════════
@@ -41,18 +42,18 @@ interface RangeOption {
 export type PriceSortOrder = 'desc' | 'asc' | '';
 
 const PRICE_SORT_OPTIONS: { key: PriceSortOrder; label: string }[] = [
-    { key: 'desc', label: '↓ Cao → Thấp' },
-    { key: 'asc', label: '↑ Thấp → Cao' },
+    { key: 'desc', label: 'desc' },
+    { key: 'asc', label: 'asc' },
 ];
 
 // Diện tích — từ lớn đến nhỏ
 const AREA_RANGES: RangeOption[] = [
-    { key: 'above500', label: 'Trên 500 m²', min: 500, max: 9999 },
-    { key: '200to500', label: '200 – 500 m²', min: 200, max: 500 },
-    { key: '100to200', label: '100 – 200 m²', min: 100, max: 200 },
-    { key: '60to100', label: '60 – 100 m²', min: 60, max: 100 },
-    { key: '30to60', label: '30 – 60 m²', min: 30, max: 60 },
-    { key: 'below30', label: 'Dưới 30 m²', min: 0, max: 30 },
+    { key: 'above500', label: 'above500', min: 500, max: 9999 },
+    { key: '200to500', label: '200to500', min: 200, max: 500 },
+    { key: '100to200', label: '100to200', min: 100, max: 200 },
+    { key: '60to100', label: '60to100', min: 60, max: 100 },
+    { key: '30to60', label: '30to60', min: 30, max: 60 },
+    { key: 'below30', label: 'below30', min: 0, max: 30 },
 ];
 
 /* ══════════════════════════════════════════
@@ -139,6 +140,8 @@ function AdvancedModal({
     safeTypes, safeBedrooms, safeBathrooms,
     types, setTypes, bedrooms, setBedrooms, bathrooms, setBathrooms,
     selectedAreaRanges, toggleAreaRange,
+    areaRanges,
+    labels,
     toggleArr,
 }: any) {
     const [mounted, setMounted] = useState(false);
@@ -198,7 +201,7 @@ function AdvancedModal({
                     {/* Col 1 — Loại BĐS + Phòng */}
                     <div>
                         <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>
-                            Loại Bất Động Sản
+                            {labels.propertyType}
                         </h4>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: '3rem' }}>
                             {safeTypes.map((pt: any) => (
@@ -208,7 +211,7 @@ function AdvancedModal({
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                             <div>
-                                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Phòng Ngủ</h4>
+                                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>{labels.bedrooms}</h4>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                     {safeBedrooms.map((b: string) => (
                                         <Chip key={b} label={b} active={bedrooms.includes(b)} onClick={() => toggleArr(bedrooms, b, setBedrooms)} />
@@ -216,7 +219,7 @@ function AdvancedModal({
                                 </div>
                             </div>
                             <div>
-                                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>Phòng Tắm</h4>
+                                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--e-charcoal)', marginBottom: '1.5rem', fontFamily: 'var(--e-serif)' }}>{labels.bathrooms}</h4>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                     {safeBathrooms.map((b: string) => (
                                         <Chip key={b} label={b} active={bathrooms.includes(b)} onClick={() => toggleArr(bathrooms, b, setBathrooms)} />
@@ -228,8 +231,8 @@ function AdvancedModal({
 
                     {/* Col 2 — Diện Tích */}
                     <RangeChipGroup
-                        title="Diện Tích (m²)"
-                        ranges={AREA_RANGES}
+                        title={labels.area}
+                        ranges={areaRanges}
                         selected={selectedAreaRanges}
                         onToggle={toggleAreaRange}
                     />
@@ -245,7 +248,7 @@ function AdvancedModal({
                         fontSize: '0.85rem', fontWeight: 500, cursor: 'pointer',
                         fontFamily: 'var(--e-sans)', textDecoration: 'underline', textUnderlineOffset: 4
                     }}>
-                        Xóa bộ lọc
+                        {labels.clearFilters}
                     </button>
                     <button
                         onClick={onSearch}
@@ -258,7 +261,7 @@ function AdvancedModal({
                         onMouseEnter={e => { e.currentTarget.style.background = 'var(--e-gold)'; e.currentTarget.style.borderColor = 'var(--e-gold)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'var(--e-charcoal)'; e.currentTarget.style.borderColor = 'var(--e-charcoal)'; }}
                     >
-                        Áp dụng bộ lọc
+                        {labels.applyFilters}
                     </button>
                 </div>
             </div>
@@ -273,7 +276,24 @@ function AdvancedModal({
    MAIN COMPONENT
 ══════════════════════════════════════════ */
 export default function SearchSection({ onSearch, loading, compact = false }: SearchSectionProps) {
+    const { t } = useTranslation();
+    const [isHydrated, setIsHydrated] = useState(false);
     const [filterData, setFilterData] = useState<FilterOptionsData | null>(null);
+
+    useEffect(() => {
+        setIsHydrated(true);
+    }, []);
+
+    const tr = useCallback(
+        (key: string, fallback: string, options?: Record<string, unknown>) => {
+            if (!isHydrated) return fallback;
+            return t(key, {
+                defaultValue: fallback,
+                ...(options || {}),
+            });
+        },
+        [isHydrated, t]
+    );
 
     useEffect(() => {
         propertyService.getFilterOptions()
@@ -294,6 +314,26 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
     // ── Sort & range states ──
     const [priceSortOrder, setPriceSortOrder] = useState<PriceSortOrder>('');
     const [selectedAreaRanges, setSelectedAreaRanges] = useState<string[]>([]);
+
+    const priceSortOptions = [
+        { key: 'desc' as PriceSortOrder, label: tr('home.search.priceSort.desc', 'Giá giảm dần') },
+        { key: 'asc' as PriceSortOrder, label: tr('home.search.priceSort.asc', 'Giá tăng dần') },
+    ];
+    const areaRanges: RangeOption[] = AREA_RANGES.map((item) => ({
+        ...item,
+        label:
+            item.label === 'above500'
+                ? tr('home.search.areaRanges.above500', 'Trên 500 m²')
+                : item.label === '200to500'
+                    ? tr('home.search.areaRanges.200to500', '200 - 500 m²')
+                    : item.label === '100to200'
+                        ? tr('home.search.areaRanges.100to200', '100 - 200 m²')
+                        : item.label === '60to100'
+                            ? tr('home.search.areaRanges.60to100', '60 - 100 m²')
+                            : item.label === '30to60'
+                                ? tr('home.search.areaRanges.30to60', '30 - 60 m²')
+                                : tr('home.search.areaRanges.below30', 'Dưới 30 m²'),
+    }));
 
     const toggleAreaRange = (key: string) =>
         setSelectedAreaRanges(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
@@ -316,8 +356,29 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
         set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
 
     const reset = () => {
-        setTypes([]); setBedrooms([]); setBathrooms([]);
+        setLocation('');
+        setTypes([]);
+        setBedrooms([]);
+        setBathrooms([]);
         setSelectedAreaRanges([]);
+        setPriceSortOrder('');
+        setIsAdvancedOpen(false);
+    };
+
+    const handleReset = () => {
+        reset();
+        onSearch?.({
+            tab: tr('home.search.tabSale', 'Mua bán'),
+            location: '',
+            types: [],
+            priceMin: 0,
+            priceMax: 9999,
+            areaMin: 0,
+            areaMax: 500,
+            bedrooms: [],
+            bathrooms: [],
+            priceSortOrder: '',
+        });
     };
 
     const activeCount =
@@ -326,9 +387,9 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
 
     const handleSearch = () => {
         setIsAdvancedOpen(false);
-        const area = resolveAreaRange(selectedAreaRanges, AREA_RANGES);
+        const area = resolveAreaRange(selectedAreaRanges, areaRanges);
         onSearch?.({
-            tab: 'Mua Bán', location, types,
+            tab: tr('home.search.tabSale', 'Mua bán'), location, types,
             priceMin: 0, priceMax: 9999,
             areaMin: area.min, areaMax: area.max,
             bedrooms, bathrooms,
@@ -337,19 +398,28 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
     };
 
     const typeLabel =
-        types.length === 0 ? 'Tất cả loại BĐS'
+        types.length === 0 ? tr('home.search.allTypes', 'Tất cả loại')
             : types.length === 1 ? safeTypes.find(t => t.value === types[0])?.label
-                : `${types.length} loại BĐS`;
+                : tr('home.search.typesCount', `${types.length} loại`, { count: types.length });
 
     /* ─── Shared modal props ─── */
     const modalProps = {
         advancedRef,
         onClose: () => setIsAdvancedOpen(false),
         onSearch: handleSearch,
-        onReset: reset,
+        onReset: handleReset,
         safeTypes, safeBedrooms, safeBathrooms,
         types, setTypes, bedrooms, setBedrooms, bathrooms, setBathrooms,
         selectedAreaRanges, toggleAreaRange,
+        areaRanges,
+        labels: {
+            propertyType: tr('home.search.labels.propertyType', 'Loại BĐS'),
+            bedrooms: tr('home.search.labels.bedrooms', 'Phòng ngủ'),
+            bathrooms: tr('home.search.labels.bathrooms', 'Phòng tắm'),
+            area: tr('home.search.labels.area', 'Diện tích'),
+            clearFilters: tr('home.search.actions.clearFilters', 'Xóa bộ lọc'),
+            applyFilters: tr('home.search.actions.applyFilters', 'Áp dụng'),
+        },
         toggleArr,
     };
 
@@ -373,11 +443,11 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         <div className="ss-item" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.8rem', borderRight: '1px solid var(--e-beige)' }}>
                             <MapPin size={18} color="var(--e-gold)" style={{ flexShrink: 0 }} />
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                <div className="ss-label" style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', overflow: 'hidden', fontFamily: 'var(--e-sans)' }}>Địa điểm</div>
+                                <div className="ss-label" style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', overflow: 'hidden', fontFamily: 'var(--e-sans)' }}>{tr('home.search.labels.location', 'Địa điểm')}</div>
                                 <input
                                     ref={inputRef}
                                     type="text"
-                                    placeholder="Nhập khu vực, dự án..."
+                                    placeholder={tr('home.search.placeholders.location', 'Nhập thành phố, quận...')}
                                     value={location}
                                     onChange={e => setLocation(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -405,14 +475,14 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         >
                             <Building2 size={18} color="var(--e-gold)" style={{ flexShrink: 0 }} />
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                <div className="ss-label" style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', overflow: 'hidden', fontFamily: 'var(--e-sans)' }}>Loại BĐS</div>
+                                <div className="ss-label" style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--e-muted)', overflow: 'hidden', fontFamily: 'var(--e-sans)' }}>{tr('home.search.labels.propertyTypeShort', 'Loại hình')}</div>
                                 <div style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>{typeLabel}</div>
                             </div>
                         </div>
 
                         {/* Price Sort Segment */}
                         <div style={{ display: 'flex', alignItems: 'stretch', borderRight: '1px solid var(--e-beige)' }}>
-                            {PRICE_SORT_OPTIONS.map((opt, i) => (
+                            {priceSortOptions.map((opt, i) => (
                                 <button
                                     key={opt.key}
                                     className="ss-price-btn"
@@ -453,7 +523,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                             onMouseLeave={e => e.currentTarget.style.background = 'var(--e-cream)'}
                         >
                             <SlidersHorizontal size={16} color="var(--e-gold)" />
-                            Bộ Lọc
+                            {tr('home.search.actions.filter', 'Lọc')}
                             {activeCount > 0 && (
                                 <span style={{
                                     marginLeft: 3, width: 18, height: 18, borderRadius: '50%',
@@ -481,7 +551,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                             onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--e-charcoal)'; }}
                         >
                             {loading ? <span className="spinner" /> : <Search size={16} />}
-                            Tìm Kiếm
+                            {tr('home.search.actions.search', 'Tìm kiếm')}
                         </button>
                     </div>
                 </div>
@@ -518,7 +588,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem',
                     }}>
                         <span style={{ display: 'block', width: '2rem', height: '1.5px', background: 'var(--e-gold)' }} />
-                        Bộ Lọc
+                        {tr('home.search.heading.eyebrow', 'Tìm Kiếm Nhanh')}
                         <span style={{ display: 'block', width: '2rem', height: '1.5px', background: 'var(--e-gold)' }} />
                     </div>
 
@@ -526,10 +596,10 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         fontSize: '2.5rem', fontWeight: 700, color: 'var(--e-charcoal)',
                         fontFamily: 'var(--e-serif)', margin: '0 0 1rem 0'
                     }}>
-                        Tìm Kiếm Bất Động Sản Hoàn Mỹ
+                        {tr('home.search.heading.title', 'Khám Phá Bất Động Sản Phù Hợp')}
                     </h2>
                     <p style={{ color: 'var(--e-muted)', fontSize: '1.1rem', maxWidth: 600, margin: '0 auto', fontFamily: 'var(--e-sans)' }}>
-                        Khám phá bộ sưu tập bất động sản cao cấp, được tinh tuyển dành riêng cho bạn.
+                        {tr('home.search.heading.subtitle', 'Tinh chỉnh bộ lọc để tìm đúng bất động sản theo nhu cầu của bạn.')}
                     </p>
                 </div>
 
@@ -548,11 +618,11 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.5rem', borderRight: '1px solid var(--e-beige)' }}>
                         <MapPin size={20} color="var(--e-gold)" />
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Địa điểm</div>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>{tr('home.search.labels.location', 'Địa điểm')}</div>
                             <input
                                 ref={inputRef}
                                 type="text"
-                                placeholder="Nhập khu vực, dự án..."
+                                placeholder={tr('home.search.placeholders.location', 'Nhập thành phố, quận...')}
                                 value={location}
                                 onChange={e => setLocation(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -583,7 +653,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                     >
                         <Building2 size={20} color="var(--e-gold)" />
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>Loại BĐS</div>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--e-muted)', marginBottom: 2, fontFamily: 'var(--e-sans)' }}>{tr('home.search.labels.propertyTypeShort', 'Loại hình')}</div>
                             <div style={{ fontSize: '1.1rem', fontWeight: 500, color: 'var(--e-charcoal)', fontFamily: 'var(--e-serif)' }}>
                                 {typeLabel}
                             </div>
@@ -592,7 +662,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
 
                     {/* Price Sort Segment */}
                     <div style={{ display: 'flex', alignItems: 'stretch', borderRight: '1px solid var(--e-beige)' }}>
-                        {PRICE_SORT_OPTIONS.map((opt, i) => (
+                        {priceSortOptions.map((opt, i) => (
                             <button
                                 key={opt.key}
                                 onClick={() => setPriceSortOrder(priceSortOrder === opt.key ? '' : opt.key)}
@@ -633,7 +703,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         onMouseLeave={e => e.currentTarget.style.background = 'var(--e-cream)'}
                     >
                         <SlidersHorizontal size={18} color="var(--e-gold)" />
-                        Bộ Lọc Nâng Cao
+                        {tr('home.search.actions.advancedFilter', 'Lọc nâng cao')}
                         {activeCount > 0 && (
                             <span style={{
                                 position: 'absolute', top: 12, right: 15,
@@ -661,7 +731,7 @@ export default function SearchSection({ onSearch, loading, compact = false }: Se
                         onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--e-charcoal)'; }}
                     >
                         {loading ? <span className="spinner" /> : <Search size={18} />}
-                        Tìm Kiếm
+                        {tr('home.search.actions.search', 'Tìm kiếm')}
                     </button>
                 </div>
 

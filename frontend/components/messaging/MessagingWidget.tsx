@@ -40,6 +40,9 @@ const clipText = (value: string | undefined, max = 50) => {
   return value.length <= max ? value : `${value.slice(0, max)}…`;
 };
 
+const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+const isHttpUrl = (value: string) => /^https?:\/\/\S+$/i.test(value);
+
 export default function MessagingWidget() {
   const {
     isMessagingEnabled,
@@ -130,24 +133,30 @@ export default function MessagingWidget() {
 
   const handleSend = async (event: FormEvent) => {
     event.preventDefault();
+    const rawDraft = draft;
     const cleaned = draft.trim();
     if (!cleaned && !selectedImage) return;
 
     setLocalError(null);
     try {
       if (isAiConversation) {
+        setDraft("");
         await sendChatbotMessage(cleaned);
-      } else {
-        await sendMessage({
-          conversationId: activeConversationId,
-          content: cleaned,
-          image: selectedImage,
-        });
+        return;
       }
+
+      await sendMessage({
+        conversationId: activeConversationId,
+        content: cleaned,
+        image: selectedImage,
+      });
       setDraft("");
       setSelectedImage(null);
       if (fileRef.current) fileRef.current.value = "";
     } catch (error) {
+      if (isAiConversation) {
+        setDraft((current) => current || rawDraft);
+      }
       setLocalError(error instanceof Error ? error.message : "Không thể gửi tin nhắn.");
     }
   };
@@ -363,6 +372,16 @@ export default function MessagingWidget() {
                               {message.propertySnapshot?.address ? (
                                 <p className="break-words opacity-85">{message.propertySnapshot.address}</p>
                               ) : null}
+                              {message.propertySnapshot?.propertyUrl ? (
+                                <a
+                                  href={message.propertySnapshot.propertyUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`mt-1 inline-block underline ${isMine ? "text-white" : "text-slate-700"}`}
+                                >
+                                  Xem chi tiết
+                                </a>
+                              ) : null}
                             </div>
                           ) : null}
 
@@ -380,7 +399,28 @@ export default function MessagingWidget() {
                           ) : null}
 
                           {message.content ? (
-                            <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>
+                            <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                              {message.content.split(URL_PATTERN).map((segment, index) => {
+                                if (isHttpUrl(segment)) {
+                                  return (
+                                    <a
+                                      key={`${message._id}-segment-${index}`}
+                                      href={segment}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`break-all underline decoration-1 underline-offset-2 ${
+                                        isMine ? "text-white" : "text-slate-700"
+                                      }`}
+                                    >
+                                      {segment}
+                                    </a>
+                                  );
+                                }
+                                return (
+                                  <span key={`${message._id}-segment-${index}`}>{segment}</span>
+                                );
+                              })}
+                            </p>
                           ) : null}
 
                           <p className={`mt-1 text-[11px] ${isMine ? "text-white/70" : "text-slate-500"}`}>
@@ -395,7 +435,7 @@ export default function MessagingWidget() {
                 {chatbotThinking ? (
                   <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
                     <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-500" />
-                    AI đang xử lý...
+                    Đang nhập...
                   </div>
                 ) : null}
                 <div ref={messageEndRef} />
@@ -520,6 +560,33 @@ export default function MessagingWidget() {
                 <p className="mt-1" style={{ color: "var(--e-muted)" }}>
                   {propertyPrefill.property.address}
                 </p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: "var(--e-light-muted)" }}>
+                {typeof propertyPrefill.property.price === "number" ? (
+                  <span>
+                    Giá: {new Intl.NumberFormat("vi-VN").format(propertyPrefill.property.price)}₫
+                  </span>
+                ) : null}
+                {propertyPrefill.property.propertyType ? (
+                  <span>Loại: {propertyPrefill.property.propertyType}</span>
+                ) : null}
+                {typeof propertyPrefill.property.bedrooms === "number" ? (
+                  <span>PN: {propertyPrefill.property.bedrooms}</span>
+                ) : null}
+                {typeof propertyPrefill.property.bathrooms === "number" ? (
+                  <span>PT: {propertyPrefill.property.bathrooms}</span>
+                ) : null}
+              </div>
+              {propertyPrefill.property.propertyUrl ? (
+                <a
+                  href={propertyPrefill.property.propertyUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-block text-xs font-semibold underline"
+                  style={{ color: "var(--e-charcoal)" }}
+                >
+                  Mở trang chi tiết bất động sản
+                </a>
               ) : null}
             </div>
 

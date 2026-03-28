@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import {
   Building2,
   ChevronDown,
+  Heart,
   LogOut,
   Menu,
   Search,
@@ -11,7 +12,10 @@ import {
   X,
 } from "lucide-react";
 import AuthModal from "@/components/AuthModal";
+import LanguageToggle from "@/components/LanguageToggle";
 import { useAuth } from "@/contexts/AuthContext";
+import favoriteService from "@/services/favoriteService";
+import { useTranslation } from "react-i18next";
 
 type AuthMode = "login" | "signup";
 
@@ -22,11 +26,13 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, sidebar, contentClassName }: LayoutProps) {
+  const { t } = useTranslation();
   const { user, logout, isAuthLoading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [favoriteCount, setFavoriteCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   const openAuthModal = (mode: AuthMode) => {
@@ -49,6 +55,31 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadFavoritesCount = async () => {
+      if (!user || user.role === "admin") {
+        setFavoriteCount(0);
+        return;
+      }
+      try {
+        const response = await favoriteService.getMyFavorites(1, 1);
+        if (cancelled) return;
+        const total =
+          typeof response.total === "number"
+            ? response.total
+            : response.data?.favorites?.length || 0;
+        setFavoriteCount(total);
+      } catch {
+        if (!cancelled) setFavoriteCount(0);
+      }
+    };
+    void loadFavoritesCount();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   return (
     <div className="relative min-h-screen">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.14),rgba(255,255,255,0.1)_38%,transparent_70%)]" />
@@ -69,37 +100,37 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
 
               <nav className="hidden items-center gap-4 md:gap-6 md:flex overflow-x-auto">
                 <Link href="/" className="nav-link whitespace-nowrap">
-                  Home
+                  {t("nav.home")}
                 </Link>
                 <Link href="/#listings" className="nav-link whitespace-nowrap">
-                  Listings
+                  {t("nav.listings")}
                 </Link>
                 <Link href="/#featured" className="nav-link whitespace-nowrap">
-                  Featured
+                  {t("nav.featured")}
                 </Link>
                 {user?.role === "provider" && (
                   <Link href="/provider/dashboard" className="nav-link text-blue-600 font-semibold whitespace-nowrap">
-                    Provider Dashboard
+                    {t("nav.providerDashboard")}
                   </Link>
                 )}
                 {user?.role === "admin" && (
                   <Link href="/admin/dashboard" className="nav-link text-red-600 font-semibold whitespace-nowrap">
-                    Admin Dashboard
+                    {t("nav.adminDashboard")}
                   </Link>
                 )}
                 {user?.role === "provider" && (
                   <Link href="/provider/dashboard?view=plans" className="nav-link text-purple-600 font-semibold whitespace-nowrap">
-                    Upgrade
+                    {t("nav.upgrade")}
                   </Link>
                 )}
                 {user && user.role !== "admin" ? (
                   <Link href="/profile/kyc" className="nav-link whitespace-nowrap">
-                    My KYC
+                    {t("nav.myKyc")}
                   </Link>
                 ) : null}
                 {user?.role === "admin" ? (
                   <Link href="/admin/kyc-management" className="nav-link whitespace-nowrap">
-                    KYC Management
+                    {t("nav.kycManagement")}
                   </Link>
                 ) : null}
               </nav>
@@ -107,6 +138,18 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <LanguageToggle />
+            {!isAuthLoading && user && user.role !== "admin" ? (
+              <Link href="/favorites" className="glass-button hidden sm:inline-flex relative">
+                <Heart size={16} />
+                <span>Saved</span>
+                {favoriteCount > 0 ? (
+                  <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-rose-500 text-white text-[11px] font-semibold">
+                    {favoriteCount > 99 ? "99+" : favoriteCount}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
             {!isAuthLoading && !user ? (
               <>
                 <button
@@ -114,14 +157,14 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                   className="glass-button hidden sm:inline-flex"
                   onClick={() => openAuthModal("login")}
                 >
-                  Login
+                  {t("auth.login")}
                 </button>
                 <button
                   type="button"
                   className="glass-button-primary hidden sm:inline-flex"
                   onClick={() => openAuthModal("signup")}
                 >
-                  Signup
+                  {t("auth.signup")}
                 </button>
               </>
             ) : null}
@@ -148,8 +191,16 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                       href="/profile/settings"
                       className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-text-primary hover:bg-white/60"
                     >
-                      Settings
+                      {t("profile.settings")}
                     </Link>
+                    {user.role !== "admin" ? (
+                      <Link
+                        href="/favorites"
+                        className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-text-primary hover:bg-white/60"
+                      >
+                        Favorites ({favoriteCount})
+                      </Link>
+                    ) : null}
                     {user.role === "provider" && (
                       <div className="space-y-1 mt-1">
                         <Link
@@ -162,13 +213,13 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                           href="/provider/dashboard?view=properties"
                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-primary-dark hover:bg-white/60"
                         >
-                          My Properties
+                          {t("profile.myProperties")}
                         </Link>
                         <Link
                           href="/provider/dashboard?view=plans"
                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-primary-dark hover:bg-white/60"
                         >
-                          Gói Dịch Vụ
+                          {t("profile.services")}
                         </Link>
                       </div>
                     )}
@@ -188,7 +239,7 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                           href="/provider/dashboard?view=plans"
                           className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-primary-light hover:bg-indigo-50"
                         >
-                          Upgrade to Pro
+                          {t("profile.upgradePro")}
                         </Link>
                       </div>
                     )}
@@ -197,7 +248,7 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                         href={user.role === "admin" ? "/admin/kyc-management" : user.role === "provider" ? "/provider/dashboard?view=kyc" : "/profile/kyc"}
                         className="interactive-link flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-text-primary hover:bg-white/60"
                       >
-                        KYC / Verification
+                        {t("profile.kycVerification")}
                       </Link>
                     </div>
                     <button
@@ -206,7 +257,7 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
                       onClick={logout}
                     >
                       <LogOut size={16} />
-                      Logout
+                      {t("profile.logout")}
                     </button>
                   </div>
                 ) : null}
@@ -238,8 +289,8 @@ export default function Layout({ children, sidebar, contentClassName }: LayoutPr
 
       <footer className="border-t border-boundary bg-surface backdrop-blur-lg">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-3 sm:px-4 sm:px-6 lg:px-8 py-4 sm:py-6 text-xs sm:text-sm text-text-secondary sm:flex-row">
-          <p>EstateManager Frontend Foundation</p>
-          <p>Built with Next.js, TypeScript, and Tailwind CSS</p>
+          <p>{t("footer.foundation")}</p>
+          <p>{t("footer.built")}</p>
         </div>
       </footer>
 

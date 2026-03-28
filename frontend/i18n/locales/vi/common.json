@@ -1,0 +1,161 @@
+{
+  "nav": {
+    "home": "Trang chủ",
+    "listings": "Danh sách",
+    "featured": "Nổi bật",
+    "about": "Về chúng tôi",
+    "gallery": "Thư viện",
+    "providerDashboard": "Dashboard Provider",
+    "adminDashboard": "Dashboard Admin",
+    "upgrade": "Nâng cấp",
+    "myKyc": "KYC của tôi",
+    "kycManagement": "Quản lý KYC"
+  },
+  "auth": {
+    "login": "Đăng nhập",
+    "signup": "Đăng ký"
+  },
+  "profile": {
+    "settings": "Cài đặt",
+    "myProperties": "Bất động sản của tôi",
+    "services": "Gói dịch vụ",
+    "upgradePro": "Nâng cấp Pro",
+    "kycVerification": "KYC / Xác minh",
+    "logout": "Đăng xuất"
+  },
+  "footer": {
+    "foundation": "Nền tảng EstateManager Frontend",
+    "built": "Xây dựng với Next.js, TypeScript và Tailwind CSS"
+  },
+  "language": {
+    "label": "Ngôn ngữ"
+  },
+  "luxuryNav": {
+    "roles": {
+      "admin": "Quản Trị Viên",
+      "provider": "Nhà Cung Cấp",
+      "customer": "Khách Hàng"
+    },
+    "menu": {
+      "dashboard": "Dashboard",
+      "profile": "Hồ Sơ",
+      "kyc": "Xác Minh KYC",
+      "favorites": "Yêu Thích",
+      "services": "Gói Dịch Vụ",
+      "switchProvider": "Đổi sang Provider"
+    },
+    "actions": {
+      "logout": "Đăng Xuất"
+    }
+  },
+  "home": {
+    "metaTitle": "Estoria — Bất Động Sản Cao Cấp Việt Nam",
+    "metaDescription": "Khám phá hàng nghìn bất động sản cao cấp được tuyển chọn kỹ lưỡng tại Việt Nam.",
+    "hero": {
+      "tag": "Nền Tảng Đất Đai Hàng Đầu Việt Nam",
+      "titleLine1": "Kiến Tạo",
+      "titleEmphasis": "Giá Trị",
+      "titleLine2": "Trên",
+      "titleLine3": "Từng Mảnh Đất",
+      "description": "Khám phá hàng nghìn bất động sản đất nền, nhà phố, biệt thự được xác minh pháp lý 100% — từ Bắc vào Nam, minh bạch và tin cậy.",
+      "searchNow": "Tìm Kiếm Ngay",
+      "viewFeatured": "Xem Nổi Bật",
+      "scrollDown": "Cuộn xuống",
+      "stats": {
+        "properties": "Bất Động Sản",
+        "provinces": "Tỉnh Thành",
+        "verified": "Xác Minh"
+      }
+    },
+    "marquee": {
+      "category": "Danh Mục",
+      "typesLabel": "loại hình",
+      "items": {
+        "apartment": "Căn Hộ Cao Cấp",
+        "villaResort": "Biệt Thự Nghỉ Dưỡng",
+        "townhouseDesign": "Nhà Phố Thiết Kế",
+        "officeRent": "Văn Phòng Cho Thuê",
+        "shophouse": "Shophouse Thương Mại",
+        "projectLand": "Đất Nền Dự Án",
+        "penthouse": "Penthouse Thượng Lưu",
+        "beachVilla": "Villa Ven Biển"
+      }
+    },
+    "stats": {
+      "topbarEyebrow": "Con Số Thực Tế",
+      "topbarQuote": "Minh bạch — Tin cậy — Bền vững",
+      "items": {
+        "properties": {
+          "label": "Bất Động Sản",
+          "desc": "Đang rao bán · cập nhật mỗi ngày"
+        },
+        "customers": {
+          "label": "Khách Hàng Hài Lòng",
+          "desc": "Trên toàn quốc"
+        },
+        "provinces": {
+          "label": "Tỉnh Thành Phủ Sóng",
+          "desc": "Từ Bắc vào Nam"
+        },
+        "verified": {
+          "label": "Tỷ Lệ Xác Minh",
+          "desc": "Pháp lý minh bạch"
+        }
+      }
+    },
+    "search": {
+      "tabSale": "Mua Bán",
+      "allTypes": "Tất cả loại BĐS",
+      "typesCount": "{{count}} loại BĐS",
+      "labels": {
+        "location": "Địa điểm",
+        "propertyType": "Loại Bất Động Sản",
+        "propertyTypeShort": "Loại BĐS",
+        "bedrooms": "Phòng Ngủ",
+        "bathrooms": "Phòng Tắm",
+        "area": "Diện Tích (m²)"
+      },
+      "placeholders": {
+        "location": "Nhập khu vực, dự án..."
+      },
+      "priceSort": {
+        "desc": "↓ Cao → Thấp",
+        "asc": "↑ Thấp → Cao"
+      },
+      "areaRanges": {
+        "above500": "Trên 500 m²",
+        "200to500": "200 – 500 m²",
+        "100to200": "100 – 200 m²",
+        "60to100": "60 – 100 m²",
+        "30to60": "30 – 60 m²",
+        "below30": "Dưới 30 m²"
+      },
+      "actions": {
+        "clearFilters": "Xóa bộ lọc",
+        "applyFilters": "Áp dụng bộ lọc",
+        "filter": "Bộ Lọc",
+        "advancedFilter": "Bộ Lọc Nâng Cao",
+        "search": "Tìm Kiếm"
+      },
+      "heading": {
+        "eyebrow": "Bộ Lọc",
+        "title": "Tìm Kiếm Bất Động Sản Hoàn Mỹ",
+        "subtitle": "Khám phá bộ sưu tập bất động sản cao cấp, được tinh tuyển dành riêng cho bạn."
+      }
+    },
+    "listings": {
+      "eyebrow": "Danh Sách",
+      "searchResultTitle": "Kết Quả Tìm Kiếm",
+      "newHighlight": "Mới",
+      "recentTitleSuffix": "Đăng Gần Đây",
+      "countSuffix": "bất động sản",
+      "nearbySuffix": "· Gần vị trí của bạn",
+      "loadingSuffix": "· Đang tải…",
+      "gridView": "Dạng lưới",
+      "listView": "Dạng danh sách",
+      "emptyTitle": "Không tìm thấy bất động sản",
+      "emptySub": "Hãy thử mở rộng bộ lọc hoặc tìm kiếm với từ khoá khác.",
+      "loadingList": "Danh sách đang tải..."
+    }
+  }
+}

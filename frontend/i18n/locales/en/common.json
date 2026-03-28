@@ -1,0 +1,161 @@
+{
+  "nav": {
+    "home": "Home",
+    "listings": "Listings",
+    "featured": "Featured",
+    "about": "About Us",
+    "gallery": "Gallery",
+    "providerDashboard": "Provider Dashboard",
+    "adminDashboard": "Admin Dashboard",
+    "upgrade": "Upgrade",
+    "myKyc": "My KYC",
+    "kycManagement": "KYC Management"
+  },
+  "auth": {
+    "login": "Login",
+    "signup": "Sign up"
+  },
+  "profile": {
+    "settings": "Settings",
+    "myProperties": "My Properties",
+    "services": "Service Plans",
+    "upgradePro": "Upgrade to Pro",
+    "kycVerification": "KYC / Verification",
+    "logout": "Logout"
+  },
+  "footer": {
+    "foundation": "EstateManager Frontend Foundation",
+    "built": "Built with Next.js, TypeScript, and Tailwind CSS"
+  },
+  "language": {
+    "label": "Language"
+  },
+  "luxuryNav": {
+    "roles": {
+      "admin": "Administrator",
+      "provider": "Provider",
+      "customer": "Customer"
+    },
+    "menu": {
+      "dashboard": "Dashboard",
+      "profile": "Profile",
+      "kyc": "KYC Verification",
+      "favorites": "Favorites",
+      "services": "Service Plans",
+      "switchProvider": "Switch to Provider"
+    },
+    "actions": {
+      "logout": "Logout"
+    }
+  },
+  "home": {
+    "metaTitle": "Estoria — Premium Real Estate in Vietnam",
+    "metaDescription": "Discover thousands of carefully curated premium real estate properties in Vietnam.",
+    "hero": {
+      "tag": "Vietnam's Leading Property Platform",
+      "titleLine1": "Creating",
+      "titleEmphasis": "Value",
+      "titleLine2": "Across",
+      "titleLine3": "Every Property",
+      "description": "Explore thousands of land plots, townhouses, and villas with 100% legal verification — from North to South, transparent and reliable.",
+      "searchNow": "Search Now",
+      "viewFeatured": "View Featured",
+      "scrollDown": "Scroll down",
+      "stats": {
+        "properties": "Properties",
+        "provinces": "Provinces",
+        "verified": "Verified"
+      }
+    },
+    "marquee": {
+      "category": "Categories",
+      "typesLabel": "types",
+      "items": {
+        "apartment": "Premium Apartments",
+        "villaResort": "Resort Villas",
+        "townhouseDesign": "Designer Townhouses",
+        "officeRent": "Office for Rent",
+        "shophouse": "Commercial Shophouses",
+        "projectLand": "Project Land",
+        "penthouse": "Luxury Penthouses",
+        "beachVilla": "Beach Villas"
+      }
+    },
+    "stats": {
+      "topbarEyebrow": "Real Numbers",
+      "topbarQuote": "Transparent — Reliable — Sustainable",
+      "items": {
+        "properties": {
+          "label": "Properties",
+          "desc": "Live listings · updated daily"
+        },
+        "customers": {
+          "label": "Satisfied Clients",
+          "desc": "Across the country"
+        },
+        "provinces": {
+          "label": "Covered Provinces",
+          "desc": "From North to South"
+        },
+        "verified": {
+          "label": "Verification Rate",
+          "desc": "Clear legal status"
+        }
+      }
+    },
+    "search": {
+      "tabSale": "For Sale",
+      "allTypes": "All property types",
+      "typesCount": "{{count}} property types",
+      "labels": {
+        "location": "Location",
+        "propertyType": "Property Type",
+        "propertyTypeShort": "Type",
+        "bedrooms": "Bedrooms",
+        "bathrooms": "Bathrooms",
+        "area": "Area (m²)"
+      },
+      "placeholders": {
+        "location": "Enter area, project..."
+      },
+      "priceSort": {
+        "desc": "↓ High → Low",
+        "asc": "↑ Low → High"
+      },
+      "areaRanges": {
+        "above500": "Above 500 m²",
+        "200to500": "200 – 500 m²",
+        "100to200": "100 – 200 m²",
+        "60to100": "60 – 100 m²",
+        "30to60": "30 – 60 m²",
+        "below30": "Below 30 m²"
+      },
+      "actions": {
+        "clearFilters": "Clear filters",
+        "applyFilters": "Apply filters",
+        "filter": "Filter",
+        "advancedFilter": "Advanced Filters",
+        "search": "Search"
+      },
+      "heading": {
+        "eyebrow": "Filter",
+        "title": "Find Your Ideal Property",
+        "subtitle": "Explore a curated collection of premium properties tailored to your needs."
+      }
+    },
+    "listings": {
+      "eyebrow": "Listings",
+      "searchResultTitle": "Search Results",
+      "newHighlight": "New",
+      "recentTitleSuffix": "Recent Listings",
+      "countSuffix": "properties",
+      "nearbySuffix": "· Nearby your location",
+      "loadingSuffix": "· Loading...",
+      "gridView": "Grid view",
+      "listView": "List view",
+      "emptyTitle": "No properties found",
+      "emptySub": "Try broadening your filters or using different keywords.",
+      "loadingList": "Loading listings..."
+    }
+  }
+}

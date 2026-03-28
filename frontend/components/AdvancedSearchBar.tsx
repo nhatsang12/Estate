@@ -101,6 +101,7 @@ export default function AdvancedSearchBar({
     setBedrooms("");
     setBathrooms("");
     setFurnishedOnly(false);
+    onError(null);
     await executeSearch({});
   };
 

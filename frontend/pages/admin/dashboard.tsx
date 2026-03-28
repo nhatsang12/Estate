@@ -17,6 +17,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from "recharts";
 import { adminService } from "@/services/adminService";
+import type { AdminSubscriptionRecord } from "@/services/adminService";
 import type { SubscriptionTransaction } from "@/services/paymentService";
 import { userService } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +29,7 @@ import { formatVNDShort } from "@/utils/formatPrice";
 /* ═══════════════════════════════════════════════════════════
    TYPES
 ═══════════════════════════════════════════════════════════ */
-type View = "dashboard" | "properties" | "providers" | "kyc";
+type View = "dashboard" | "properties" | "providers" | "subscriptions" | "kyc";
 type KycStatusFilter = KycStatus | "all";
 type SortOrder = "newest" | "oldest";
 type RoleFilter = "provider" | "user";
@@ -51,6 +52,23 @@ interface DashboardStats {
       PayPal: { totalSold: number; totalRevenue: number };
     };
   };
+  subscriptionOverview: {
+    activeCount: number;
+    expiredCount: number;
+    expiringSoonCount: number;
+    expiringSoon: Array<{
+      _id: string;
+      planType: "Free" | "Pro" | "ProPlus";
+      status: "active" | "expired" | "cancelled";
+      expiresAt: string;
+      user: {
+        _id: string;
+        name: string;
+        email: string;
+        role: "user" | "provider" | "admin";
+      } | null;
+    }>;
+  };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -65,6 +83,7 @@ function formatDate(date?: string) {
   return new Date(date).toLocaleString("vi-VN", {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
+    timeZone: "Asia/Ho_Chi_Minh",
   });
 }
 function prettyJson(value: unknown) {
@@ -276,6 +295,8 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
     boxShadow: "0 8px 24px rgba(0,0,0,0.08)", fontFamily: "var(--e-sans)", fontSize: "0.8rem",
   };
   const subscriptionSales = stats?.subscriptionSales;
+  const subscriptionOverview = stats?.subscriptionOverview;
+  const expiringSoon = subscriptionOverview?.expiringSoon || [];
   const totalSubscriptionSold = subscriptionSales?.totalSold ?? 0;
   const totalSubscriptionRevenue = subscriptionSales?.totalRevenue ?? 0;
   const proSold = subscriptionSales?.byPlan?.Pro?.totalSold ?? 0;
@@ -332,6 +353,38 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
         <StatCard label="Tổng Gói Đã Bán" value={totalSubscriptionSold} icon={<CheckCircle2 size={20} />} />
         <StatCard label="Provider Gói Trả Phí" value={stats?.activePaidProviders || 0} icon={<BadgeCheck size={20} />} />
         <StatCard label="Tỷ Trọng Pro Plus" value={`${proPlusShare}%`} icon={<SlidersHorizontal size={20} />} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: "1rem", marginBottom: "1.5rem" }}>
+        <StatCard label="Subscription Active" value={subscriptionOverview?.activeCount ?? 0} icon={<CheckCircle2 size={20} />} />
+        <StatCard label="Sắp Hết Hạn (7N)" value={subscriptionOverview?.expiringSoonCount ?? 0} icon={<AlertTriangle size={20} />} warn />
+        <div className="e-glass-card" style={{ padding: "1.1rem 1.2rem", background: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)" }}>
+          <p style={{ fontSize: "0.58rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 6, fontFamily: "var(--e-sans)" }}>Gia Hạn Gói</p>
+          <h3 style={{ fontFamily: "var(--e-serif)", fontSize: "1rem", fontWeight: 600, color: "var(--e-charcoal)", marginBottom: "0.7rem" }}>Danh Sách Sắp Hết Hạn</h3>
+          {expiringSoon.length > 0 ? (
+            <div style={{ display: "grid", gap: "0.45rem", maxHeight: 146, overflowY: "auto" }} className="custom-scrollbar">
+              {expiringSoon.map((item) => (
+                <div key={item._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, border: "1px solid rgba(154,124,69,0.12)", borderRadius: 8, padding: "0.45rem 0.6rem", background: "rgba(255,255,255,0.75)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--e-sans)", fontSize: "0.72rem", fontWeight: 700, color: "var(--e-charcoal)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.user?.name || "Unknown"} · {item.planType}
+                    </div>
+                    <div style={{ fontFamily: "var(--e-sans)", fontSize: "0.64rem", color: "var(--e-light-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.user?.email || "No email"}
+                    </div>
+                  </div>
+                  <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.62rem", fontWeight: 700, color: "var(--e-gold)", whiteSpace: "nowrap" }}>
+                    {formatDate(item.expiresAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ minHeight: 92, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--e-sans)", fontSize: "0.75rem", color: "var(--e-light-muted)" }}>
+              Không có gói nào sắp hết hạn trong 7 ngày.
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -467,10 +520,11 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
           <p style={{ fontSize: "0.58rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 4, fontFamily: "var(--e-sans)" }}>Hành Động</p>
           <h2 style={{ fontFamily: "var(--e-sans)", fontSize: "1rem", fontWeight: 700, color: "var(--e-charcoal)", margin: 0 }}>Truy Cập Nhanh</h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", padding: "1rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", padding: "1rem" }}>
           {[
             { view: "properties" as View, label: "Duyệt Bất Động Sản", desc: `${stats?.pendingPropertiesCount || 0} đang chờ`, icon: <FileText size={22} /> },
             { view: "providers" as View, label: "Xác Minh Provider", desc: `${stats?.totalPendingProviders || 0} đang chờ`, icon: <Users size={22} /> },
+            { view: "subscriptions" as View, label: "Quản Lý Gói", desc: `${subscriptionOverview?.activeCount || 0} đang active`, icon: <CreditCard size={22} /> },
             { view: "kyc" as View, label: "Quản Lý KYC", desc: "Duyệt hồ sơ CCCD", icon: <Key size={22} /> },
           ].map(action => (
             <button key={action.view} onClick={() => onNavigate(action.view)}
@@ -484,6 +538,621 @@ function DashboardView({ stats, onNavigate }: { stats: DashboardStats | null; on
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SUBSCRIPTIONS VIEW
+═══════════════════════════════════════════════════════════ */
+type AdminSubscriptionStatusFilter = "all" | "active" | "expired" | "cancelled";
+type AdminSubscriptionPlanFilter = "all" | "Free" | "Pro" | "ProPlus";
+
+const ADMIN_SUBSCRIPTION_STATUS_META: Record<
+  AdminSubscriptionRecord["status"],
+  { label: string; color: string; bg: string; border: string }
+> = {
+  active: {
+    label: "Đang hoạt động",
+    color: "#2E8B75",
+    bg: "rgba(46,139,117,0.08)",
+    border: "rgba(46,139,117,0.24)",
+  },
+  expired: {
+    label: "Đã hết hạn",
+    color: "#9a3820",
+    bg: "rgba(184,74,42,0.07)",
+    border: "rgba(184,74,42,0.24)",
+  },
+  cancelled: {
+    label: "Đã hủy",
+    color: "#556177",
+    bg: "rgba(85,97,119,0.08)",
+    border: "rgba(85,97,119,0.2)",
+  },
+};
+
+function SubscriptionStatusPill({ status }: { status: AdminSubscriptionRecord["status"] }) {
+  const meta = ADMIN_SUBSCRIPTION_STATUS_META[status] || ADMIN_SUBSCRIPTION_STATUS_META.expired;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "3px 9px",
+        borderRadius: 18,
+        border: `1px solid ${meta.border}`,
+        background: meta.bg,
+        color: meta.color,
+        fontSize: "0.56rem",
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        fontWeight: 700,
+        fontFamily: "var(--e-sans)",
+      }}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+function SubscriptionsView() {
+  const [subscriptions, setSubscriptions] = useState<AdminSubscriptionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AdminSubscriptionStatusFilter>("all");
+  const [planFilter, setPlanFilter] = useState<AdminSubscriptionPlanFilter>("all");
+  const [statusDraftMap, setStatusDraftMap] = useState<
+    Record<string, AdminSubscriptionRecord["status"]>
+  >({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const loadSubscriptions = useCallback(
+    async (targetPage: number) => {
+      setLoading(true);
+      setErrorMessage(null);
+      try {
+        const response = await adminService.getSubscriptions(targetPage, 12, {
+          status: statusFilter === "all" ? undefined : statusFilter,
+          planType: planFilter === "all" ? undefined : planFilter,
+        });
+
+        const records = response.data?.subscriptions ?? [];
+        setSubscriptions(records);
+        setPage(response.currentPage ?? targetPage);
+        setTotalPages(response.totalPages ?? 1);
+        setStatusDraftMap(
+          records.reduce<Record<string, AdminSubscriptionRecord["status"]>>((acc, item) => {
+            acc[item._id] = item.status;
+            return acc;
+          }, {})
+        );
+      } catch (error) {
+        setErrorMessage(getErrorMessage(error));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [planFilter, statusFilter]
+  );
+
+  useEffect(() => {
+    void loadSubscriptions(page);
+  }, [loadSubscriptions, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, planFilter]);
+
+  const keyword = search.trim().toLowerCase();
+  const filteredSubscriptions = useMemo(() => {
+    if (!keyword) return subscriptions;
+    return subscriptions.filter((item) => {
+      const text = [
+        item._id,
+        item.userId?.name || "",
+        item.userId?.email || "",
+        item.planType,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return text.includes(keyword);
+    });
+  }, [keyword, subscriptions]);
+
+  const handleSaveStatus = async (record: AdminSubscriptionRecord) => {
+    const nextStatus = statusDraftMap[record._id] || record.status;
+    if (nextStatus === record.status) return;
+
+    setUpdatingId(record._id);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      await adminService.updateSubscriptionStatus(record._id, nextStatus);
+      setSuccessMessage(`Đã cập nhật trạng thái gói #${record._id.slice(-8).toUpperCase()}.`);
+      await loadSubscriptions(page);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return (
+    <div style={{ padding: "1rem" }}>
+      <div
+        style={{
+          marginBottom: "2.2rem",
+          paddingBottom: "1.5rem",
+          borderBottom: "1px solid rgba(154,124,69,0.15)",
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "1rem",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              fontSize: "0.6rem",
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              color: "var(--e-gold)",
+              fontWeight: 700,
+              marginBottom: 8,
+              fontFamily: "var(--e-sans)",
+            }}
+          >
+            Quản Lý Doanh Thu
+          </p>
+          <h2
+            style={{
+              fontFamily: "var(--e-serif)",
+              fontSize: "clamp(2rem, 3vw, 2.8rem)",
+              fontWeight: 500,
+              color: "var(--e-charcoal)",
+              margin: 0,
+              lineHeight: 1.1,
+            }}
+          >
+            Quản Lý <em style={{ fontStyle: "italic", fontWeight: 400, color: "var(--e-muted)" }}>Subscription</em>
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => void loadSubscriptions(page)}
+          disabled={loading}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 14px",
+            borderRadius: "9px",
+            border: "1px solid rgba(154,124,69,0.2)",
+            background: "rgba(255,255,255,0.85)",
+            cursor: loading ? "wait" : "pointer",
+            fontFamily: "var(--e-sans)",
+            fontSize: "0.68rem",
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--e-charcoal)",
+          }}
+        >
+          {loading ? <LoaderCircle size={13} className="animate-spin" /> : <RefreshCcw size={13} />}
+          Làm Mới
+        </button>
+      </div>
+
+      <div
+        className="e-glass-card"
+        style={{
+          padding: "1.2rem 1.4rem",
+          marginBottom: "1rem",
+          background: "rgba(255,255,255,0.88)",
+          backdropFilter: "blur(8px)",
+          overflow: "visible",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr 1fr",
+            gap: "1rem",
+            alignItems: "end",
+          }}
+        >
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.58rem",
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--e-muted)",
+                fontWeight: 700,
+                marginBottom: 6,
+                fontFamily: "var(--e-sans)",
+              }}
+            >
+              Tìm Kiếm
+            </label>
+            <div style={{ position: "relative" }}>
+              <Search
+                size={13}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--e-light-muted)",
+                }}
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Mã gói, tên hoặc email..."
+                style={{
+                  width: "100%",
+                  padding: "9px 12px 9px 30px",
+                  border: "1px solid rgba(154,124,69,0.25)",
+                  borderRadius: "8px",
+                  background: "rgba(255,255,255,0.92)",
+                  fontFamily: "var(--e-sans)",
+                  fontSize: "0.84rem",
+                  color: "var(--e-charcoal)",
+                  outline: "none",
+                }}
+                onFocus={(event) => {
+                  event.currentTarget.style.borderColor = "var(--e-gold)";
+                }}
+                onBlur={(event) => {
+                  event.currentTarget.style.borderColor = "rgba(154,124,69,0.25)";
+                }}
+              />
+            </div>
+          </div>
+
+          <AnimatedSelect
+            label="Trạng Thái"
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as AdminSubscriptionStatusFilter)}
+            icon={ShieldCheck}
+            options={[
+              { value: "all", label: "Tất cả" },
+              { value: "active", label: "Đang hoạt động" },
+              { value: "expired", label: "Đã hết hạn" },
+              { value: "cancelled", label: "Đã hủy" },
+            ]}
+          />
+          <AnimatedSelect
+            label="Loại Gói"
+            value={planFilter}
+            onChange={(value) => setPlanFilter(value as AdminSubscriptionPlanFilter)}
+            icon={CreditCard}
+            options={[
+              { value: "all", label: "Tất cả" },
+              { value: "Free", label: "Free" },
+              { value: "Pro", label: "Pro" },
+              { value: "ProPlus", label: "Pro Plus" },
+            ]}
+          />
+        </div>
+      </div>
+
+      {errorMessage && (
+        <div
+          style={{
+            border: "1px solid rgba(184,74,42,0.25)",
+            background: "rgba(184,74,42,0.06)",
+            borderRadius: 10,
+            padding: "0.75rem 0.9rem",
+            color: "#9a3820",
+            fontSize: "0.78rem",
+            fontFamily: "var(--e-sans)",
+            marginBottom: "0.9rem",
+          }}
+        >
+          {errorMessage}
+        </div>
+      )}
+
+      {successMessage && (
+        <div
+          style={{
+            border: "1px solid rgba(46,139,117,0.26)",
+            background: "rgba(46,139,117,0.08)",
+            borderRadius: 10,
+            padding: "0.75rem 0.9rem",
+            color: "#2E8B75",
+            fontSize: "0.78rem",
+            fontFamily: "var(--e-sans)",
+            marginBottom: "0.9rem",
+          }}
+        >
+          {successMessage}
+        </div>
+      )}
+
+      <div
+        className="e-glass-card"
+        style={{
+          background: "rgba(255,255,255,0.9)",
+          backdropFilter: "blur(8px)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 980, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "rgba(248,245,240,0.85)" }}>
+                {["Người dùng", "Gói", "Giá", "Thanh toán", "Trạng thái", "Ngày hết hạn", "Quản lý"].map(
+                  (head) => (
+                    <th
+                      key={head}
+                      style={{
+                        textAlign: "left",
+                        padding: "11px 12px",
+                        borderBottom: "1px solid rgba(154,124,69,0.14)",
+                        fontSize: "0.56rem",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.12em",
+                        color: "var(--e-muted)",
+                        fontFamily: "var(--e-sans)",
+                      }}
+                    >
+                      {head}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7}>
+                    <div
+                      style={{
+                        minHeight: 140,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                        color: "var(--e-muted)",
+                        fontFamily: "var(--e-sans)",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      <LoaderCircle size={14} className="animate-spin" />
+                      Đang tải danh sách gói...
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredSubscriptions.length > 0 ? (
+                filteredSubscriptions.map((record, index) => (
+                  <tr
+                    key={record._id}
+                    style={{
+                      borderBottom:
+                        index < filteredSubscriptions.length - 1
+                          ? "1px solid rgba(154,124,69,0.08)"
+                          : "none",
+                    }}
+                  >
+                    <td style={{ padding: "11px 12px" }}>
+                      <div
+                        style={{
+                          fontSize: "0.76rem",
+                          fontWeight: 700,
+                          color: "var(--e-charcoal)",
+                          fontFamily: "var(--e-sans)",
+                        }}
+                      >
+                        {record.userId?.name || "Unknown"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.68rem",
+                          color: "var(--e-muted)",
+                          fontFamily: "var(--e-sans)",
+                        }}
+                      >
+                        {record.userId?.email || "No email"}
+                      </div>
+                    </td>
+                    <td
+                      style={{
+                        padding: "11px 12px",
+                        whiteSpace: "nowrap",
+                        fontSize: "0.74rem",
+                        color: "var(--e-charcoal)",
+                        fontFamily: "var(--e-sans)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {record.planType}
+                    </td>
+                    <td
+                      style={{
+                        padding: "11px 12px",
+                        whiteSpace: "nowrap",
+                        fontSize: "0.74rem",
+                        color: "var(--e-charcoal)",
+                        fontFamily: "var(--e-sans)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {fmtVND(Number(record.amount || record.transactionId?.amount || 0))}
+                    </td>
+                    <td
+                      style={{
+                        padding: "11px 12px",
+                        whiteSpace: "nowrap",
+                        fontSize: "0.72rem",
+                        color: "var(--e-light-muted)",
+                        fontFamily: "var(--e-sans)",
+                      }}
+                    >
+                      {record.paymentMethod || record.transactionId?.paymentMethod || "N/A"}
+                    </td>
+                    <td style={{ padding: "11px 12px", whiteSpace: "nowrap" }}>
+                      <SubscriptionStatusPill status={record.status} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "11px 12px",
+                        whiteSpace: "nowrap",
+                        fontSize: "0.72rem",
+                        color: "var(--e-light-muted)",
+                        fontFamily: "var(--e-sans)",
+                      }}
+                    >
+                      {formatDate(record.expiresAt)}
+                    </td>
+                    <td style={{ padding: "11px 12px", whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <select
+                          value={statusDraftMap[record._id] || record.status}
+                          onChange={(event) =>
+                            setStatusDraftMap((prev) => ({
+                              ...prev,
+                              [record._id]: event.target.value as AdminSubscriptionRecord["status"],
+                            }))
+                          }
+                          style={{
+                            minWidth: 125,
+                            padding: "7px 10px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(154,124,69,0.2)",
+                            background: "#fff",
+                            fontFamily: "var(--e-sans)",
+                            fontSize: "0.7rem",
+                            color: "var(--e-charcoal)",
+                            outline: "none",
+                          }}
+                        >
+                          <option value="active">Đang hoạt động</option>
+                          <option value="expired">Đã hết hạn</option>
+                          <option value="cancelled">Đã hủy</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveStatus(record)}
+                          disabled={updatingId === record._id}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "7px 11px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(154,124,69,0.2)",
+                            background: "rgba(255,255,255,0.95)",
+                            color: "var(--e-charcoal)",
+                            cursor: updatingId === record._id ? "wait" : "pointer",
+                            fontFamily: "var(--e-sans)",
+                            fontSize: "0.66rem",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          {updatingId === record._id ? (
+                            <LoaderCircle size={12} className="animate-spin" />
+                          ) : (
+                            <CheckCircle2 size={12} />
+                          )}
+                          Lưu
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7}>
+                    <div
+                      style={{
+                        minHeight: 140,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--e-light-muted)",
+                        fontFamily: "var(--e-sans)",
+                        fontSize: "0.82rem",
+                      }}
+                    >
+                      Không tìm thấy gói đăng ký phù hợp.
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {totalPages > 1 && (
+        <div
+          style={{
+            marginTop: "0.85rem",
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: "0.45rem",
+          }}
+        >
+          <button
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            disabled={page === 1 || loading}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 7,
+              border: "1px solid rgba(154,124,69,0.2)",
+              background: "#fff",
+              opacity: page === 1 ? 0.45 : 1,
+              cursor: page === 1 ? "not-allowed" : "pointer",
+              fontFamily: "var(--e-sans)",
+              fontSize: "0.64rem",
+              fontWeight: 700,
+            }}
+          >
+            ← Trước
+          </button>
+          <span
+            style={{
+              fontFamily: "var(--e-sans)",
+              fontSize: "0.66rem",
+              color: "var(--e-muted)",
+              fontWeight: 700,
+            }}
+          >
+            {page}/{totalPages}
+          </span>
+          <button
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={page === totalPages || loading}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 7,
+              border: "1px solid rgba(154,124,69,0.2)",
+              background: "#fff",
+              opacity: page === totalPages ? 0.45 : 1,
+              cursor: page === totalPages ? "not-allowed" : "pointer",
+              fontFamily: "var(--e-sans)",
+              fontSize: "0.64rem",
+              fontWeight: 700,
+            }}
+          >
+            Sau →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1342,6 +2011,7 @@ const NAV_ITEMS: { view: View; label: string; icon: React.ReactNode }[] = [
   { view: "dashboard", label: "Tổng Quan", icon: <SlidersHorizontal size={14} /> },
   { view: "properties", label: "Duyệt Tin", icon: <FileText size={14} /> },
   { view: "providers", label: "Provider", icon: <Home size={14} /> },
+  { view: "subscriptions", label: "Subscription", icon: <CreditCard size={14} /> },
   { view: "kyc", label: "Quản Lý KYC", icon: <ShieldCheck size={14} /> },
 ];
 
@@ -1354,7 +2024,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const q = router.query.view as string | undefined;
-    if (q && ["dashboard", "properties", "providers", "kyc"].includes(q)) setView(q as View);
+    if (q && ["dashboard", "properties", "providers", "subscriptions", "kyc"].includes(q)) setView(q as View);
   }, [router.query.view]);
 
   const handleSetView = useCallback((newView: View) => {
@@ -1415,7 +2085,14 @@ export default function AdminDashboard() {
             <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
               {NAV_ITEMS.map(item => {
                 const isActive = view === item.view;
-                const badge = item.view === "properties" ? stats?.pendingPropertiesCount : item.view === "providers" ? stats?.totalPendingProviders : undefined;
+                const badge =
+                  item.view === "properties"
+                    ? stats?.pendingPropertiesCount
+                    : item.view === "providers"
+                      ? stats?.totalPendingProviders
+                      : item.view === "subscriptions"
+                        ? stats?.subscriptionOverview?.expiringSoonCount
+                        : undefined;
                 return (
                   <button key={item.view} onClick={() => handleSetView(item.view)}
                     className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden ${isActive ? "bg-[#D4AF37]/10 border border-[#D4AF37]/20 shadow-lg text-white" : "text-white/60 hover:text-white hover:bg-white/5 border border-transparent"}`}
@@ -1452,10 +2129,11 @@ export default function AdminDashboard() {
               {view === "dashboard" && <ViewWrapper><DashboardView stats={stats} onNavigate={handleSetView} /></ViewWrapper>}
               {view === "properties" && <ViewWrapper><PropertiesView /></ViewWrapper>}
               {view === "providers" && <ViewWrapper><ProvidersView /></ViewWrapper>}
+              {view === "subscriptions" && <ViewWrapper><SubscriptionsView /></ViewWrapper>}
               {view === "kyc" && <ViewWrapper><KycView /></ViewWrapper>}
             </div>
             <footer className="mt-16 pt-8 border-t border-[var(--e-beige)] text-center text-[0.68rem] uppercase tracking-widest text-[var(--e-muted)] font-medium" style={{ fontFamily: "var(--e-sans)" }}>
-              &copy; {new Date().getFullYear()} Estoria Luxury Real Estate
+              &copy; {new Date().getUTCFullYear()} Estoria Luxury Real Estate
             </footer>
           </div>
         </main>

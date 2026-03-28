@@ -173,6 +173,8 @@ exports.submitKycDocuments = async (req, res, next) => {
     const decision = decideKycOutcome({ comparisonResult, extractedData });
 
     user.kycExtractedData = extractedData;
+    user.kycExtractedName = String(extractedData?.parsed?.fullName || '').trim();
+    user.kycExtractedIDNumber = String(extractedData?.parsed?.idNumber || '').trim();
     user.kycComparisonResult = {
       ...comparisonResult,
       decisionNotes: decision.decisionNotes,

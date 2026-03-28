@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Property, PropertyType } from '@/types/property';
 import { formatVNDShort } from '@/utils/formatPrice';
+import { optimizeCloudinaryUrl } from '@/utils/imageOptimization';
 
 interface FeaturedSectionProps {
     properties: Property[];
@@ -76,9 +77,12 @@ function shortenAddress(address?: string, maxParts = 3) {
 
 function toItem(p: Property, i: number): FeaturedItem {
     const getImg = (img: any) => {
-        if (typeof img === 'string') return img;
-        if (img?.url) return img.url;
-        if (img?.secure_url) return img.secure_url;
+        let url = '';
+        if (typeof img === 'string') url = img;
+        else if (img?.url) url = img.url;
+        else if (img?.secure_url) url = img.secure_url;
+        
+        if (url) return optimizeCloudinaryUrl(url, 600);
         return FALLBACK[i]?.img ?? '';
     };
     return {
@@ -543,7 +547,7 @@ export default function FeaturedSection({ properties }: FeaturedSectionProps) {
 
                     {/* ── HERO CARD ── */}
                     <Link href={heroHref} className="ah-card ah-card-hero">
-                        <img className="ah-img" src={hero.img} alt={hero.name} loading="lazy" />
+                        <img className="ah-img" src={hero.img} alt={hero.name} loading="lazy" decoding="async" fetchPriority="low" />
 
                         {/* Lot bar + number */}
                         <div className="ah-lot-bar" />
@@ -599,7 +603,7 @@ export default function FeaturedSection({ properties }: FeaturedSectionProps) {
                             const href = card?.id ? `/properties/${card.id}` : '#listings';
                             return (
                                 <Link key={i} href={href} className="ah-card">
-                                    <img className="ah-img" src={card.img} alt={card.name} loading="lazy" />
+                                    <img className="ah-img" src={card.img} alt={card.name} loading="lazy" decoding="async" fetchPriority="low" />
                                     <div className="ah-lot-bar" />
                                     <div className="ah-lot-num">
                                         <span className="ah-lot-num-text">{card.lot}</span>

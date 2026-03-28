@@ -1,4 +1,4 @@
-import { requestJson } from "@/services/apiClient";
+import { ApiError, requestJson } from "@/services/apiClient";
 
 export type SubscriptionPlan = "Pro" | "ProPlus";
 export type SubscriptionTier = "Free" | SubscriptionPlan;
@@ -48,6 +48,28 @@ interface SubscriptionInfo {
   createdAt?: string;
 }
 
+export interface CurrentSubscriptionStatus {
+  _id: string | null;
+  planType: SubscriptionTier;
+  status: "active" | "expired" | "cancelled";
+  subscribedAt: string | null;
+  expiresAt: string | null;
+  durationDays: number;
+  transactionId: string | null;
+  amount: number;
+  paymentMethod: PaymentMethod | "";
+  lastRenewedAt: string | null;
+  remainingDays: number;
+  isActive: boolean;
+}
+
+interface SubscriptionStatusResponse {
+  status: string;
+  data: {
+    subscription: CurrentSubscriptionStatus;
+  };
+}
+
 export const paymentService = {
   async createCheckout(payload: CreateCheckoutPayload, redirect: boolean = false) {
     const params = new URLSearchParams();
@@ -69,6 +91,24 @@ export const paymentService = {
       `/payments/subscriptions/me?${params.toString()}`,
       { method: "GET" }
     );
+  },
+
+  async getMySubscriptionStatus() {
+    try {
+      const response = await requestJson<SubscriptionStatusResponse>(
+        "/payments/subscription-status/me",
+        { method: "GET" }
+      );
+      return response.data.subscription;
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        ([401, 403, 404, 429].includes(error.statusCode) || error.statusCode >= 500)
+      ) {
+        return null;
+      }
+      throw error;
+    }
   },
 
   // Subscription plans pricing

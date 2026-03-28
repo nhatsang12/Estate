@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
@@ -6,15 +6,17 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 import { Waves, Dumbbell, Wind, Car, Trees, ShieldCheck, Wifi, AirVent, ChefHat, WashingMachine } from "lucide-react";
-import { Bath, BedDouble, Building2, CalendarClock, CheckCircle2, Mail, MapPin, Phone, Maximize2, Sparkles, ArrowRight } from "lucide-react";
+import { Bath, BedDouble, Building2, CalendarClock, CheckCircle2, Mail, MapPin, Phone, Maximize2, Sparkles, ArrowRight, Heart } from "lucide-react";
 import LuxuryNavbar from "@/components/LuxuryNavbar";
 import LuxuryFooter from "@/components/LuxuryFooter";
 import LuxuryListingCard from "@/components/LuxuryListingCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMessaging } from "@/contexts/MessagingContext";
 import { ApiError } from "@/services/apiClient";
+import favoriteService from "@/services/favoriteService";
 import { propertyService } from "@/services/propertyService";
 import type { Property, PropertyOwner } from "@/types/property";
+import type { AddressMapMarker } from "@/components/AddressMap";
 
 const AddressMap = dynamic(() => import("@/components/AddressMap"), { ssr: false });
 
@@ -37,8 +39,12 @@ interface PropertyDetailPageProps {
   recommendations: Property[];
 }
 
+const DETAIL_MAP_HEIGHT_PX = 480;
+
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(amount);
+  const normalized = Number.isFinite(amount) ? Math.round(amount) : 0;
+  const withGrouping = normalized.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${withGrouping} ₫`;
 }
 function isPopulatedOwner(owner: PropertyOwner): owner is Exclude<PropertyOwner, string> {
   return typeof owner !== "string";
@@ -129,6 +135,8 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [prevImageIndex, setPrevImageIndex] = useState<number | null>(null);
   const [contactFeedback, setContactFeedback] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteProcessing, setFavoriteProcessing] = useState(false);
   const reveals = useRef<(HTMLDivElement | null)[]>([]);
 
   // Scroll reveal
@@ -142,6 +150,29 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
   }, []);
 
   const images = property?.images?.length ? property.images : [];
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolveFavoriteState = async () => {
+      if (!property?._id || !user || user.role === "admin") {
+        setIsFavorite(false);
+        return;
+      }
+      try {
+        const response = await favoriteService.getFavoriteStatus(property._id);
+        if (!cancelled) {
+          setIsFavorite(Boolean(response.data?.isFavorite));
+        }
+      } catch {
+        if (!cancelled) setIsFavorite(false);
+      }
+    };
+
+    void resolveFavoriteState();
+    return () => {
+      cancelled = true;
+    };
+  }, [property?._id, user]);
 
   // Auto-advance + track previous for "leaving" class
   useEffect(() => {
@@ -197,6 +228,55 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
   const hasMapCoords = Number.isFinite(coords[1]) && Number.isFinite(coords[0]) && !(coords[1] === 0 && coords[0] === 0);
   const typeVI = TYPE_LABEL_VI[property.type] ?? "Bất Động Sản";
   const recCount = Math.min(recommendations.length, 4);
+  const mapMarkers = useMemo<AddressMapMarker[]>(() => {
+    const list: AddressMapMarker[] = [];
+    const pushMarker = (item: AddressMapMarker) => {
+      const exists = list.some((m) => m.id === item.id);
+      if (!exists) list.push(item);
+    };
+
+    if (hasMapCoords) {
+      pushMarker({
+        id: property._id,
+        lat: coords[1],
+        lng: coords[0],
+        title: property.title,
+        address: property.address,
+        priceLabel: formatCurrency(property.price),
+        imageUrl: property.images?.[0] || "",
+        href: `/properties/${property._id}`,
+      });
+    }
+
+    recommendations.forEach((item) => {
+      const recommendationCoords = item.location?.coordinates ?? [];
+      const lat = recommendationCoords[1];
+      const lng = recommendationCoords[0];
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (lat === 0 && lng === 0) return;
+      pushMarker({
+        id: item._id,
+        lat,
+        lng,
+        title: item.title,
+        address: item.address,
+        priceLabel: formatCurrency(item.price),
+        imageUrl: item.images?.[0] || "",
+        href: `/properties/${item._id}`,
+      });
+    });
+
+    return list;
+  }, [
+    coords,
+    hasMapCoords,
+    property._id,
+    property.address,
+    property.images,
+    property.price,
+    property.title,
+    recommendations,
+  ]);
   const shortAddress = (() => {
     const parts = (property.address || "").split(",").map((s: string) => s.trim()).filter(Boolean);
     return parts.length > 3 ? parts.slice(0, 3).join(", ") + "…" : property.address;
@@ -232,10 +312,48 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
         price: property.price,
         description: property.description,
         imageUrl: property.images?.[0] || "",
+        propertyType: typeVI,
+        bedrooms: property.bedrooms,
+        bathrooms: property.bathrooms,
+        propertyUrl: `${window.location.origin}/properties/${property._id}`,
       },
     });
 
     setContactFeedback("Đã mở khung chat. Vui lòng xác nhận nội dung trước khi gửi.");
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!property?._id) return;
+    if (!user) {
+      void router.push(`/auth/login?redirect=${encodeURIComponent(router.asPath)}`);
+      return;
+    }
+    if (user.role === "admin") {
+      setContactFeedback("Tài khoản admin không sử dụng tính năng yêu thích.");
+      return;
+    }
+
+    try {
+      setFavoriteProcessing(true);
+      if (isFavorite) {
+        await favoriteService.removeFavorite(property._id);
+        setIsFavorite(false);
+        setContactFeedback("Đã xóa khỏi danh sách yêu thích.");
+      } else {
+        await favoriteService.addFavorite(property._id);
+        setIsFavorite(true);
+        setContactFeedback("Đã lưu vào danh sách yêu thích.");
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("favorites:changed"));
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Không thể cập nhật danh sách yêu thích.";
+      setContactFeedback(message);
+    } finally {
+      setFavoriteProcessing(false);
+    }
   };
 
   return (
@@ -391,11 +509,18 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                   <span style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{property.address}</span>
                 </div>
                 {hasMapCoords ? (
-                  <div style={{ height: "240px", overflow: "hidden", border: "1px solid var(--e-beige)" }}>
-                    <AddressMap lat={coords[1]} lng={coords[0]} interactive={false} />
+                  <div style={{ height: `${DETAIL_MAP_HEIGHT_PX}px`, overflow: "hidden", border: "1px solid var(--e-beige)" }}>
+                    <AddressMap
+                      lat={coords[1]}
+                      lng={coords[0]}
+                      interactive={false}
+                      height={DETAIL_MAP_HEIGHT_PX}
+                      markers={mapMarkers}
+                      popupOnInitMarkerId={property._id}
+                    />
                   </div>
                 ) : (
-                  <div style={{ height: "150px", background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--e-beige)", color: "var(--e-muted)", fontSize: "0.85rem" }}>
+                  <div style={{ height: `${DETAIL_MAP_HEIGHT_PX}px`, background: "var(--e-cream)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--e-beige)", color: "var(--e-muted)", fontSize: "0.85rem" }}>
                     Bản đồ hiện đang được cập nhật
                   </div>
                 )}
@@ -428,7 +553,7 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                 <div style={{ padding: "2rem", textAlign: "center", borderBottom: "1px solid var(--e-beige)" }}>
                   <div className="e-category-tag" style={{ marginBottom: "0.5rem" }}>Liên Hệ Tư Vấn</div>
                   <div style={{ fontFamily: "var(--e-serif)", fontSize: "1.85rem", color: "var(--e-charcoal)", lineHeight: 1.1 }}>{formatCurrency(property.price)}</div>
-                  {pricePerSqm && <div style={{ fontSize: "0.76rem", color: "var(--e-muted)", marginTop: "5px" }}>≈ {pricePerSqm.toLocaleString()} ₫ / m²</div>}
+                  {pricePerSqm && <div style={{ fontSize: "0.76rem", color: "var(--e-muted)", marginTop: "5px" }}>≈ {String(pricePerSqm).replace(/\B(?=(\d{3})+(?!\d))/g, ".")} ₫ / m²</div>}
                 </div>
 
                 {/* Agent */}
@@ -445,6 +570,23 @@ export default function PropertyDetailPage({ property, errorMessage, recommendat
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <a href={`tel:${owner?.phone}`} className="e-btn-primary"><Phone size={15} /> Gọi Ngay</a>
                     <a href={`mailto:${owner?.email}`} className="e-btn-outline"><Mail size={15} /> Gửi Email</a>
+                    <button
+                      type="button"
+                      onClick={handleToggleFavorite}
+                      className={isFavorite ? "e-btn-primary" : "e-btn-outline"}
+                      disabled={favoriteProcessing}
+                      style={{
+                        opacity: favoriteProcessing ? 0.75 : 1,
+                        cursor: favoriteProcessing ? "wait" : "pointer",
+                      }}
+                    >
+                      <Heart size={15} fill={isFavorite ? "currentColor" : "none"} />
+                      {favoriteProcessing
+                        ? "Đang xử lý..."
+                        : isFavorite
+                          ? "Đã lưu yêu thích"
+                          : "Lưu vào yêu thích"}
+                    </button>
                   </div>
                 </div>
 

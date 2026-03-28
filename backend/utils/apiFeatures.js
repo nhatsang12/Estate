@@ -32,7 +32,8 @@ class APIFeatures {
       const fields = this.queryString.fields.split(',').join(' ');
       this.query = this.query.select(fields);
     } else {
-      this.query = this.query.select('-__v');
+      // Exclude heavyweight/internal fields by default to keep API payloads small.
+      this.query = this.query.select('-__v -embedding');
     }
     return this;
   }

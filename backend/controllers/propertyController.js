@@ -1,7 +1,68 @@
 const Property = require('../models/Property');
 const User = require('../models/User');
 const APIFeatures = require('../utils/apiFeatures');
+const Joi = require('joi');
 const { uploadToCloudinary } = require('../utils/cloudinary');
+const { queuePropertyEmbeddingRefresh } = require('../services/propertyEmbeddingService');
+
+const markSoldSchema = Joi.object({
+  soldAt: Joi.date().iso().optional(),
+}).options({ stripUnknown: true });
+
+const propertyVisibilitySchema = Joi.object({
+  hidden: Joi.boolean().required(),
+}).options({ stripUnknown: true });
+
+const normalizeSaleFlags = (payload = {}) => {
+  if (!payload || typeof payload !== 'object') return;
+
+  const status = String(payload.status || '').trim().toLowerCase();
+  if (status === 'sold') {
+    payload.isSold = true;
+    if (!payload.soldAt) {
+      payload.soldAt = new Date();
+    }
+    return;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'isSold') && !payload.isSold) {
+    payload.soldAt = null;
+    if (payload.status === 'sold') {
+      payload.status = 'approved';
+    }
+  }
+};
+
+const normalizeForKeyword = (value = '') =>
+  String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const propertyToSearchText = (property = {}) =>
+  normalizeForKeyword(
+    [
+      property.title,
+      property.address,
+      property.description,
+      property.type,
+      ...(Array.isArray(property.amenities) ? property.amenities : []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
+
+const matchesKeyword = (property, normalizedKeyword, keywordTokens) => {
+  if (!normalizedKeyword) return true;
+  const haystack = propertyToSearchText(property);
+  if (!haystack) return false;
+  if (haystack.includes(normalizedKeyword)) return true;
+  return keywordTokens.every((token) => haystack.includes(token));
+};
 
 exports.getAllProperties = async (req, res, next) => {
   try {
@@ -22,18 +83,42 @@ exports.getAllProperties = async (req, res, next) => {
     }
 
     const queryParams = { ...req.query };
-    const keyword = queryParams.search || queryParams.locationText;
-    if (keyword) {
-      const regex = new RegExp(keyword, 'i');
-      filter.$or = [
-        { title: regex },
-        { address: regex },
-        { description: regex },
-        { amenities: regex },
-        { type: regex },
-      ];
-    }
+    const keyword = String(queryParams.search || queryParams.locationText || '').trim();
+
     delete queryParams.search;
+    delete queryParams.locationText;
+
+    const limit = parseInt(queryParams.limit, 10) || 10;
+    const page = parseInt(queryParams.page, 10) || 1;
+
+    if (keyword) {
+      const normalizedKeyword = normalizeForKeyword(keyword);
+      const keywordTokens = normalizedKeyword.split(' ').filter(Boolean);
+
+      const features = new APIFeatures(Property.find(filter), queryParams)
+        .filter()
+        .sort()
+        .limitFields();
+      const candidates = await features.query;
+      const matchedProperties = candidates.filter((property) =>
+        matchesKeyword(property, normalizedKeyword, keywordTokens)
+      );
+      const total = matchedProperties.length;
+      const startIndex = Math.max(0, (page - 1) * limit);
+      const paginatedProperties = matchedProperties.slice(startIndex, startIndex + limit);
+
+      return res.status(200).json({
+        status: 'success',
+        results: paginatedProperties.length,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+        currentPage: page,
+        data: {
+          properties: paginatedProperties,
+        },
+      });
+    }
+
     // ✅ Đếm tổng TRƯỚC khi paginate — dùng cùng filter
     const countFeatures = new APIFeatures(Property.find(filter), queryParams).filter();
     const total = await countFeatures.query.countDocuments();
@@ -44,9 +129,6 @@ exports.getAllProperties = async (req, res, next) => {
       .limitFields()
       .paginate();
     const properties = await features.query;
-
-    const limit = parseInt(queryParams.limit) || 10;
-    const page  = parseInt(queryParams.page)  || 1;
 
     res.status(200).json({
       status: 'success',
@@ -121,6 +203,8 @@ exports.createProperty = async (req, res, next) => {
       req.body.status = 'pending';
     }
 
+    normalizeSaleFlags(req.body);
+
     if (req.files && req.files.images) {
       const imagePromises = req.files.images.map(file => uploadToCloudinary(file.buffer));
       const imageUrls = await Promise.all(imagePromises);
@@ -138,6 +222,9 @@ exports.createProperty = async (req, res, next) => {
     if (req.user.role !== 'admin') {
       await User.findByIdAndUpdate(req.user.id, { $inc: { listingsCount: 1 } });
     }
+
+    // Fire-and-forget embedding refresh so new listings become searchable in vector retrieval.
+    queuePropertyEmbeddingRefresh(newProperty._id);
 
     res.status(201).json({
       status: 'success',
@@ -185,6 +272,8 @@ exports.updateProperty = async (req, res, next) => {
       req.body.$push = { ...(req.body.$push || {}), ownershipDocuments: { $each: docUrls } };
     }
 
+    normalizeSaleFlags(req.body);
+
     const property = await Property.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
@@ -193,6 +282,9 @@ exports.updateProperty = async (req, res, next) => {
     if (!property) {
       return res.status(404).json({ status: 'error', message: 'No property found with that ID' });
     }
+
+    // Refresh embedding after edits to keep semantic search in sync with latest content.
+    queuePropertyEmbeddingRefresh(property._id);
 
     res.status(200).json({
       status: 'success',
@@ -289,6 +381,146 @@ exports.getFilterOptions = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { filters }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /api/properties/:id/mark-sold
+exports.markPropertyAsSold = async (req, res, next) => {
+  try {
+    const { value, error } = markSoldSchema.validate(req.body || {});
+    if (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: error.details[0].message,
+      });
+    }
+
+    const property = await Property.findById(req.params.id);
+    if (!property) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No property found with that ID',
+      });
+    }
+
+    if (property.status !== 'sold' || !property.isSold) {
+      property.status = 'sold';
+      property.isSold = true;
+      property.soldAt = value.soldAt ? new Date(value.soldAt) : new Date();
+      property.rejectionReason = '';
+      await property.save({ validateBeforeSave: false });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Property has been marked as sold',
+      data: {
+        property,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /api/properties/:id/visibility
+exports.setPropertyVisibility = async (req, res, next) => {
+  try {
+    const { value, error } = propertyVisibilitySchema.validate(req.body || {});
+    if (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: error.details[0].message,
+      });
+    }
+
+    const property = await Property.findById(req.params.id);
+    if (!property) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No property found with that ID',
+      });
+    }
+
+    if (property.status === 'sold' || property.isSold) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Sold property cannot change visibility',
+      });
+    }
+
+    if (value.hidden) {
+      if (property.status !== 'approved' && property.status !== 'hidden') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Only approved property can be hidden',
+        });
+      }
+      property.status = 'hidden';
+    } else {
+      if (property.status !== 'hidden' && property.status !== 'approved') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Only hidden property can be shown again',
+        });
+      }
+      property.status = 'approved';
+    }
+
+    await property.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      status: 'success',
+      message: value.hidden ? 'Property has been hidden' : 'Property is visible again',
+      data: {
+        property,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/properties/sales/stats/me
+exports.getMySalesStats = async (req, res, next) => {
+  try {
+    const ownerId = req.user.id;
+    const soldQuery = {
+      ownerId,
+      $or: [{ isSold: true }, { status: 'sold' }, { soldAt: { $ne: null } }],
+    };
+
+    const [summaryRows, recentSold] = await Promise.all([
+      Property.aggregate([
+        { $match: soldQuery },
+        {
+          $group: {
+            _id: '$ownerId',
+            totalSoldProperties: { $sum: 1 },
+            totalSoldValue: { $sum: '$price' },
+            latestSoldAt: { $max: '$soldAt' },
+          },
+        },
+      ]),
+      Property.find(soldQuery)
+        .sort({ soldAt: -1, updatedAt: -1 })
+        .limit(8)
+        .select('_id title price soldAt status isSold address'),
+    ]);
+
+    const summary = summaryRows[0] || {};
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        totalSoldProperties: Number(summary.totalSoldProperties || 0),
+        totalSoldValue: Number(summary.totalSoldValue || 0),
+        latestSoldAt: summary.latestSoldAt || null,
+        recentSold,
+      },
     });
   } catch (err) {
     next(err);

@@ -1,17 +1,32 @@
-const ITEMS = [
-    'Căn Hộ Cao Cấp',
-    'Biệt Thự Nghỉ Dưỡng',
-    'Nhà Phố Thiết Kế',
-    'Văn Phòng Cho Thuê',
-    'Shophouse Thương Mại',
-    'Đất Nền Dự Án',
-    'Penthouse Thượng Lưu',
-    'Villa Ven Biển',
-];
+import { useTranslation } from 'react-i18next';
 
-const ALL_ITEMS = [...ITEMS, ...ITEMS];
+const ITEM_KEYS = [
+    'apartment',
+    'villaResort',
+    'townhouseDesign',
+    'officeRent',
+    'shophouse',
+    'projectLand',
+    'penthouse',
+    'beachVilla',
+] as const;
 
 export default function MarqueeStrip() {
+    const { t } = useTranslation();
+    const tr = (key: string, fallback: string) => t(key, { defaultValue: fallback });
+    const fallbackByKey: Record<(typeof ITEM_KEYS)[number], string> = {
+        apartment: 'Căn Hộ Cao Cấp',
+        villaResort: 'Biệt Thự Nghỉ Dưỡng',
+        townhouseDesign: 'Nhà Phố Thiết Kế',
+        officeRent: 'Văn Phòng Cho Thuê',
+        shophouse: 'Shophouse Thương Mại',
+        projectLand: 'Đất Nền Dự Án',
+        penthouse: 'Penthouse Thượng Lưu',
+        beachVilla: 'Villa Ven Biển',
+    };
+    const items = ITEM_KEYS.map((key) => tr(`home.marquee.items.${key}`, fallbackByKey[key]));
+    const allItems = [...items, ...items];
+
     return (
         <div className="e-strip" style={{ display: 'flex', alignItems: 'stretch', padding: 0 }}>
             {/* Left anchor label */}
@@ -34,7 +49,7 @@ export default function MarqueeStrip() {
                     color: 'var(--e-white)',
                     whiteSpace: 'nowrap',
                 }}>
-                    Danh Mục
+                    {tr('home.marquee.category', 'Danh Mục')}
                 </span>
             </div>
 
@@ -47,7 +62,7 @@ export default function MarqueeStrip() {
                     zIndex: 1, pointerEvents: 'none',
                 }} />
                 <div className="e-strip-inner">
-                    {ALL_ITEMS.map((item, i) => (
+                    {allItems.map((item, i) => (
                         <span key={i}>
                             {item}
                             <span className="e-strip-dot"> ✦ </span>
@@ -81,7 +96,7 @@ export default function MarqueeStrip() {
                     letterSpacing: '0.14em',
                     textTransform: 'uppercase',
                     color: 'rgba(255,255,255,0.30)',
-                }}>loại hình</span>
+                }}>{tr('home.marquee.typesLabel', 'loại hình')}</span>
             </div>
         </div>
     );

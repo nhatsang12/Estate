@@ -2,6 +2,8 @@ import type { GetServerSideProps } from 'next';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import dynamic from 'next/dynamic';
+import { useTranslation } from 'react-i18next';
 
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 import { ApiError } from '@/services/apiClient';
@@ -17,14 +19,24 @@ import FeaturedSection from '@/components/FeaturedSection';
 import LuxuryListingCard from '@/components/LuxuryListingCard';
 import VisionSection from '@/components/VisionSection';
 import StatsSection from '@/components/StatsSection';
-import GallerySection from '@/components/GallerySection';
 import LuxuryFooter from '@/components/LuxuryFooter';
+
+const PropertyListingsMap = dynamic(
+  () => import('@/components/PropertyListingsMap'),
+  { ssr: false }
+);
 
 /* ─────────────────────────────────────────────
    PRICE HELPERS
 ───────────────────────────────────────────── */
 function priceToVND(val: number): number {
   return val * 1_000_000_000;
+}
+
+function formatCountByLanguage(value: number, language: string) {
+  const normalized = Number.isFinite(value) ? Math.round(value) : 0;
+  const separator = language === "en" ? "," : ".";
+  return normalized.toString().replace(/\B(?=(\d{3})+(?!\d))/g, separator);
 }
 
 interface HomePageProps {
@@ -46,6 +58,8 @@ export default function HomePage({
   initialTotalPages,
 }: HomePageProps) {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const [properties, setProperties] = useState<Property[]>(initialProperties);
   const [searchError, setSearchError] = useState<string | null>(initialError);
@@ -56,15 +70,35 @@ export default function HomePage({
   // FIX: sort state now accepts price-asc / price-desc from SearchSection
   const [sortOrder, setSortOrder] = useState<'newest' | 'price-asc' | 'price-desc' | 'area'>('newest');
 
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(initialTotal);
+  const [mapNearbyMode, setMapNearbyMode] = useState(false);
+  const [activePropertyId, setActivePropertyId] = useState<string | null>(null);
 
   // FIX: initialTotalPages guaranteed ≥ 1 so pagination always renders
   const [totalPages, setTotalPages] = useState(Math.max(initialTotalPages, 1));
 
+  // Infinite scroll states
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const endOfListRef = useRef<HTMLDivElement>(null);
+
   const searchSentinelRef = useRef<HTMLDivElement>(null);
   const stickyWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  const tr = (
+    key: string,
+    fallback: string,
+    options?: Record<string, unknown>
+  ) =>
+    isHydrated
+      ? t(key, { defaultValue: fallback, ...(options || {}) })
+      : fallback;
 
   useEffect(() => {
     if (!searchSentinelRef.current) return;
@@ -83,12 +117,45 @@ export default function HomePage({
     return () => observer.disconnect();
   }, []);
 
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!endOfListRef.current || mapNearbyMode) return;
+    
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && currentPage < totalPages) {
+          setIsLoadingMore(true);
+          fetchProperties(appliedFilters, sortOrder, currentPage + 1, true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    observerRef.current.observe(endOfListRef.current);
+    return () => observerRef.current?.disconnect();
+  }, [currentPage, totalPages, isLoadingMore, mapNearbyMode, appliedFilters, sortOrder]);
+
+  useEffect(() => {
+    if (!activePropertyId) return;
+    const stillVisible = properties.some((property) => property._id === activePropertyId);
+    if (!stillVisible) {
+      setActivePropertyId(null);
+    }
+  }, [activePropertyId, properties]);
+
   const PER_PAGE = 6;
 
   useScrollReveal();
   useScrollReveal([listingKey]);
 
   const featuredProperties = useMemo(() => properties.slice(0, 3), [properties]);
+  const mapPanelHeight = useMemo(() => {
+    if (viewMode !== 'list') return 620;
+    const count = properties.length;
+    if (count <= 0) return 360;
+    const estimated = count * 165 + Math.max(0, count - 1) * 10;
+    return Math.max(340, Math.min(620, estimated));
+  }, [properties.length, viewMode]);
 
   const hasActiveFilters = useMemo(
     () => Object.entries(appliedFilters).some(([k, v]) => k !== 'status' && v !== undefined && v !== ''),
@@ -107,13 +174,20 @@ export default function HomePage({
     'newest': '-createdAt',
   }[o]);
 
+  const handlePropertyHover = (propertyId: string) => {
+    setActivePropertyId((prev) => (prev === propertyId ? prev : propertyId));
+  };
+
   const fetchProperties = async (
     filters: PropertyFilters = {},
     sort: typeof sortOrder = sortOrder,
     page = 1,
+    isLoadMore = false,
   ) => {
-    setSearchLoading(true);
-    setSearchError(null);
+    if (!isLoadMore) {
+      setSearchLoading(true);
+      setSearchError(null);
+    }
     try {
       const res = await propertyService.getAllProperties({
         ...filters,
@@ -121,24 +195,34 @@ export default function HomePage({
         limit: PER_PAGE,
         page,
       });
-      setProperties(res.data.properties);
+      const newProperties = res.data.properties;
+      // If loading more, append to existing. Otherwise replace.
+      setProperties(isLoadMore ? prev => [...prev, ...newProperties] : newProperties);
       const total = res.total ?? res.results ?? res.data.properties.length;
       const pages = Math.max(res.totalPages ?? Math.ceil(total / PER_PAGE), 1);
       setTotalCount(total);
       setTotalPages(pages);
+      setCurrentPage(page);
+      setMapNearbyMode(false);
     } catch (err) {
-      setSearchError(getErrorMessage(err));
-      setProperties([]);
+      if (!isLoadMore) {
+        setSearchError(getErrorMessage(err));
+        setProperties([]);
+      }
     } finally {
-      setSearchLoading(false);
-      setListingKey(k => k + 1);
+      if (!isLoadMore) {
+        setSearchLoading(false);
+        setListingKey(k => k + 1);
+      } else {
+        setIsLoadingMore(false);
+      }
     }
   };
 
   const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    fetchProperties(appliedFilters, sortOrder, page);
-    document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setIsLoadingMore(true);
+    fetchProperties(appliedFilters, sortOrder, page, false);
+    document.getElementById('listings')?.scrollIntoView({ behavior: 'auto', block: 'start' });
   };
 
   async function handleSearch(params: SearchParams) {
@@ -172,19 +256,43 @@ export default function HomePage({
     setAppliedFilters(filters);
     setSortOrder(newSort);
     setCurrentPage(1);
+    setIsLoadingMore(false);
 
-    await fetchProperties(filters, newSort, 1);
+    await fetchProperties(filters, newSort, 1, false);
 
     setTimeout(() => {
-      document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('listings')?.scrollIntoView({ behavior: 'auto', block: 'start' });
     }, 100);
   }
+
+  const handleLocateNearby = async (lat: number, lng: number) => {
+    setSearchLoading(true);
+    setSearchError(null);
+    try {
+      const nearby = await propertyService.getPropertiesWithin(15, lat, lng, 'km');
+      setProperties(nearby);
+      setTotalCount(nearby.length);
+      setTotalPages(1);
+      setCurrentPage(1);
+      setMapNearbyMode(true);
+      setAppliedFilters({ status: 'approved', locationText: 'nearby' });
+    } catch (error) {
+      setSearchError(getErrorMessage(error));
+      setProperties([]);
+      setTotalCount(0);
+      setTotalPages(1);
+      setCurrentPage(1);
+    } finally {
+      setSearchLoading(false);
+      setListingKey((k) => k + 1);
+    }
+  };
 
   return (
     <>
       <Head>
-        <title>Estoria — Bất Động Sản Cao Cấp Việt Nam</title>
-        <meta name="description" content="Khám phá hàng nghìn bất động sản cao cấp được tuyển chọn kỹ lưỡng tại Việt Nam." />
+        <title>{tr('home.metaTitle', 'EstateManager | Nền Tảng Bất Động Sản')}</title>
+        <meta name="description" content={tr('home.metaDescription', 'Nền tảng bất động sản hiện đại dành cho người mua, người thuê và nhà cung cấp.')} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -194,7 +302,7 @@ export default function HomePage({
         ═══════════════════════════════════════ */
         .ls-root {
             background: #F2F5F8;
-            padding: clamp(4rem, 7vw, 8rem) clamp(1.5rem, 6vw, 6rem);
+            padding: clamp(4rem, 7vw, 8rem) clamp(1.5rem, 6vw, 6rem) clamp(1.1rem, 2.4vw, 1.8rem);
             font-family: var(--e-sans);
         }
         .ls-header {
@@ -240,8 +348,8 @@ export default function HomePage({
             to   { opacity: 1; transform: translateY(0); }
         }
         .ls-card-enter {
-            opacity: 0;
-            animation: lsCardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            opacity: 1;
+            animation: none;
             /* height:100% so grid card stretches full cell */
             height: 100%;
         }
@@ -277,14 +385,54 @@ export default function HomePage({
         .ls-list {
             display: flex;
             flex-direction: column;
-            gap: 1.25rem;
+            gap: 0.65rem;
+        }
+
+        .ls-split {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+            gap: 1rem;
+            align-items: stretch;
+        }
+        .ls-split-list {
+            max-height: 620px;
+            overflow-y: auto;
+            padding-right: 0.4rem;
+            scrollbar-gutter: stable;
+            overscroll-behavior: contain;
+        }
+        .ls-split-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        .ls-split-list::-webkit-scrollbar-track {
+            background: rgba(214, 219, 227, 0.35);
+            border-radius: 999px;
+        }
+        .ls-split-list::-webkit-scrollbar-thumb {
+            background: rgba(15, 23, 42, 0.25);
+            border-radius: 999px;
+        }
+        .ls-split-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(15, 23, 42, 0.38);
+        }
+        .ls-split-map {
+            position: sticky;
+            top: 96px;
+            height: 620px;
+        }
+        .ls-split-map > * {
+            height: 100%;
+        }
+        .ls-split-list .ls-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
         }
 
         /* FIX: card equal height — remove align-items:start */
         .ls-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
+            gap: clamp(0.85rem, 1vw, 1.1rem);
             align-items: stretch;  /* ← was "start", caused unequal heights */
         }
 
@@ -292,13 +440,13 @@ export default function HomePage({
         .ls-skeleton {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
+            gap: clamp(0.85rem, 1vw, 1.1rem);
         }
         .ls-skeleton-card {
             height: 400px;
             background: var(--e-beige);
             opacity: 0.45;
-            animation: lsSkeleton 1.5s ease-in-out infinite alternate;
+            animation: none;
         }
         @keyframes lsSkeleton {
             from { opacity: 0.3; }
@@ -342,11 +490,31 @@ export default function HomePage({
         }
 
         /* Responsive */
+        @media (max-width: 1080px) {
+            .ls-split {
+                grid-template-columns: 1fr;
+            }
+            .ls-split-list {
+                max-height: none;
+                overflow-y: visible;
+                padding-right: 0;
+            }
+            .ls-split-map {
+                position: relative;
+                top: 0;
+                height: auto;
+            }
+            .ls-split-map > * {
+                height: auto;
+            }
+        }
         @media (max-width: 960px) {
             .ls-grid, .ls-skeleton { grid-template-columns: repeat(2, 1fr); }
+            .ls-split-list .ls-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         @media (max-width: 560px) {
             .ls-grid, .ls-skeleton { grid-template-columns: 1fr; }
+            .ls-split-list .ls-grid { grid-template-columns: 1fr; }
             .ls-header { flex-direction: column; align-items: flex-start; }
         }
 
@@ -363,36 +531,36 @@ export default function HomePage({
             box-shadow:
                 0 1px 0 rgba(212,175,55,0.08),
                 0 6px 32px -6px rgba(26,23,20,0.12);
-            transition: margin-bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: none;
             margin-bottom: 0px;
         }
         .sticky-search-wrap.is-stuck {
-            margin-bottom: 38px;
+            margin-bottom: 0px;
         }
         
         .sticky-search-inner {
             padding: 0.75rem clamp(1.5rem, 5vw, 5rem);
-            transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: none;
         }
         .sticky-search-wrap.is-stuck .sticky-search-inner {
-            padding: 0.4rem clamp(1.5rem, 5vw, 5rem);
+            padding: 0.75rem clamp(1.5rem, 5vw, 5rem);
         }
 
         /* Animated inner elements */
-        .ss-item { padding: 0.85rem 1.4rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
-        .sticky-search-wrap.is-stuck .ss-item { padding: 0.45rem 1.2rem; }
+        .ss-item { padding: 0.85rem 1.4rem; transition: none; }
+        .sticky-search-wrap.is-stuck .ss-item { padding: 0.85rem 1.4rem; }
 
-        .ss-label { height: 14px; margin-bottom: 2px; opacity: 1; transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
-        .sticky-search-wrap.is-stuck .ss-label { height: 0; margin-bottom: 0; opacity: 0; }
+        .ss-label { height: 14px; margin-bottom: 2px; opacity: 1; transition: none; }
+        .sticky-search-wrap.is-stuck .ss-label { height: 14px; margin-bottom: 2px; opacity: 1; }
 
-        .ss-btn-search { padding: 0 2rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
-        .sticky-search-wrap.is-stuck .ss-btn-search { padding: 0 1.5rem; }
+        .ss-btn-search { padding: 0 2rem; transition: none; }
+        .sticky-search-wrap.is-stuck .ss-btn-search { padding: 0 2rem; }
 
-        .ss-btn-filter { padding: 0 1.6rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
-        .sticky-search-wrap.is-stuck .ss-btn-filter { padding: 0 1.2rem; }
+        .ss-btn-filter { padding: 0 1.6rem; transition: none; }
+        .sticky-search-wrap.is-stuck .ss-btn-filter { padding: 0 1.6rem; }
 
-        .ss-price-btn { padding: 0 1rem; transition: padding 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
-        .sticky-search-wrap.is-stuck .ss-price-btn { padding: 0 0.8rem; }
+        .ss-price-btn { padding: 0 1rem; transition: none; }
+        .sticky-search-wrap.is-stuck .ss-price-btn { padding: 0 1rem; }
         @media (max-width: 768px) {
             .sticky-search-wrap { top: 60px; }
             .sticky-search-inner { padding: 0.65rem 1rem; }
@@ -428,17 +596,18 @@ export default function HomePage({
             <div className="ls-header-left">
               <span className="ls-eyebrow">
                 <span className="ls-eyebrow-line" />
-                Danh Sách
+                {tr('home.listings.eyebrow', 'Danh Sách')}
               </span>
               <h2 className="ls-title">
                 {hasActiveFilters
-                  ? 'Kết Quả Tìm Kiếm'
-                  : <><em>Mới</em> Đăng Gần Đây</>
+                  ? tr('home.listings.searchResultTitle', 'Kết Quả Tìm Kiếm')
+                  : <><em>{tr('home.listings.newHighlight', 'Mới')}</em> {tr('home.listings.recentTitleSuffix', 'Nhất')}</>
                 }
               </h2>
               <p className="ls-count">
-                {totalCount.toLocaleString('vi-VN')} bất động sản
-                {searchLoading ? ' · Đang tải…' : ''}
+                {formatCountByLanguage(totalCount, isHydrated ? (i18n.resolvedLanguage || 'vi') : 'vi')} {tr('home.listings.countSuffix', 'bất động sản')}
+                {mapNearbyMode ? ` ${tr('home.listings.nearbySuffix', 'gần bạn')}` : ''}
+                {searchLoading ? ` ${tr('home.listings.loadingSuffix', 'đang tải...')}` : ''}
               </p>
             </div>
 
@@ -447,7 +616,7 @@ export default function HomePage({
               <button
                 className={`ls-view-btn${viewMode === 'grid' ? ' active' : ''}`}
                 onClick={() => setViewMode('grid')}
-                title="Dạng lưới"
+                title={tr('home.listings.gridView', 'Dạng lưới')}
               >
                 <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
                   <rect x="3" y="3" width="7" height="7" rx="0.5" />
@@ -459,7 +628,7 @@ export default function HomePage({
               <button
                 className={`ls-view-btn${viewMode === 'list' ? ' active' : ''}`}
                 onClick={() => setViewMode('list')}
-                title="Dạng danh sách"
+                title={tr('home.listings.listView', 'Dạng danh sách')}
               >
                 <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
                   <line x1="3" y1="6" x2="21" y2="6" />
@@ -481,32 +650,56 @@ export default function HomePage({
               ))}
             </div>
           ) : properties.length > 0 ? (
-            viewMode === 'grid' ? (
-              <div key={`${listingKey}-grid`} className="ls-grid ls-cards-enter">
-                {properties.map((p, i) => (
-                  <div key={p._id} style={{ animationDelay: `${i * 0.06}s` }} className="ls-card-enter">
-                    <LuxuryListingCard property={p} />
+            <div className="ls-split">
+              <div className="ls-split-list">
+                {viewMode === 'grid' ? (
+                  <div key={`${listingKey}-grid`} className="ls-grid ls-cards-enter">
+                    {properties.map((p, i) => (
+                      <div
+                        key={p._id}
+                        style={{ animationDelay: `${i * 0.06}s` }}
+                        className="ls-card-enter"
+                        onMouseEnter={() => handlePropertyHover(p._id)}
+                        onFocus={() => handlePropertyHover(p._id)}
+                      >
+                        <LuxuryListingCard property={p} />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div key={`${listingKey}-list`} className="ls-list ls-cards-enter">
-                {properties.map((p, i) => (
-                  <div key={p._id} style={{ animationDelay: `${i * 0.06}s` }} className="ls-card-enter">
-                    <LuxuryListingCard property={p} horizontal />
+                ) : (
+                  <div key={`${listingKey}-list`} className="ls-list ls-cards-enter">
+                    {properties.map((p, i) => (
+                      <div
+                        key={p._id}
+                        style={{ animationDelay: `${i * 0.06}s` }}
+                        className="ls-card-enter"
+                        onMouseEnter={() => handlePropertyHover(p._id)}
+                        onFocus={() => handlePropertyHover(p._id)}
+                      >
+                        <LuxuryListingCard property={p} horizontal />
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )
+              <div className="ls-split-map" style={{ height: mapPanelHeight }}>
+                <PropertyListingsMap
+                  properties={properties}
+                  onLocate={handleLocateNearby}
+                  activePropertyId={activePropertyId}
+                  height={mapPanelHeight}
+                />
+              </div>
+            </div>
           ) : (
             <div className="ls-empty">
-              <p className="ls-empty-title">Không tìm thấy bất động sản</p>
-              <p className="ls-empty-sub">Hãy thử mở rộng bộ lọc hoặc tìm kiếm với từ khoá khác.</p>
+              <p className="ls-empty-title">{tr('home.listings.emptyTitle', 'Không tìm thấy bất động sản phù hợp')}</p>
+              <p className="ls-empty-sub">{tr('home.listings.emptySub', 'Thử thay đổi bộ lọc để mở rộng kết quả tìm kiếm.')}</p>
             </div>
           )}
 
           {/* FIX: show pagination whenever totalPages ≥ 1, not only after search */}
-          {!searchLoading && totalPages >= 1 && (
+          {!searchLoading && totalPages >= 1 && !mapNearbyMode && currentPage >= totalPages && (
             <div className="ls-pagination e-reveal">
               <button
                 className="e-page-btn e-page-arrow"
@@ -566,14 +759,12 @@ export default function HomePage({
               </button>
             </div>
           )}
+
+          {/* Infinite scroll sentinel */}
+          <div ref={endOfListRef} style={{ height: 1, pointerEvents: 'none' }} />
         </section>
 
-        {/* 04 Editorial — isolation:isolate prevents internal z-index from punching through sticky search */}
-        <div style={{ isolation: 'isolate' }}>
-          <GallerySection />
-        </div>
-
-        {/* 05 Stats */}
+        {/* 04 Real Numbers */}
         <div className="e-reveal"><StatsSection /></div>
 
         {/* Footer */}

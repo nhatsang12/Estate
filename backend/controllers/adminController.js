@@ -2,6 +2,7 @@ const Property = require('../models/Property');
 const User = require('../models/User');
 const RoleRequest = require('../models/RoleRequest');
 const Transaction = require('../models/Transaction');
+const Subscription = require('../models/Subscription');
 const Joi = require('joi');
 
 // ─── Validation Schemas ──────────────────────────────────────
@@ -22,6 +23,10 @@ const verifyProviderSchema = Joi.object({
   kycRejectionReason: Joi.string().trim().allow('', null),
 }).or('isVerified', 'kycStatus').options({ stripUnknown: true });
 
+const updateSubscriptionStatusSchema = Joi.object({
+  status: Joi.string().valid('active', 'expired', 'cancelled').required(),
+}).options({ stripUnknown: true });
+
 const SUBSCRIPTION_DURATION_MONTHS = 1;
 
 const addSubscriptionDuration = (baseDate) => {
@@ -37,13 +42,29 @@ const parsePositiveInt = (value, fallback) => {
 };
 
 const normalizeExpiredSubscriptions = async (now = new Date()) => {
+  await Subscription.updateMany(
+    {
+      status: 'active',
+      expiresAt: { $lte: now },
+    },
+    {
+      $set: {
+        status: 'expired',
+        lastRenewedAt: now,
+      },
+    }
+  );
+
   const result = await User.updateMany(
     {
       subscriptionPlan: { $in: ['Pro', 'ProPlus'] },
       subscriptionExpiresAt: { $exists: true, $lte: now },
     },
     {
-      $set: { subscriptionPlan: 'Free' },
+      $set: {
+        subscriptionPlan: 'Free',
+        currentSubscriptionId: null,
+      },
       $unset: { subscriptionStartedAt: 1, subscriptionExpiresAt: 1 },
     }
   );
@@ -85,6 +106,7 @@ const serializeTransaction = (transaction) => ({
 exports.getDashboardStats = async (req, res, next) => {
   try {
     const now = new Date();
+    const expiringSoonDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     await normalizeExpiredSubscriptions(now);
 
     const [
@@ -101,6 +123,9 @@ exports.getDashboardStats = async (req, res, next) => {
       subscriptionSalesByPlan,
       subscriptionSalesByMethod,
       activePaidProviders,
+      activeSubscriptionsCount,
+      expiredSubscriptionsCount,
+      expiringSoonSubscriptions,
     ] = await Promise.all([
       User.countDocuments({ role: 'user' }),
       User.countDocuments({ role: 'provider' }),
@@ -152,6 +177,20 @@ exports.getDashboardStats = async (req, res, next) => {
           { subscriptionExpiresAt: { $exists: false } },
         ],
       }),
+      Subscription.countDocuments({
+        status: 'active',
+        expiresAt: { $gt: now },
+      }),
+      Subscription.countDocuments({
+        status: 'expired',
+      }),
+      Subscription.find({
+        status: 'active',
+        expiresAt: { $gt: now, $lte: expiringSoonDate },
+      })
+        .populate('userId', 'name email role')
+        .sort({ expiresAt: 1 })
+        .limit(8),
     ]);
 
     const planStats = {
@@ -204,6 +243,131 @@ exports.getDashboardStats = async (req, res, next) => {
           byPlan: planStats,
           byPaymentMethod: paymentMethodStats,
         },
+        subscriptionOverview: {
+          activeCount: activeSubscriptionsCount,
+          expiredCount: expiredSubscriptionsCount,
+          expiringSoonCount: expiringSoonSubscriptions.length,
+          expiringSoon: expiringSoonSubscriptions.map((item) => ({
+            _id: item._id,
+            planType: item.planType,
+            status: item.status,
+            expiresAt: item.expiresAt,
+            user: item.userId
+              ? {
+                  _id: item.userId._id,
+                  name: item.userId.name,
+                  email: item.userId.email,
+                  role: item.userId.role,
+                }
+              : null,
+          })),
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── List Subscriptions ─────────────────────────────────────
+// GET /api/admin/subscriptions
+exports.getSubscriptions = async (req, res, next) => {
+  try {
+    await normalizeExpiredSubscriptions(new Date());
+
+    const page = parsePositiveInt(req.query.page, 1);
+    const limit = Math.min(parsePositiveInt(req.query.limit, 20), 100);
+    const skip = (page - 1) * limit;
+
+    const status = String(req.query.status || '').trim();
+    const planType = String(req.query.planType || '').trim();
+
+    const filter = {};
+    if (['active', 'expired', 'cancelled'].includes(status)) {
+      filter.status = status;
+    }
+    if (['Free', 'Pro', 'ProPlus'].includes(planType)) {
+      filter.planType = planType;
+    }
+
+    const [total, subscriptions] = await Promise.all([
+      Subscription.countDocuments(filter),
+      Subscription.find(filter)
+        .populate('userId', 'name email role')
+        .populate('transactionId', 'amount paymentMethod status orderedAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      results: subscriptions.length,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      currentPage: page,
+      data: {
+        subscriptions,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Update Subscription Status ─────────────────────────────
+// PATCH /api/admin/subscriptions/:id/status
+exports.updateSubscriptionStatus = async (req, res, next) => {
+  try {
+    const { value, error } = updateSubscriptionStatusSchema.validate(req.body || {});
+    if (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: error.details[0].message,
+      });
+    }
+
+    const subscription = await Subscription.findById(req.params.id);
+    if (!subscription) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Subscription not found',
+      });
+    }
+
+    subscription.status = value.status;
+    if (value.status !== 'active' && !subscription.expiresAt) {
+      subscription.expiresAt = new Date();
+    }
+    subscription.lastRenewedAt = new Date();
+    await subscription.save({ validateBeforeSave: false });
+
+    const user = await User.findById(subscription.userId);
+    if (user) {
+      const activeSubscription = await Subscription.findOne({
+        userId: user._id,
+        status: 'active',
+        expiresAt: { $gt: new Date() },
+      }).sort({ expiresAt: -1, createdAt: -1 });
+
+      if (activeSubscription) {
+        user.subscriptionPlan = activeSubscription.planType;
+        user.subscriptionStartedAt = activeSubscription.subscribedAt;
+        user.subscriptionExpiresAt = activeSubscription.expiresAt;
+        user.currentSubscriptionId = activeSubscription._id;
+      } else {
+        user.subscriptionPlan = 'Free';
+        user.subscriptionStartedAt = undefined;
+        user.subscriptionExpiresAt = undefined;
+        user.currentSubscriptionId = null;
+      }
+
+      await user.save({ validateBeforeSave: false });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        subscription,
       },
     });
   } catch (err) {

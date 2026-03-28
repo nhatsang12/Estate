@@ -82,6 +82,29 @@ router.route('/properties-within/:distance/center/:latlng/unit/:unit')
  */
 router.get('/:id/recommendations', authController.optionalProtect, propertyController.getRecommendations);
 
+router.get(
+  '/sales/stats/me',
+  authController.protect,
+  authController.restrictTo('admin', 'provider'),
+  propertyController.getMySalesStats
+);
+
+router.patch(
+  '/:id/mark-sold',
+  authController.protect,
+  authController.restrictTo('admin', 'provider'),
+  verifyOwnership,
+  propertyController.markPropertyAsSold
+);
+
+router.patch(
+  '/:id/visibility',
+  authController.protect,
+  authController.restrictTo('admin', 'provider'),
+  verifyOwnership,
+  propertyController.setPropertyVisibility
+);
+
 router
   .route('/')
   /**

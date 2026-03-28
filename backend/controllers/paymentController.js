@@ -1,6 +1,7 @@
 const Joi = require('joi');
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
+const Subscription = require('../models/Subscription');
 const User = require('../models/User');
 const paymentService = require('../services/paymentService');
 
@@ -12,11 +13,33 @@ const checkoutSchema = Joi.object({
 
 const PENDING_TRANSACTION_EXPIRE_MINUTES = 10;
 const SUBSCRIPTION_DURATION_MONTHS = 1;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 const addSubscriptionDuration = (baseDate) => {
   const next = new Date(baseDate);
   next.setMonth(next.getMonth() + SUBSCRIPTION_DURATION_MONTHS);
   return next;
+};
+
+const toDate = (value) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const calculateDurationDays = (startDate, endDate) => {
+  const start = toDate(startDate);
+  const end = toDate(endDate);
+  if (!start || !end) return 30;
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_IN_MS));
+};
+
+const calcRemainingDays = (expiresAt, now = new Date()) => {
+  const expiry = toDate(expiresAt);
+  if (!expiry) return 0;
+  const diff = expiry.getTime() - now.getTime();
+  if (diff <= 0) return 0;
+  return Math.ceil(diff / DAY_IN_MS);
 };
 
 const clientBaseUrl = process.env.CLIENT_URL || 'http://localhost:3000';
@@ -88,16 +111,49 @@ const ensureSubscriptionApplied = async (transaction) => {
   if (!user) throw new Error('User not found for subscription update');
 
   const now = new Date();
-  const subscriptionExpiresAt = addSubscriptionDuration(now);
+  const currentExpiry = toDate(user.subscriptionExpiresAt);
+  const currentPlan = String(user.subscriptionPlan || 'Free');
+  const canCarryRemainingTime =
+    ['Pro', 'ProPlus'].includes(currentPlan) &&
+    currentExpiry &&
+    currentExpiry.getTime() > now.getTime();
+
+  const subscribedAt = canCarryRemainingTime ? currentExpiry : now;
+  const subscriptionExpiresAt = addSubscriptionDuration(subscribedAt);
+  const durationDays = calculateDurationDays(subscribedAt, subscriptionExpiresAt);
 
   transaction.subscriptionExpiresAt = subscriptionExpiresAt;
   // Keep legacy field aligned for consumers still reading "expiresAt".
   transaction.expiresAt = subscriptionExpiresAt;
   await transaction.save({ validateBeforeSave: false });
 
+  await Subscription.updateMany(
+    { userId: user._id, status: 'active' },
+    {
+      $set: {
+        status: 'expired',
+        lastRenewedAt: now,
+      },
+    }
+  );
+
+  const subscriptionRecord = await Subscription.create({
+    userId: user._id,
+    planType: transaction.subscriptionPlan,
+    status: 'active',
+    subscribedAt,
+    expiresAt: subscriptionExpiresAt,
+    durationDays,
+    transactionId: transaction._id,
+    amount: transaction.amount || 0,
+    paymentMethod: transaction.paymentMethod || '',
+    lastRenewedAt: now,
+  });
+
   user.subscriptionPlan = transaction.subscriptionPlan;
-  user.subscriptionStartedAt = now;
+  user.subscriptionStartedAt = subscribedAt;
   user.subscriptionExpiresAt = subscriptionExpiresAt;
+  user.currentSubscriptionId = subscriptionRecord._id;
   user.listingsCount = 0;
   await user.save({ validateBeforeSave: false });
 };
@@ -183,6 +239,72 @@ const serializeTransaction = (transaction) => ({
   createdAt: transaction.createdAt,
   updatedAt: transaction.updatedAt,
 });
+
+const serializeSubscription = (subscription, now = new Date()) => {
+  if (!subscription) return null;
+  return {
+    _id: subscription._id,
+    planType: subscription.planType,
+    status: subscription.status,
+    subscribedAt: subscription.subscribedAt,
+    expiresAt: subscription.expiresAt,
+    durationDays: subscription.durationDays,
+    transactionId: subscription.transactionId || null,
+    amount: Number(subscription.amount || 0),
+    paymentMethod: subscription.paymentMethod || '',
+    lastRenewedAt: subscription.lastRenewedAt,
+    remainingDays: calcRemainingDays(subscription.expiresAt, now),
+    isActive:
+      subscription.status === 'active' &&
+      Boolean(toDate(subscription.expiresAt)) &&
+      new Date(subscription.expiresAt).getTime() > now.getTime(),
+  };
+};
+
+const normalizeSubscriptionStatuses = async (userId, now = new Date()) => {
+  await Subscription.updateMany(
+    {
+      userId,
+      status: 'active',
+      expiresAt: { $lte: now },
+    },
+    {
+      $set: {
+        status: 'expired',
+        lastRenewedAt: now,
+      },
+    }
+  );
+};
+
+const getSubscriptionStatusFromUserFallback = (user, now = new Date()) => {
+  if (!user) return null;
+  const planType = String(user.subscriptionPlan || 'Free');
+  const expiresAt = toDate(user.subscriptionExpiresAt);
+  const subscribedAt = toDate(user.subscriptionStartedAt);
+  const isActive =
+    ['Pro', 'ProPlus'].includes(planType) &&
+    expiresAt &&
+    expiresAt.getTime() > now.getTime();
+
+  return {
+    _id: null,
+    planType: isActive ? planType : 'Free',
+    status: isActive ? 'active' : 'expired',
+    subscribedAt: subscribedAt || null,
+    expiresAt: expiresAt || null,
+    durationDays:
+      subscribedAt && expiresAt
+        ? calculateDurationDays(subscribedAt, expiresAt)
+        : SUBSCRIPTION_DURATION_MONTHS * 30,
+    transactionId: null,
+    amount: 0,
+    paymentMethod: '',
+    lastRenewedAt: subscribedAt || user.updatedAt || null,
+    remainingDays: expiresAt ? calcRemainingDays(expiresAt, now) : 0,
+    isActive: Boolean(isActive),
+  };
+};
 
 // ─── Create Checkout ─────────────────────────────────────────
 // POST /api/payments/create-checkout
@@ -326,6 +448,91 @@ exports.getMySubscriptions = async (req, res, next) => {
       currentPage: page,
       data: {
         subscriptions: transactions.map(serializeTransaction),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Get Current Subscription Status ────────────────────────
+// GET /api/payments/subscription-status/me
+exports.getMyCurrentSubscription = async (req, res, next) => {
+  try {
+    const now = new Date();
+    await normalizeSubscriptionStatuses(req.user.id, now);
+
+    const user = await User.findById(req.user.id).select(
+      'subscriptionPlan subscriptionStartedAt subscriptionExpiresAt currentSubscriptionId updatedAt'
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found',
+      });
+    }
+
+    const [activeSubscription, latestSubscription] = await Promise.all([
+      Subscription.findOne({ userId: req.user.id, status: 'active' })
+        .sort({ expiresAt: -1, createdAt: -1 }),
+      Subscription.findOne({ userId: req.user.id })
+        .sort({ createdAt: -1 }),
+    ]);
+
+    const subscriptionPayload = serializeSubscription(
+      activeSubscription || latestSubscription,
+      now
+    ) || getSubscriptionStatusFromUserFallback(user, now);
+
+    let shouldUpdateUser = false;
+    if (activeSubscription) {
+      if (String(user.subscriptionPlan || '') !== String(activeSubscription.planType || '')) {
+        user.subscriptionPlan = activeSubscription.planType;
+        shouldUpdateUser = true;
+      }
+      if (
+        !user.subscriptionExpiresAt ||
+        new Date(user.subscriptionExpiresAt).getTime() !==
+          new Date(activeSubscription.expiresAt).getTime()
+      ) {
+        user.subscriptionExpiresAt = activeSubscription.expiresAt;
+        shouldUpdateUser = true;
+      }
+      if (
+        !user.subscriptionStartedAt ||
+        new Date(user.subscriptionStartedAt).getTime() !==
+          new Date(activeSubscription.subscribedAt).getTime()
+      ) {
+        user.subscriptionStartedAt = activeSubscription.subscribedAt;
+        shouldUpdateUser = true;
+      }
+      if (String(user.currentSubscriptionId || '') !== String(activeSubscription._id || '')) {
+        user.currentSubscriptionId = activeSubscription._id;
+        shouldUpdateUser = true;
+      }
+    } else {
+      const currentExpiry = toDate(user.subscriptionExpiresAt);
+      if (
+        ['Pro', 'ProPlus'].includes(String(user.subscriptionPlan || '')) &&
+        (!currentExpiry || currentExpiry.getTime() <= now.getTime())
+      ) {
+        user.subscriptionPlan = 'Free';
+        user.subscriptionStartedAt = undefined;
+        user.subscriptionExpiresAt = undefined;
+        user.currentSubscriptionId = null;
+        shouldUpdateUser = true;
+      }
+    }
+
+    if (shouldUpdateUser) {
+      await user.save({ validateBeforeSave: false });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        subscription: subscriptionPayload,
       },
     });
   } catch (err) {

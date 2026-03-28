@@ -11,9 +11,13 @@ import {
   Ruler,
   Heart,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { useAuth } from "@/contexts/AuthContext";
+import favoriteService from "@/services/favoriteService";
 import type { Property } from "@/types/property";
 import { formatVNDShort } from "@/utils/formatPrice";
+import { optimizeCloudinaryUrl } from "@/utils/imageOptimization";
 
 interface ListingCardProps {
   property: Property;
@@ -33,9 +37,72 @@ const typeLabel: Record<string, string> = {
 };
 
 export default function ListingCard({ property }: ListingCardProps) {
+  const router = useRouter();
+  const { user } = useAuth();
   const mainImage = property.images?.[0];
+  const optimizedImage = mainImage ? optimizeCloudinaryUrl(mainImage, 640) : null;
   const [saved, setSaved] = useState(false);
+  const [favoriteProcessing, setFavoriteProcessing] = useState(false);
   const isRental = property.type === "apartment" || property.type === "office";
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolveFavoriteState = async () => {
+      if (!property?._id || !user || user.role === "admin") {
+        setSaved(false);
+        return;
+      }
+
+      try {
+        const response = await favoriteService.getFavoriteStatus(property._id);
+        if (!cancelled) {
+          setSaved(Boolean(response.data?.isFavorite));
+        }
+      } catch {
+        if (!cancelled) {
+          setSaved(false);
+        }
+      }
+    };
+
+    void resolveFavoriteState();
+    return () => {
+      cancelled = true;
+    };
+  }, [property?._id, user]);
+
+  const emitFavoritesChanged = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("favorites:changed"));
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!property?._id || favoriteProcessing) return;
+
+    if (!user) {
+      void router.push(`/auth/login?redirect=${encodeURIComponent(router.asPath)}`);
+      return;
+    }
+
+    if (user.role === "admin") return;
+
+    try {
+      setFavoriteProcessing(true);
+      if (saved) {
+        await favoriteService.removeFavorite(property._id);
+        setSaved(false);
+      } else {
+        await favoriteService.addFavorite(property._id);
+        setSaved(true);
+      }
+      emitFavoritesChanged();
+    } catch (error) {
+      console.error("Favorite toggle failed:", error);
+    } finally {
+      setFavoriteProcessing(false);
+    }
+  };
 
   return (
     <>
@@ -333,11 +400,13 @@ export default function ListingCard({ property }: ListingCardProps) {
         <div className="lc-image-wrap">
           {mainImage ? (
             <Image
-              src={mainImage}
+              src={optimizedImage || mainImage}
               alt={property.title}
               width={640}
               height={420}
               unoptimized
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="lc-placeholder">
@@ -351,8 +420,13 @@ export default function ListingCard({ property }: ListingCardProps) {
 
           <button
             className={`lc-save${saved ? " saved" : ""}`}
-            onClick={() => setSaved((s) => !s)}
+            onClick={() => void handleToggleFavorite()}
+            disabled={favoriteProcessing}
             aria-label="Lưu bất động sản"
+            style={{
+              cursor: favoriteProcessing ? "not-allowed" : "pointer",
+              opacity: favoriteProcessing ? 0.7 : 1,
+            }}
           >
             <Heart size={15} fill={saved ? "currentColor" : "none"} />
           </button>

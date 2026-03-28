@@ -3,6 +3,7 @@ import Image from "next/image";
 import { CheckCircle, XCircle } from "lucide-react";
 import type { Property } from "@/types/property";
 import { formatVNDShort } from "@/utils/formatPrice";
+import { optimizeCloudinaryUrl } from "@/utils/imageOptimization";
 
 interface PropertyModerationCardProps {
   property: Property;
@@ -37,7 +38,7 @@ export default function PropertyModerationCard({
       <div className="grid grid-cols-3 gap-2 p-4 border-b border-boundary bg-surface/50">
         {property.images?.slice(0, 3).map((img, idx) => (
           <div key={idx} className="relative h-24 bg-background-light rounded-xl overflow-hidden">
-            <Image src={img} alt={`Property ${idx + 1}`} fill className="object-cover" />
+            <Image src={optimizeCloudinaryUrl(img, 140)} alt={`Property ${idx + 1}`} fill className="object-cover" loading="lazy" decoding="async" />
           </div>
         ))}
       </div>

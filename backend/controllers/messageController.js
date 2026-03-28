@@ -16,6 +16,7 @@ const sendMessageSchema = Joi.object({
   propertyPrice: Joi.number().min(0).allow(null),
   propertyDescription: Joi.string().trim().allow('', null).max(1200),
   propertyImageUrl: Joi.string().trim().uri().allow('', null),
+  propertyUrl: Joi.string().trim().uri().allow('', null),
 }).options({ stripUnknown: true });
 
 const chatbotSchema = Joi.object({
@@ -52,6 +53,7 @@ const buildPropertySnapshot = (payload = {}) => {
   if (typeof payload.propertyPrice === 'number') snapshot.price = payload.propertyPrice;
   if (payload.propertyDescription) snapshot.description = payload.propertyDescription;
   if (payload.propertyImageUrl) snapshot.imageUrl = payload.propertyImageUrl;
+  if (payload.propertyUrl) snapshot.propertyUrl = payload.propertyUrl;
 
   return Object.keys(snapshot).length ? snapshot : undefined;
 };

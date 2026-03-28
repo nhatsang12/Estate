@@ -17,6 +17,8 @@ router.use(authController.restrictTo('admin'));
 
 // Dashboard
 router.get('/dashboard', adminController.getDashboardStats);
+router.get('/subscriptions', adminController.getSubscriptions);
+router.patch('/subscriptions/:id/status', adminController.updateSubscriptionStatus);
 
 // Property Moderation
 /**

@@ -13,7 +13,7 @@ const { startTransactionCleanupJob } = require('./jobs/transactionCleanupJob');
 const { initSocketServer } = require('./services/socketService');
 
 // Load env vars
-dotenv.config();
+dotenv.config({ override: process.env.NODE_ENV !== 'production' });
 
 const app = express();
 
@@ -60,6 +60,8 @@ app.use('/api/properties', require('./routes/propertyRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
+app.use('/api/chatbot', require('./routes/chatbotRoutes'));
+app.use('/api/favorites', require('./routes/favoriteRoutes'));
 
 // ─── 404 Handler ─────────────────────────────────────────────
 app.use((req, res, next) => {

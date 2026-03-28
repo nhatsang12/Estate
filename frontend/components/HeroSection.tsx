@@ -1,8 +1,19 @@
+import { useTranslation } from 'react-i18next';
+
 interface HeroSectionProps {
     totalListings?: number;
 }
 
+function formatCountByLanguage(value: number, language: string) {
+    const normalized = Number.isFinite(value) ? Math.round(value) : 0;
+    const separator = language === 'en' ? ',' : '.';
+    return normalized.toString().replace(/\B(?=(\d{3})+(?!\d))/g, separator);
+}
+
 export default function HeroSection({ totalListings }: HeroSectionProps) {
+    const { t, i18n } = useTranslation();
+    const tr = (key: string, fallback: string) => t(key, { defaultValue: fallback });
+
     return (
         <section className="e-hero">
             {/* Background image */}
@@ -24,25 +35,24 @@ export default function HeroSection({ totalListings }: HeroSectionProps) {
             <div className="e-hero-content">
                 {/* Left — headline */}
                 <div className="e-hero-left">
-                    <div className="e-hero-tag">Nền Tảng Đất Đai Hàng Đầu Việt Nam</div>
+                    <div className="e-hero-tag">{tr('home.hero.tag', 'Nền Tảng Đất Đai Hàng Đầu Việt Nam')}</div>
 
                     <h1>
-                        Kiến Tạo<br />
-                        <em>Giá Trị</em> Trên<br />
-                        Từng Mảnh Đất
+                        {tr('home.hero.titleLine1', 'Kiến Tạo')}<br />
+                        <em>{tr('home.hero.titleEmphasis', 'Giá Trị')}</em> {tr('home.hero.titleLine2', 'Trên')}<br />
+                        {tr('home.hero.titleLine3', 'Từng Mảnh Đất')}
                     </h1>
 
                     <p className="e-hero-desc">
-                        Khám phá hàng nghìn bất động sản đất nền, nhà phố, biệt thự được
-                        xác minh pháp lý 100% — từ Bắc vào Nam, minh bạch và tin cậy.
+                        {tr('home.hero.description', 'Khám phá hàng nghìn bất động sản đất nền, nhà phố, biệt thự được xác minh pháp lý 100% — từ Bắc vào Nam, minh bạch và tin cậy.')}
                     </p>
 
                     <div className="e-hero-actions">
                         <a href="#search" className="e-btn-primary">
-                            Tìm Kiếm Ngay
+                            {tr('home.hero.searchNow', 'Tìm Kiếm Ngay')}
                         </a>
                         <a href="#featured" className="e-btn-ghost">
-                            Xem Nổi Bật
+                            {tr('home.hero.viewFeatured', 'Xem Nổi Bật')}
                             <svg width={14} height={14} viewBox="0 0 24 24" stroke="currentColor" fill="none" strokeWidth={1.5}>
                                 <path d="M5 12h14M12 5l7 7-7 7" />
                             </svg>
@@ -55,18 +65,18 @@ export default function HeroSection({ totalListings }: HeroSectionProps) {
                     <div className="e-hero-stat">
                         <div className="e-hero-stat-num">
                             {totalListings
-                                ? totalListings.toLocaleString('vi-VN')
+                                ? formatCountByLanguage(totalListings, i18n.resolvedLanguage || 'vi')
                                 : '2,400'}
                             <sup style={{ fontSize: '1.2rem', color: 'var(--e-gold-light)' }}>+</sup>
                         </div>
-                        <div className="e-hero-stat-label">Bất Động Sản</div>
+                        <div className="e-hero-stat-label">{tr('home.hero.stats.properties', 'Bất Động Sản')}</div>
                     </div>
 
                     <div className="e-hero-divider" />
 
                     <div className="e-hero-stat">
                         <div className="e-hero-stat-num">63</div>
-                        <div className="e-hero-stat-label">Tỉnh Thành</div>
+                        <div className="e-hero-stat-label">{tr('home.hero.stats.provinces', 'Tỉnh Thành')}</div>
                     </div>
 
                     <div className="e-hero-divider" />
@@ -76,7 +86,7 @@ export default function HeroSection({ totalListings }: HeroSectionProps) {
                             98
                             <sup style={{ fontSize: '1.2rem', color: 'var(--e-gold-light)' }}>%</sup>
                         </div>
-                        <div className="e-hero-stat-label">Xác Minh</div>
+                        <div className="e-hero-stat-label">{tr('home.hero.stats.verified', 'Xác Minh')}</div>
                     </div>
                 </div>
             </div>
@@ -103,7 +113,7 @@ export default function HeroSection({ totalListings }: HeroSectionProps) {
                     fontWeight: 600,
                     textShadow: '0 1px 4px rgba(0,0,0,0.5)',
                 }}>
-                    Cuộn xuống
+                    {tr('home.hero.scrollDown', 'Cuộn xuống')}
                 </span>
                 <div style={{
                     width: '1px',

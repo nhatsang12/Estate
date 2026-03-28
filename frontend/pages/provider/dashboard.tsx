@@ -10,7 +10,7 @@ import {
   AlertTriangle, CheckCircle2, FileUp, IdCard, ShieldCheck, UploadCloud, X,
   Eye, MousePointerClick, Calendar,
   LayoutDashboard, Building2, Layers, Settings,
-  Check, Sparkles, Zap, Crown, ArrowRight, MapPin, Phone, FileText, Landmark, CreditCard,
+  Check, Sparkles, Zap, Crown, ArrowRight, MapPin, Phone, FileText, Landmark, CreditCard, Search,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -27,6 +27,7 @@ import {
   type PaymentMethod as CheckoutPaymentMethod,
   type SubscriptionPlan as PaidSubscriptionPlan,
   type SubscriptionTransaction,
+  type CurrentSubscriptionStatus,
 } from "@/services/paymentService";
 import PropertyForm from "@/components/PropertyForm";
 import type { Property } from "@/types/property";
@@ -61,6 +62,7 @@ const fmtDateTime = (value?: string) => {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Ho_Chi_Minh",
   });
 };
 
@@ -118,6 +120,20 @@ const STATUS_META: Record<string, {
     color: "#b84a2a",
     bg: "rgba(184,74,42,0.07)",
     border: "rgba(184,74,42,0.28)",
+  },
+  sold: {
+    label: "Đã bán",
+    icon: <CheckCircle2 size={12} />,
+    color: "#1f7a66",
+    bg: "rgba(31,122,102,0.09)",
+    border: "rgba(31,122,102,0.28)",
+  },
+  hidden: {
+    label: "Đã ẩn",
+    icon: <Eye size={12} />,
+    color: "#6e5d39",
+    bg: "rgba(154,124,69,0.1)",
+    border: "rgba(154,124,69,0.28)",
   },
 };
 
@@ -240,28 +256,61 @@ function getUserListingsCount(user: User | null | undefined): number {
   if (!user) return 0;
   return (user as any).listingsCount ?? 0;
 }
+
+function isSoldListing(property: Partial<Property> | null | undefined): boolean {
+  return Boolean(property?.isSold || property?.status === "sold" || property?.soldAt);
+}
+
 function ViewWrapper({ children }: { children: React.ReactNode }) {
   return <div style={{ position: "relative", zIndex: 2 }}>{children}</div>;
+}
+
+interface ProviderSalesStats {
+  totalSoldProperties: number;
+  totalSoldValue: number;
+  latestSoldAt: string | null;
+  recentSold: Property[];
 }
 
 /* ═══════════════════════════════════════════════════════════
    DASHBOARD VIEW
 ═══════════════════════════════════════════════════════════ */
 function DashboardView({
-  provider, stats, properties, recentProperties, onNavigate,
+  provider, stats, properties, recentProperties, onNavigate, salesStats, subscriptionStatus,
 }: {
   provider: { name?: string; email?: string; kycStatus?: string } | null;
   stats: { total: number; approved: number; pending: number; avgPrice: number };
   properties: Property[];
   recentProperties: Property[];
   onNavigate: (v: View) => void;
+  salesStats: ProviderSalesStats;
+  subscriptionStatus: CurrentSubscriptionStatus | null;
 }) {
   const [timeFilter, setTimeFilter] = useState<"all" | "month" | "week">("all");
+  const currentPlanLabel = subscriptionStatus?.planType || "Free";
+  const remainingDays = subscriptionStatus?.remainingDays ?? 0;
+  const soldFallbackProperties = properties.filter((p) => isSoldListing(p));
+  const soldFallbackCount = soldFallbackProperties.length;
+  const soldFallbackTotal = soldFallbackProperties.reduce(
+    (sum, property) => sum + Number(property.price || 0),
+    0
+  );
+  const soldCount = Math.max(Number(salesStats.totalSoldProperties || 0), soldFallbackCount);
+  const soldTotal = Math.max(Number(salesStats.totalSoldValue || 0), soldFallbackTotal);
 
+  const pieStatusCount = {
+    approved: properties.filter((p) => p.status === "approved").length,
+    pending: properties.filter((p) => p.status === "pending").length,
+    sold: properties.filter((p) => isSoldListing(p)).length,
+    hidden: properties.filter((p) => p.status === "hidden").length,
+    rejected: properties.filter((p) => p.status === "rejected").length,
+  };
   const pieData = [
-    { name: "Đã duyệt", value: stats.approved, color: "#2E8B75" },
-    { name: "Chờ duyệt", value: stats.pending, color: "#C9A96E" },
-    { name: "Từ chối", value: Math.max(0, stats.total - stats.approved - stats.pending), color: "#b84a2a" },
+    { name: "Đã duyệt", value: pieStatusCount.approved, color: "#2E8B75" },
+    { name: "Chờ duyệt", value: pieStatusCount.pending, color: "#C9A96E" },
+    { name: "Đã bán", value: pieStatusCount.sold, color: "#1f7a66" },
+    { name: "Đã ẩn", value: pieStatusCount.hidden, color: "#9a7c45" },
+    { name: "Từ chối", value: pieStatusCount.rejected, color: "#b84a2a" },
   ].filter(d => d.value > 0);
 
   const barData = properties.slice(0, 7).map(p => ({
@@ -339,6 +388,25 @@ function DashboardView({
             <p suppressHydrationWarning style={{ fontFamily: "var(--e-serif)", fontSize: "clamp(1.25rem, 1.8vw, 1.75rem)", fontWeight: 600, color: "var(--e-charcoal)", lineHeight: 1, margin: 0, letterSpacing: "-0.02em" }}>{card.value}</p>
           </GlassCard>
         ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.85rem", marginBottom: "1.5rem" }}>
+        <GlassCard style={{ padding: "1.2rem 1.4rem" }}>
+          <p style={{ fontSize: "0.54rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, margin: "0 0 7px", fontFamily: "var(--e-sans)" }}>Gói Hiện Tại</p>
+          <p style={{ margin: 0, fontFamily: "var(--e-serif)", fontSize: "1.18rem", color: "var(--e-charcoal)", fontWeight: 600 }}>{currentPlanLabel}</p>
+        </GlassCard>
+        <GlassCard style={{ padding: "1.2rem 1.4rem" }}>
+          <p style={{ fontSize: "0.54rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, margin: "0 0 7px", fontFamily: "var(--e-sans)" }}>Hết Hạn Sau</p>
+          <p style={{ margin: 0, fontFamily: "var(--e-serif)", fontSize: "1.18rem", color: "var(--e-charcoal)", fontWeight: 600 }}>{remainingDays} ngày</p>
+        </GlassCard>
+        <GlassCard style={{ padding: "1.2rem 1.4rem" }}>
+          <p style={{ fontSize: "0.54rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, margin: "0 0 7px", fontFamily: "var(--e-sans)" }}>BĐS Đã Bán</p>
+          <p style={{ margin: 0, fontFamily: "var(--e-serif)", fontSize: "1.18rem", color: "var(--e-charcoal)", fontWeight: 600 }}>{fmtNum(soldCount)}</p>
+        </GlassCard>
+        <GlassCard style={{ padding: "1.2rem 1.4rem" }}>
+          <p style={{ fontSize: "0.54rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, margin: "0 0 7px", fontFamily: "var(--e-sans)" }}>Tổng Tiền Đã Bán</p>
+          <p suppressHydrationWarning style={{ margin: 0, fontFamily: "var(--e-serif)", fontSize: "1.08rem", color: "var(--e-charcoal)", fontWeight: 600 }}>{soldTotal > 0 ? fmtVND(soldTotal) : "—"}</p>
+        </GlassCard>
       </div>
 
       {/* ── Quick Actions ── */}
@@ -446,7 +514,7 @@ function DashboardView({
                 </div>
                 <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
                   <div suppressHydrationWarning style={{ fontFamily: "var(--e-serif)", fontSize: "0.93rem", fontWeight: 600, color: "var(--e-charcoal)" }}>{fmtVND(p.price)}</div>
-                  <StatusPill status={p.status ?? "pending"} />
+                  <StatusPill status={isSoldListing(p) ? "sold" : (p.status ?? "pending")} />
                 </div>
               </div>
             ))}
@@ -465,26 +533,65 @@ function DashboardView({
 /* ═══════════════════════════════════════════════════════════
    PROPERTIES VIEW
 ═══════════════════════════════════════════════════════════ */
-type FilterType = "all" | "pending" | "approved" | "rejected";
+type FilterType = "all" | "pending" | "approved" | "rejected" | "sold" | "hidden";
 const FILTERS: { value: FilterType; label: string }[] = [
   { value: "all", label: "Tất Cả" },
   { value: "pending", label: "Đang Chờ" },
   { value: "approved", label: "Đã Duyệt" },
+  { value: "hidden", label: "Đã Ẩn" },
   { value: "rejected", label: "Bị Từ Chối" },
+  { value: "sold", label: "Đã Bán" },
 ];
 
-function PropertiesView({ properties, onDelete, onEdit }: {
+function PropertiesView({ properties, onDelete, onEdit, onMarkSold, onToggleVisibility, onCreate }: {
   properties: Property[];
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
+  onMarkSold: (id: string) => void;
+  onToggleVisibility: (property: Property) => void;
+  onCreate: () => void;
 }) {
   const [filter, setFilter] = useState<FilterType>("all");
-  const filtered = properties.filter(p => filter === "all" || p.status === filter);
+  const [search, setSearch] = useState("");
+  const normalizedKeyword = search.trim().toLowerCase();
+
+  const filtered = useMemo(
+    () =>
+      properties.filter((property) => {
+        const statusMatch =
+          filter === "all"
+            ? true
+            : filter === "sold"
+              ? isSoldListing(property)
+              : filter === "hidden"
+                ? property.status === "hidden"
+              : property.status === filter;
+
+        if (!statusMatch) return false;
+        if (!normalizedKeyword) return true;
+
+        const haystack = [
+          property.title,
+          property.address,
+          property.type,
+          property.description,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(normalizedKeyword);
+      }),
+    [filter, normalizedKeyword, properties]
+  );
+
   const counts = {
     all: properties.length,
     pending: properties.filter(p => p.status === "pending").length,
     approved: properties.filter(p => p.status === "approved").length,
+    hidden: properties.filter(p => p.status === "hidden").length,
     rejected: properties.filter(p => p.status === "rejected").length,
+    sold: properties.filter(p => isSoldListing(p)).length,
   };
 
   return (
@@ -494,7 +601,7 @@ function PropertiesView({ properties, onDelete, onEdit }: {
           eyebrow="Nhà Cung Cấp"
           title={<>Quản Lý <span style={{ fontFamily: "var(--e-sans)", fontWeight: 400, color: "var(--e-light-muted)", fontSize: "clamp(1rem, 2vw, 1.4rem)" }}>Bất Động Sản</span></>}
         />
-        <ActionBtn variant="gold"><Plus size={14} /> Tạo Mới</ActionBtn>
+        <ActionBtn variant="gold" onClick={onCreate}><Plus size={14} /> Tạo Mới</ActionBtn>
       </div>
 
       {/* Filter pills */}
@@ -514,6 +621,35 @@ function PropertiesView({ properties, onDelete, onEdit }: {
         ))}
       </div>
 
+      <GlassCard style={{ padding: "0.85rem 1rem", marginBottom: "1rem" }}>
+        <div style={{ position: "relative" }}>
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--e-light-muted)" }} />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Tìm theo tiêu đề, địa chỉ, loại BĐS..."
+            style={{
+              width: "100%",
+              padding: "9px 12px 9px 32px",
+              border: "1px solid rgba(154,124,69,0.25)",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.92)",
+              fontFamily: "var(--e-sans)",
+              fontSize: "0.82rem",
+              color: "var(--e-charcoal)",
+              outline: "none",
+            }}
+            onFocus={(event) => {
+              event.currentTarget.style.borderColor = "var(--e-gold)";
+            }}
+            onBlur={(event) => {
+              event.currentTarget.style.borderColor = "rgba(154,124,69,0.25)";
+            }}
+          />
+        </div>
+      </GlassCard>
+
       {filtered.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
           {filtered.map(property => (
@@ -522,15 +658,21 @@ function PropertiesView({ properties, onDelete, onEdit }: {
               property={property}
               onEdit={() => onEdit(property._id)}
               onDelete={() => onDelete(property._id)}
+              onMarkSold={() => onMarkSold(property._id)}
+              onToggleVisibility={() => onToggleVisibility(property)}
             />
           ))}
         </div>
       ) : (
         <GlassCard style={{ padding: "4rem 2rem", textAlign: "center" }}>
           <p style={{ fontSize: "0.95rem", color: "var(--e-light-muted)", marginBottom: "1.2rem", fontFamily: "var(--e-sans)" }}>
-            {filter !== "all" ? `Không có tin ở trạng thái "${FILTERS.find(f => f.value === filter)?.label}"` : "Chưa có bất động sản nào"}
+            {normalizedKeyword
+              ? "Không có bất động sản phù hợp từ khóa tìm kiếm."
+              : filter !== "all"
+                ? `Không có tin ở trạng thái "${FILTERS.find(f => f.value === filter)?.label}"`
+                : "Chưa có bất động sản nào"}
           </p>
-          <ActionBtn variant="dark"><Plus size={14} /> Tạo Bất Động Sản Đầu Tiên</ActionBtn>
+          <ActionBtn variant="dark" onClick={onCreate}><Plus size={14} /> Tạo Bất Động Sản Đầu Tiên</ActionBtn>
         </GlassCard>
       )}
     </div>
@@ -538,10 +680,11 @@ function PropertiesView({ properties, onDelete, onEdit }: {
 }
 
 /* Property Card — shared design language with admin moderation cards */
-function PropertyCard({ property, onEdit, onDelete }: {
-  property: Property; onEdit: () => void; onDelete: () => void;
+function PropertyCard({ property, onEdit, onDelete, onMarkSold, onToggleVisibility }: {
+  property: Property; onEdit: () => void; onDelete: () => void; onMarkSold: () => void; onToggleVisibility: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const canToggleVisibility = property.status === "approved" || property.status === "hidden";
 
   return (
     <div style={{
@@ -577,7 +720,7 @@ function PropertyCard({ property, onEdit, onDelete }: {
         <div style={{ padding: "1.3rem 1.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "0.65rem" }}>
           <div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.8rem", marginBottom: "0.5rem" }}>
-              <StatusPill status={property.status ?? "pending"} />
+              <StatusPill status={isSoldListing(property) ? "sold" : (property.status ?? "pending")} />
               <span suppressHydrationWarning style={{ fontFamily: "var(--e-serif)", fontSize: "1rem", fontWeight: 600, color: "var(--e-charcoal)", letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
                 {fmtVND(property.price)}
               </span>
@@ -629,6 +772,16 @@ function PropertyCard({ property, onEdit, onDelete }: {
             <Eye size={12} /> Xem
           </Link>
           <ActionBtn variant="outline" onClick={onEdit}><Check size={12} /> Sửa</ActionBtn>
+          {!isSoldListing(property) ? (
+            <ActionBtn variant="dark" onClick={onMarkSold}><CheckCircle2 size={12} /> Đã Bán</ActionBtn>
+          ) : (
+            <ActionBtn variant="ghost" disabled><CheckCircle2 size={12} /> Đã Chốt</ActionBtn>
+          )}
+          {canToggleVisibility && (
+            <ActionBtn variant="outline" onClick={onToggleVisibility}>
+              <Eye size={12} /> {property.status === "hidden" ? "Hiện Tin" : "Ẩn Tin"}
+            </ActionBtn>
+          )}
           <ActionBtn variant="danger" onClick={onDelete}><XCircle size={12} /> Xóa</ActionBtn>
         </div>
       </div>
@@ -1548,6 +1701,13 @@ export default function ProviderDashboard() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("dashboard");
   const [editPropertyId, setEditPropertyId] = useState<string | null>(null);
+  const [salesStats, setSalesStats] = useState<ProviderSalesStats>({
+    totalSoldProperties: 0,
+    totalSoldValue: 0,
+    latestSoldAt: null,
+    recentSold: [],
+  });
+  const [subscriptionStatus, setSubscriptionStatus] = useState<CurrentSubscriptionStatus | null>(null);
 
   useEffect(() => {
     const q = router.query.view as string | undefined;
@@ -1571,26 +1731,114 @@ export default function ProviderDashboard() {
     } catch (err) { console.error(err); }
   }, [user]);
 
+  const fetchDashboardMeta = useCallback(async () => {
+    if (!user || user.role !== "provider") return;
+    try {
+      const [salesResult, subscriptionResult] = await Promise.allSettled([
+        propertyService.getMySalesStats(),
+        paymentService.getMySubscriptionStatus(),
+      ]);
+
+      if (salesResult.status === "fulfilled") {
+        const sales = salesResult.value;
+        setSalesStats({
+          totalSoldProperties: Number(sales.totalSoldProperties || 0),
+          totalSoldValue: Number(sales.totalSoldValue || 0),
+          latestSoldAt: sales.latestSoldAt || null,
+          recentSold: Array.isArray(sales.recentSold) ? sales.recentSold : [],
+        });
+      } else {
+        console.error("Failed to load provider sales stats:", salesResult.reason);
+      }
+
+      if (subscriptionResult.status === "fulfilled") {
+        setSubscriptionStatus(subscriptionResult.value || null);
+      } else {
+        console.error("Failed to load subscription status:", subscriptionResult.reason);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (isAuthLoading) return;
     (async () => {
       try {
         if (!user || user.role !== "provider") { router.push("/"); return; }
-        await fetchProperties();
+        await Promise.all([fetchProperties(), fetchDashboardMeta()]);
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     })();
-  }, [router, isAuthLoading, fetchProperties]);
+  }, [router, isAuthLoading, fetchProperties, fetchDashboardMeta]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa bất động sản này?")) return;
     try { await propertyService.deleteProperty(id); setProperties(prev => prev.filter(p => p._id !== id)); }
     catch (err) { console.error(err); alert("Lỗi khi xóa bất động sản"); }
+    finally { await fetchDashboardMeta(); }
   };
 
-  const handlePropertyCreated = useCallback(async () => { await fetchProperties(); handleSetView("properties"); }, [fetchProperties, handleSetView]);
+  const handlePropertyCreated = useCallback(async () => {
+    await Promise.all([fetchProperties(), fetchDashboardMeta()]);
+    handleSetView("properties");
+  }, [fetchProperties, fetchDashboardMeta, handleSetView]);
   const handleEditProperty = useCallback((id: string) => { setEditPropertyId(id); handleSetView("edit"); }, [handleSetView]);
-  const handlePropertyUpdated = useCallback(async () => { await fetchProperties(); setEditPropertyId(null); handleSetView("properties"); }, [fetchProperties, handleSetView]);
+  const handlePropertyUpdated = useCallback(async () => {
+    await Promise.all([fetchProperties(), fetchDashboardMeta()]);
+    setEditPropertyId(null);
+    handleSetView("properties");
+  }, [fetchProperties, fetchDashboardMeta, handleSetView]);
+
+  const handleMarkSold = useCallback(async (id: string) => {
+    const accepted = confirm("Xác nhận đánh dấu bất động sản này là đã bán?");
+    if (!accepted) return;
+    try {
+      const updatedProperty = await propertyService.markAsSold(id);
+      setProperties((prev) =>
+        prev.map((item) =>
+          item._id === id
+            ? {
+                ...item,
+                ...updatedProperty,
+                status: "sold",
+                isSold: true,
+                soldAt: updatedProperty?.soldAt ?? new Date().toISOString(),
+              }
+            : item
+        )
+      );
+      await fetchDashboardMeta();
+    } catch (error: any) {
+      alert(error?.message || "Không thể cập nhật trạng thái đã bán.");
+    }
+  }, [fetchDashboardMeta]);
+
+  const handleToggleVisibility = useCallback(async (property: Property) => {
+    const isHidden = property.status === "hidden";
+    const accepted = confirm(
+      isHidden
+        ? "Xác nhận hiển thị lại tin này?"
+        : "Xác nhận ẩn tin này khỏi danh sách công khai?"
+    );
+    if (!accepted) return;
+
+    try {
+      const updatedProperty = await propertyService.setVisibility(property._id, !isHidden);
+      setProperties((prev) =>
+        prev.map((item) =>
+          item._id === property._id
+            ? {
+                ...item,
+                ...updatedProperty,
+              }
+            : item
+        )
+      );
+    } catch (error: any) {
+      alert(error?.message || "Không thể cập nhật trạng thái hiển thị của tin.");
+    }
+  }, []);
 
   const stats = {
     total: properties.length,
@@ -1693,16 +1941,16 @@ export default function ProviderDashboard() {
 
           <div style={{ position: "relative", zIndex: 1, minHeight: "100%", display: "flex", flexDirection: "column", padding: "2rem 2.5rem" }}>
             <div style={{ width: "100%", maxWidth: "1200px", margin: "0 auto", flex: 1 }}>
-              {view === "dashboard" && <ViewWrapper><DashboardView provider={user} stats={stats} properties={properties} recentProperties={properties.slice(0, 5)} onNavigate={handleSetView} /></ViewWrapper>}
-              {view === "properties" && <ViewWrapper><PropertiesView properties={properties} onDelete={handleDelete} onEdit={handleEditProperty} /></ViewWrapper>}
-              {view === "plans" && <ViewWrapper><PlansView currentPlan={getUserPlan(user)} listingsUsed={stats.total} /></ViewWrapper>}
+              {view === "dashboard" && <ViewWrapper><DashboardView provider={user} stats={stats} properties={properties} recentProperties={properties.slice(0, 5)} onNavigate={handleSetView} salesStats={salesStats} subscriptionStatus={subscriptionStatus} /></ViewWrapper>}
+              {view === "properties" && <ViewWrapper><PropertiesView properties={properties} onDelete={handleDelete} onEdit={handleEditProperty} onMarkSold={handleMarkSold} onToggleVisibility={handleToggleVisibility} onCreate={() => handleSetView("create")} /></ViewWrapper>}
+              {view === "plans" && <ViewWrapper><PlansView currentPlan={(subscriptionStatus?.planType as SubscriptionPlan | undefined) ?? getUserPlan(user)} listingsUsed={stats.total} /></ViewWrapper>}
               {view === "create" && <ViewWrapper><CreateView onCreated={handlePropertyCreated} /></ViewWrapper>}
               {view === "edit" && editPropertyId && <ViewWrapper><EditView propertyId={editPropertyId} onUpdated={handlePropertyUpdated} onCancel={() => handleSetView("properties")} /></ViewWrapper>}
               {view === "kyc" && <ViewWrapper><KycView /></ViewWrapper>}
             </div>
 
             <footer style={{ marginTop: "4rem", paddingTop: "1.5rem", borderTop: "1px solid rgba(154,124,69,0.12)", textAlign: "center", fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>
-              © {new Date().getFullYear()} Estoria Luxury Real Estate — Provider Management System
+              © {new Date().getUTCFullYear()} Estoria Luxury Real Estate — Provider Management System
             </footer>
           </div>
         </main>

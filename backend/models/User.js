@@ -61,6 +61,16 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: null,
   },
+  kycExtractedName: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  kycExtractedIDNumber: {
+    type: String,
+    trim: true,
+    default: '',
+  },
   kycComparisonResult: {
     type: mongoose.Schema.Types.Mixed,
     default: null,
@@ -82,6 +92,12 @@ const userSchema = new mongoose.Schema({
   },
   subscriptionExpiresAt: {
     type: Date,
+    index: true,
+  },
+  currentSubscriptionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subscription',
+    default: null,
     index: true,
   },
   listingsCount: {

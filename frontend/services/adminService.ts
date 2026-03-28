@@ -28,6 +28,23 @@ interface DashboardStatsResponse {
         PayPal: { totalSold: number; totalRevenue: number };
       };
     };
+    subscriptionOverview: {
+      activeCount: number;
+      expiredCount: number;
+      expiringSoonCount: number;
+      expiringSoon: Array<{
+        _id: string;
+        planType: "Free" | "Pro" | "ProPlus";
+        status: "active" | "expired" | "cancelled";
+        expiresAt: string;
+        user: {
+          _id: string;
+          name: string;
+          email: string;
+          role: "user" | "provider" | "admin";
+        } | null;
+      }>;
+    };
   };
 }
 
@@ -57,6 +74,23 @@ interface DashboardStatsApiResponse {
         VNPay?: { totalSold?: number; totalRevenue?: number };
         PayPal?: { totalSold?: number; totalRevenue?: number };
       };
+    };
+    subscriptionOverview?: {
+      activeCount?: number;
+      expiredCount?: number;
+      expiringSoonCount?: number;
+      expiringSoon?: Array<{
+        _id: string;
+        planType: "Free" | "Pro" | "ProPlus";
+        status: "active" | "expired" | "cancelled";
+        expiresAt: string;
+        user?: {
+          _id: string;
+          name: string;
+          email: string;
+          role: "user" | "provider" | "admin";
+        } | null;
+      }>;
     };
     // fallback nếu API dùng tên khác
     properties?: {
@@ -121,6 +155,50 @@ interface AdminVerifyResponse {
   data: { provider: User };
 }
 
+export interface AdminSubscriptionRecord {
+  _id: string;
+  planType: "Free" | "Pro" | "ProPlus";
+  status: "active" | "expired" | "cancelled";
+  subscribedAt: string;
+  expiresAt: string;
+  durationDays: number;
+  transactionId?: {
+    _id: string;
+    amount: number;
+    paymentMethod: "VNPay" | "PayPal";
+    status: string;
+    orderedAt: string;
+  } | null;
+  userId?: {
+    _id: string;
+    name: string;
+    email: string;
+    role: "user" | "provider" | "admin";
+  } | null;
+  amount?: number;
+  paymentMethod?: "VNPay" | "PayPal" | "";
+  lastRenewedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface AdminSubscriptionsResponse {
+  status: string;
+  results: number;
+  totalPages?: number;
+  currentPage?: number;
+  data: {
+    subscriptions: AdminSubscriptionRecord[];
+  };
+}
+
+interface UpdateSubscriptionStatusResponse {
+  status: string;
+  data: {
+    subscription: AdminSubscriptionRecord;
+  };
+}
+
 export const adminService = {
   async getDashboardStats(): Promise<DashboardStatsResponse> {
     const response = await requestJson<DashboardStatsApiResponse>("/admin/dashboard", {
@@ -175,6 +253,27 @@ export const adminService = {
             },
           },
         },
+        subscriptionOverview: {
+          activeCount: d?.subscriptionOverview?.activeCount ?? 0,
+          expiredCount: d?.subscriptionOverview?.expiredCount ?? 0,
+          expiringSoonCount: d?.subscriptionOverview?.expiringSoonCount ?? 0,
+          expiringSoon: Array.isArray(d?.subscriptionOverview?.expiringSoon)
+            ? d.subscriptionOverview.expiringSoon.map((item) => ({
+                _id: item._id,
+                planType: item.planType,
+                status: item.status,
+                expiresAt: item.expiresAt,
+                user: item.user
+                  ? {
+                      _id: item.user._id,
+                      name: item.user.name,
+                      email: item.user.email,
+                      role: item.user.role,
+                    }
+                  : null,
+              }))
+            : [],
+        },
       },
     };
   },
@@ -224,6 +323,37 @@ export const adminService = {
     return requestJson<ProviderSubscriptionsResponse>(
       `/admin/providers/${providerId}/subscriptions?${params.toString()}`,
       { method: "GET" }
+    );
+  },
+
+  async getSubscriptions(
+    page = 1,
+    limit = 20,
+    filters?: { status?: "active" | "expired" | "cancelled"; planType?: "Free" | "Pro" | "ProPlus" }
+  ) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.planType) params.set("planType", filters.planType);
+
+    return requestJson<AdminSubscriptionsResponse>(
+      `/admin/subscriptions?${params.toString()}`,
+      { method: "GET" }
+    );
+  },
+
+  async updateSubscriptionStatus(
+    subscriptionId: string,
+    status: "active" | "expired" | "cancelled"
+  ) {
+    return requestJson<UpdateSubscriptionStatusResponse, { status: string }>(
+      `/admin/subscriptions/${subscriptionId}/status`,
+      {
+        method: "PATCH",
+        body: { status },
+      }
     );
   },
 };

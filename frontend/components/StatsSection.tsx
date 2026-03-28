@@ -1,11 +1,15 @@
-const STATS = [
-    { num: '2,400', sup: '+', label: 'Bất Động Sản', desc: 'Đang rao bán · cập nhật mỗi ngày' },
-    { num: '12,000', sup: '+', label: 'Khách Hàng Hài Lòng', desc: 'Trên toàn quốc' },
-    { num: '63', sup: '', label: 'Tỉnh Thành Phủ Sóng', desc: 'Từ Bắc vào Nam' },
-    { num: '98', sup: '%', label: 'Tỷ Lệ Xác Minh', desc: 'Pháp lý minh bạch' },
-];
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function StatsSection() {
+    const { t } = useTranslation();
+    const stats = useMemo(() => ([
+        { num: '2,400', sup: '+', label: t('home.stats.items.properties.label'), desc: t('home.stats.items.properties.desc') },
+        { num: '12,000', sup: '+', label: t('home.stats.items.customers.label'), desc: t('home.stats.items.customers.desc') },
+        { num: '63', sup: '', label: t('home.stats.items.provinces.label'), desc: t('home.stats.items.provinces.desc') },
+        { num: '98', sup: '%', label: t('home.stats.items.verified.label'), desc: t('home.stats.items.verified.desc') },
+    ]), [t]);
+
     return (
         <section style={{ position: 'relative', overflow: 'hidden' }} id="about">
             <style>{`
@@ -214,14 +218,14 @@ export default function StatsSection() {
                 <div className="st-topbar">
                     <span className="st-topbar-eyebrow">
                         <span className="st-topbar-line" />
-                        Con Số Thực Tế
+                        {t('home.stats.topbarEyebrow')}
                     </span>
-                    <span className="st-topbar-quote">"Minh bạch — Tin cậy — Bền vững"</span>
+                    <span className="st-topbar-quote">"{t('home.stats.topbarQuote')}"</span>
                 </div>
 
                 {/* ── Stats grid ── */}
                 <div className="st-grid">
-                    {STATS.map((s, i) => (
+                    {stats.map((s, i) => (
                         <div key={s.label} className="st-item">
 
                             <span className="st-idx">0{i + 1}</span>

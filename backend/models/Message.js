@@ -29,6 +29,11 @@ const propertySnapshotSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    propertyUrl: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
   },
   { _id: false }
 );
@@ -95,6 +100,11 @@ const messageSchema = new mongoose.Schema(
     readAt: {
       type: Date,
       default: null,
+    },
+    isChatbot: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {

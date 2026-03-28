@@ -85,7 +85,7 @@ export default function PropertyForm({ initialData, onSubmit, isLoading = false 
       title: "", description: "", price: 0, address: "",
       location: { type: "Point", coordinates: [0, 0] },
       type: "apartment", bedrooms: 1, bathrooms: 1, area: 0,
-      furnished: false, yearBuilt: new Date().getFullYear(), amenities: [],
+      furnished: false, yearBuilt: new Date().getUTCFullYear(), amenities: [],
     }
   );
 
@@ -492,8 +492,8 @@ export default function PropertyForm({ initialData, onSubmit, isLoading = false 
                       Năm Xây Dựng
                     </label>
                     <input type="number" className="e-form-input"
-                      min={1900} max={new Date().getFullYear()}
-                      value={formData.yearBuilt ?? new Date().getFullYear()}
+                      min={1900} max={new Date().getUTCFullYear()}
+                      value={formData.yearBuilt ?? new Date().getUTCFullYear()}
                       onChange={e => setFormData({ ...formData, yearBuilt: Number(e.target.value) })}
                     />
                   </div>

@@ -1,4 +1,4 @@
-import { requestJson } from "@/services/apiClient";
+import { ApiError, requestJson } from "@/services/apiClient";
 import type { Property, PropertyFilters } from "@/types/property";
 
 interface PropertiesResponse {
@@ -173,13 +173,32 @@ function buildPropertiesQuery(filters?: PropertyFilters) {
   return queryString ? `?${queryString}` : "";
 }
 
+function normalizeForKeyword(value?: string) {
+  if (!value) return "";
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchesNormalizedText(haystack: string, normalizedNeedle: string) {
+  if (!normalizedNeedle) return true;
+  if (haystack.includes(normalizedNeedle)) return true;
+  const tokens = normalizedNeedle.split(" ").filter(Boolean);
+  return tokens.length > 0 && tokens.every((token) => haystack.includes(token));
+}
+
 function applyClientSideKeywordFilter(properties: Property[], filters?: PropertyFilters) {
   if (!filters) {
     return properties;
   }
 
-  const keyword = filters.search?.trim().toLowerCase();
-  const location = filters.locationText?.trim().toLowerCase();
+  const keyword = normalizeForKeyword(filters.search?.trim());
+  const location = normalizeForKeyword(filters.locationText?.trim());
 
   if (!keyword && !location) {
     return properties;
@@ -193,11 +212,17 @@ function applyClientSideKeywordFilter(properties: Property[], filters?: Property
       property.type,
       ...(property.amenities || []),
     ]
-      .join(" ")
-      .toLowerCase();
+      .filter(Boolean)
+      .join(" ");
 
-    const matchesKeyword = keyword ? haystack.includes(keyword) : true;
-    const matchesLocation = location ? haystack.includes(location) : true;
+    const normalizedHaystack = normalizeForKeyword(haystack);
+
+    const matchesKeyword = keyword
+      ? matchesNormalizedText(normalizedHaystack, keyword)
+      : true;
+    const matchesLocation = location
+      ? matchesNormalizedText(normalizedHaystack, location)
+      : true;
     return matchesKeyword && matchesLocation;
   });
 }
@@ -244,6 +269,32 @@ interface RecommendationsResponse {
   };
 }
 
+interface MarkSoldResponse {
+  status: string;
+  message?: string;
+  data: {
+    property: Property;
+  };
+}
+
+interface PropertyVisibilityResponse {
+  status: string;
+  message?: string;
+  data: {
+    property: Property;
+  };
+}
+
+interface ProviderSalesStatsResponse {
+  status: string;
+  data: {
+    totalSoldProperties: number;
+    totalSoldValue: number;
+    latestSoldAt: string | null;
+    recentSold: Property[];
+  };
+}
+
 export interface FilterOptionsData {
   types: { value: string; label: string }[];
   tabs: string[];
@@ -258,6 +309,16 @@ interface FilterOptionsResponse {
   };
 }
 
+function stripHeavyPropertyFields(property: Property): Property {
+  const normalized = { ...(property as unknown as Record<string, unknown>) };
+  delete (normalized as { embedding?: unknown }).embedding;
+  return normalized as unknown as Property;
+}
+
+function sanitizePropertyList(properties: Property[]) {
+  return properties.map(stripHeavyPropertyFields);
+}
+
 export const propertyService = {
   async getAllProperties(filters?: PropertyFilters) {
     const query = buildPropertiesQuery(filters);
@@ -265,11 +326,13 @@ export const propertyService = {
       method: "GET",
     });
 
+    const sanitized = sanitizePropertyList(response.data.properties);
+
     return {
       ...response,
       data: {
         ...response.data,
-        properties: applyClientSideKeywordFilter(response.data.properties, filters),
+        properties: applyClientSideKeywordFilter(sanitized, filters),
       },
     };
   },
@@ -285,7 +348,7 @@ export const propertyService = {
     const response = await requestJson<PropertyResponse>(`/properties/${id}`, {
       method: "GET",
     });
-    return response.data.property;
+    return stripHeavyPropertyFields(response.data.property);
   },
 
   async createProperty(data: CreatePropertyPayload) {
@@ -317,7 +380,7 @@ export const propertyService = {
     const response = await requestJson<MyPropertiesResponse>(`/properties${query}`, {
       method: "GET",
     });
-    return response.data.properties;
+    return sanitizePropertyList(response.data.properties);
   },
 
   async getRecommendations(propertyId: string) {
@@ -325,7 +388,52 @@ export const propertyService = {
       `/properties/${propertyId}/recommendations`,
       { method: "GET" }
     );
-    return response.data.recommendations;
+    return sanitizePropertyList(response.data.recommendations);
+  },
+
+  async markAsSold(propertyId: string, soldAt?: string) {
+    const response = await requestJson<MarkSoldResponse, { soldAt?: string }>(
+      `/properties/${encodeURIComponent(propertyId)}/mark-sold`,
+      {
+        method: "PATCH",
+        body: soldAt ? { soldAt } : {},
+      }
+    );
+    return response.data.property;
+  },
+
+  async setVisibility(propertyId: string, hidden: boolean) {
+    const response = await requestJson<PropertyVisibilityResponse, { hidden: boolean }>(
+      `/properties/${encodeURIComponent(propertyId)}/visibility`,
+      {
+        method: "PATCH",
+        body: { hidden },
+      }
+    );
+    return response.data.property;
+  },
+
+  async getMySalesStats() {
+    try {
+      const response = await requestJson<ProviderSalesStatsResponse>(
+        "/properties/sales/stats/me",
+        { method: "GET" }
+      );
+      return response.data;
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        ([401, 403, 404, 429].includes(error.statusCode) || error.statusCode >= 500)
+      ) {
+        return {
+          totalSoldProperties: 0,
+          totalSoldValue: 0,
+          latestSoldAt: null,
+          recentSold: [],
+        };
+      }
+      throw error;
+    }
   },
 
   async getPropertiesWithin(
@@ -339,7 +447,7 @@ export const propertyService = {
       `/properties/properties-within/${distance}/center/${latlng}/unit/${unit}`,
       { method: "GET" }
     );
-    return response.data.properties;
+    return sanitizePropertyList(response.data.properties);
   },
 };
 

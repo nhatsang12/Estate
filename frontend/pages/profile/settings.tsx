@@ -225,7 +225,11 @@ export default function ProfileSettings() {
                     <p className="text-sm">
                       <span className="block text-[0.65rem] uppercase tracking-wider text-[var(--e-muted)] mb-1">Ngày tham gia</span>
                       <span className="font-medium text-[var(--e-charcoal)]">
-                        {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : "N/A"}
+                        {user?.createdAt
+                          ? new Date(user.createdAt).toLocaleDateString("vi-VN", {
+                              timeZone: "Asia/Ho_Chi_Minh",
+                            })
+                          : "N/A"}
                       </span>
                     </p>
                   </div>

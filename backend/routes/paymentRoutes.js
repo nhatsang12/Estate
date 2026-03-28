@@ -54,6 +54,7 @@ const router = express.Router();
  */
 router.post('/create-checkout', authController.protect, paymentController.createCheckout);
 router.get('/subscriptions/me', authController.protect, paymentController.getMySubscriptions);
+router.get('/subscription-status/me', authController.protect, paymentController.getMyCurrentSubscription);
 
 /**
  * @swagger

@@ -86,6 +86,10 @@ const propertySchema = new mongoose.Schema({
     type: [String], // URLs to Property Deeds, Utility Bills, etc.
     default: [],
   },
+  embedding: {
+    type: [Number],
+    default: undefined,
+  },
 
   // ─── Ownership & Agent ─────────────────────────────────────
   ownerId: {
@@ -101,12 +105,22 @@ const propertySchema = new mongoose.Schema({
   // ─── Moderation Status ─────────────────────────────────────
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'available', 'rented', 'sold'],
+    enum: ['pending', 'approved', 'rejected', 'available', 'rented', 'sold', 'hidden'],
     default: 'pending',
   },
   rejectionReason: {
     type: String,
     trim: true,
+  },
+  isSold: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  soldAt: {
+    type: Date,
+    default: null,
+    index: true,
   },
 }, {
   timestamps: true,
@@ -120,6 +134,7 @@ propertySchema.index({ location: '2dsphere' });
 propertySchema.index({ price: 1 });
 propertySchema.index({ status: 1 });
 propertySchema.index({ ownerId: 1 });
+propertySchema.index({ ownerId: 1, isSold: 1, soldAt: -1 });
 propertySchema.index({ type: 1 });
 propertySchema.index({ createdAt: -1 });
 

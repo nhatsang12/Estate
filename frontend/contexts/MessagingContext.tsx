@@ -35,6 +35,10 @@ interface OpenPropertyChatPayload {
     price?: number;
     description?: string;
     imageUrl?: string;
+    propertyType?: string;
+    bedrooms?: number;
+    bathrooms?: number;
+    propertyUrl?: string;
   };
 }
 
@@ -97,7 +101,11 @@ const generatePrefillMessage = (
     typeof payload.price === "number"
       ? `- Giá niêm yết: ${new Intl.NumberFormat("vi-VN").format(payload.price)}₫`
       : "",
+    payload.propertyType ? `- Loại hình: ${payload.propertyType}` : "",
+    Number.isFinite(payload.bedrooms) ? `- Phòng ngủ: ${payload.bedrooms}` : "",
+    Number.isFinite(payload.bathrooms) ? `- Phòng tắm: ${payload.bathrooms}` : "",
     payload.description ? `- Mô tả: ${payload.description.slice(0, 160)}` : "",
+    payload.propertyUrl ? `- Link chi tiết: ${payload.propertyUrl}` : "",
     "Nhờ bạn tư vấn thêm thông tin và lịch xem thực tế. Cảm ơn.",
   ].filter(Boolean);
   return lines.join("\n");
@@ -106,11 +114,14 @@ const generatePrefillMessage = (
 const buildAiMessage = (
   currentUserId: string,
   content: string,
-  fromAi: boolean
+  fromAi: boolean,
+  options?: { createdAt?: string; customId?: string }
 ): ChatMessage => {
-  const now = new Date().toISOString();
+  const now = options?.createdAt || new Date().toISOString();
+  const messageId =
+    options?.customId || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   return {
-    _id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    _id: messageId,
     conversationId: AI_CONVERSATION_ID,
     senderId: fromAi ? AI_USER_ID : currentUserId,
     receiverId: fromAi ? currentUserId : AI_USER_ID,
@@ -455,6 +466,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
           propertyPrice: input.propertySnapshot?.price,
           propertyDescription: input.propertySnapshot?.description,
           propertyImageUrl: input.propertySnapshot?.imageUrl,
+          propertyUrl: input.propertySnapshot?.propertyUrl,
         });
 
         const createdMessage = response.data.message;
@@ -540,6 +552,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
           price: propertyPrefill.property.price,
           description: propertyPrefill.property.description,
           imageUrl: propertyPrefill.property.imageUrl,
+          propertyUrl: propertyPrefill.property.propertyUrl,
         },
       });
 
@@ -567,6 +580,39 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
     void refreshConversations({ force: true });
   }, [isMessagingEnabled, refreshConversations]);
+
+  useEffect(() => {
+    if (!isMessagingEnabled || !user?._id) return;
+    let disposed = false;
+
+    const hydrateChatbotMemory = async () => {
+      try {
+        const memory = await messageService.getChatbotMemory();
+        if (disposed) return;
+
+        const hydrated = (memory.recentMessages || [])
+          .map((item, index) => {
+            const content = String(item.content || "").trim();
+            if (!content) return null;
+            const fromAi = item.role === "assistant";
+            return buildAiMessage(user._id, content, fromAi, {
+              createdAt: item.createdAt,
+              customId: `ai-memory-${index}-${item.createdAt || "no-time"}`,
+            });
+          })
+          .filter((item): item is ChatMessage => Boolean(item));
+
+        setAiMessages(hydrated);
+      } catch {
+        // Keep local-memory fallback if backend memory cannot be loaded.
+      }
+    };
+
+    void hydrateChatbotMemory();
+    return () => {
+      disposed = true;
+    };
+  }, [isMessagingEnabled, user?._id]);
 
   useEffect(() => {
     if (!isMessagingEnabled || !token || !user) return;

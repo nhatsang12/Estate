@@ -16,6 +16,7 @@ export interface PropertySnapshot {
   price?: number;
   description?: string;
   imageUrl?: string;
+  propertyUrl?: string;
 }
 
 export interface ChatMessage {

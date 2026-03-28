@@ -8,7 +8,8 @@ export type PropertyStatus =
   | "rejected"
   | "available"
   | "rented"
-  | "sold";
+  | "sold"
+  | "hidden";
 
 export interface PropertyLocation {
   type: "Point";
@@ -36,6 +37,8 @@ export interface Property {
   ownerId: PropertyOwner;
   agentId?: PropertyOwner | null;
   status: PropertyStatus;
+  isSold?: boolean;
+  soldAt?: string | null;
   rejectionReason?: string;
   createdAt?: string;
   updatedAt?: string;

@@ -1,7 +1,9 @@
+import Head from "next/head";
 import { useEffect, useMemo, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { AlertTriangle, CheckCircle2, Clock3, RotateCcw, XCircle } from "lucide-react";
-import Layout from "@/components/Layout";
+import LuxuryFooter from "@/components/LuxuryFooter";
+import LuxuryNavbar from "@/components/LuxuryNavbar";
 import { useAuth } from "@/contexts/AuthContext";
 
 type PaymentStatus = "success" | "failed" | "cancelled" | "error";
@@ -94,6 +96,14 @@ export default function PaymentResultPage() {
 
   const returnLabel = user?.role === "provider" ? "Quay về Provider Dashboard" : "Quay về trang chủ";
 
+  const handlePostClick = () => {
+    const token =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("estate_manager_token")
+        : null;
+    void router.push(token ? "/provider/properties/create" : "/auth/login?redirect=/provider/properties/create");
+  };
+
   useEffect(() => {
     if (normalizedStatus !== "success") {
       return;
@@ -109,8 +119,13 @@ export default function PaymentResultPage() {
   }, [normalizedStatus, returnPath, router]);
 
   return (
-    <Layout>
-      <div className="estoria relative px-4 py-8 sm:py-10">
+    <>
+      <Head>
+        <title>Kết quả thanh toán | Estoria</title>
+      </Head>
+      <div className="estoria min-h-screen" style={{ background: "#F2F5F8" }}>
+        <LuxuryNavbar variant="light" onPostClick={handlePostClick} />
+        <main className="relative px-4 py-8 sm:py-10" style={{ paddingTop: "7.5rem" }}>
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-60"
           style={{
@@ -316,7 +331,9 @@ export default function PaymentResultPage() {
             }
           }
         `}</style>
+        </main>
+        <LuxuryFooter />
       </div>
-    </Layout>
+    </>
   );
 }

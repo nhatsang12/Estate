@@ -3,6 +3,7 @@ import Image from "next/image";
 import { BedDouble, Bath, Ruler } from "lucide-react";
 import type { Property } from "@/types/property";
 import { formatVNDShort } from "@/utils/formatPrice";
+import { optimizeCloudinaryUrl } from "@/utils/imageOptimization";
 
 interface RecommendationCardProps {
   property: Property;
@@ -12,6 +13,7 @@ interface RecommendationCardProps {
 const RecommendationCard = React.forwardRef<HTMLDivElement, RecommendationCardProps>(
   ({ property, onSelect }, ref) => {
     const imageUrl = property.images?.[0] || "/placeholder-property.jpg";
+    const optimizedImageUrl = imageUrl.includes('cloudinary') ? optimizeCloudinaryUrl(imageUrl, 380) : imageUrl;
 
     return (
       <div
@@ -21,10 +23,12 @@ const RecommendationCard = React.forwardRef<HTMLDivElement, RecommendationCardPr
       >
         <div className="relative h-48 rounded-2xl overflow-hidden bg-background-light">
           <Image
-            src={imageUrl}
+            src={optimizedImageUrl}
             alt={property.title}
             fill
             className="object-cover transition-transform duration-normal group-hover:scale-105"
+            loading="lazy"
+            decoding="async"
           />
           <div className="absolute top-2 right-2 rounded-full border border-boundary bg-surface px-3 py-1 text-sm font-semibold text-text-primary shadow-sm backdrop-blur-md">
             {formatVNDShort(property.price)}
