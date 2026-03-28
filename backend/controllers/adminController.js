@@ -506,6 +506,13 @@ exports.verifyProvider = async (req, res, next) => {
       nextKycStatus = 'reviewing';
     }
 
+    if (user.kycStatus === 'rejected' && nextKycStatus === 'verified') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Hồ sơ bị từ chối bởi KYC service không thể được admin duyệt thành công',
+      });
+    }
+
     if (nextKycStatus === 'verified') {
       nextIsVerified = true;
       user.role = 'provider'; // Automatically update role when KYC is verified

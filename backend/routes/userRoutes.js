@@ -17,7 +17,7 @@ router.patch('/change-password', userController.changePassword);
  * @swagger
  * /users/kyc/submit:
  *   patch:
- *     summary: Submit CCCD front/back images for automated KYC
+ *     summary: Submit CCCD front/back + portrait images for automated KYC
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -30,6 +30,8 @@ router.patch('/change-password', userController.changePassword);
  *             required:
  *               - cccdFront
  *               - cccdBack
+ *               - portrait
+ *               - declaredIdNumber
  *             properties:
  *               cccdFront:
  *                 type: string
@@ -39,9 +41,13 @@ router.patch('/change-password', userController.changePassword);
  *                 type: string
  *                 format: binary
  *                 description: Back side image of CCCD
+ *               portrait:
+ *                 type: string
+ *                 format: binary
+ *                 description: Portrait selfie image for face comparison
  *               declaredIdNumber:
  *                 type: string
- *                 description: Optional ID number declared by user for stronger matching
+ *                 description: Required ID number declared by user for strict matching
  *     responses:
  *       200:
  *         description: KYC submission accepted and processed
@@ -57,9 +63,13 @@ router.patch(
   upload.fields([
     { name: 'cccdFront', maxCount: 1 },
     { name: 'cccdBack', maxCount: 1 },
+    { name: 'portrait', maxCount: 1 },
+    { name: 'selfie', maxCount: 1 },
   ]),
   userController.submitKycDocuments
 );
+
+router.get('/kyc/declared-id/check', userController.checkKycDeclaredIdAvailability);
 
 // ─── Role Request Routes ──────────────────────────────────────
 // Phải đặt TRƯỚC router.use(restrictTo('admin')) và TRƯỚC /:id

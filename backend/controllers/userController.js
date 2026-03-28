@@ -4,6 +4,7 @@ const Joi = require('joi');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 const {
   runOcrOnBuffer,
+  runFaceCompareOnBuffers,
   buildKycExtractedData,
   buildKycComparisonResult,
   decideKycOutcome,
@@ -26,6 +27,23 @@ const changePasswordSchema = Joi.object({
     'any.only': 'Password confirmation does not match new password',
   }),
 }).options({ stripUnknown: true });
+
+function buildLooseDigitRegex(digits) {
+  return new RegExp(`^\\D*${digits.split('').join('\\D*')}\\D*$`);
+}
+
+async function findDuplicateUserByCccd({ declaredIdDigits, excludeUserId }) {
+  const looseDigitRegex = buildLooseDigitRegex(declaredIdDigits);
+
+  return User.findOne({
+    _id: { $ne: excludeUserId },
+    kycStatus: 'verified',
+    $or: [
+      { 'kycExtractedData.parsed.idNumber': declaredIdDigits },
+      { 'kycExtractedData.parsed.idNumber': { $regex: looseDigitRegex } },
+    ],
+  }).select('_id name email kycStatus kycExtractedData.parsed.idNumber');
+}
 
 // ─── Get Current User Profile ────────────────────────────────
 // GET /api/users/me
@@ -102,6 +120,8 @@ exports.submitKycDocuments = async (req, res, next) => {
   try {
     const frontFile = req.files?.cccdFront?.[0];
     const backFile = req.files?.cccdBack?.[0];
+    const portraitFile = req.files?.portrait?.[0] || req.files?.selfie?.[0];
+    const declaredIdDigits = String(req.body?.declaredIdNumber || '').replace(/\D/g, '');
 
     if (!['user', 'provider'].includes(req.user.role)) {
       return res.status(403).json({
@@ -110,17 +130,50 @@ exports.submitKycDocuments = async (req, res, next) => {
       });
     }
 
-    if (!frontFile || !backFile) {
+    if (!frontFile || !backFile || !portraitFile) {
+      const receivedFields = Object.keys(req.files || {});
       return res.status(400).json({
         status: 'error',
-        message: 'Both cccdFront and cccdBack files are required',
+        message: `cccdFront, cccdBack and portrait files are required (received: ${
+          receivedFields.length ? receivedFields.join(', ') : 'none'
+        })`,
       });
     }
 
-    if (!frontFile.mimetype.startsWith('image/') || !backFile.mimetype.startsWith('image/')) {
+    if (!declaredIdDigits) {
       return res.status(400).json({
         status: 'error',
-        message: 'Only image files are allowed for cccdFront and cccdBack',
+        message: 'declaredIdNumber is required',
+      });
+    }
+
+    if (![9, 12].includes(declaredIdDigits.length)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'declaredIdNumber must contain 9 or 12 digits',
+      });
+    }
+
+    const duplicatedOwner = await findDuplicateUserByCccd({
+      declaredIdDigits,
+      excludeUserId: req.user.id,
+    });
+
+    if (duplicatedOwner) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'Số CCCD này đã được sử dụng bởi tài khoản khác.',
+      });
+    }
+
+    if (
+      !frontFile.mimetype.startsWith('image/') ||
+      !backFile.mimetype.startsWith('image/') ||
+      !portraitFile.mimetype.startsWith('image/')
+    ) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Only image files are allowed for cccdFront, cccdBack and portrait',
       });
     }
 
@@ -130,11 +183,21 @@ exports.submitKycDocuments = async (req, res, next) => {
     }
 
     let uploadedUrls;
+    let portraitUrl = '';
     try {
-      uploadedUrls = await Promise.all([
+      const uploadTasks = [
         uploadToCloudinary(frontFile.buffer, { folder: 'real-estate-kyc', resource_type: 'image' }),
         uploadToCloudinary(backFile.buffer, { folder: 'real-estate-kyc', resource_type: 'image' }),
-      ]);
+        uploadToCloudinary(portraitFile.buffer, {
+          folder: 'real-estate-kyc-portrait',
+          resource_type: 'image',
+        }),
+      ];
+
+      const uploaded = await Promise.all(uploadTasks);
+      const [frontUrl, backUrl, uploadedPortraitUrl] = uploaded;
+      uploadedUrls = [frontUrl, backUrl];
+      portraitUrl = uploadedPortraitUrl;
     } catch (uploadError) {
       return res.status(502).json({
         status: 'error',
@@ -143,6 +206,8 @@ exports.submitKycDocuments = async (req, res, next) => {
     }
 
     user.kycDocuments = uploadedUrls;
+    user.kycPortraitUrl = portraitUrl;
+    user.kycDeclaredIdNumber = declaredIdDigits;
     user.kycStatus = 'submitted';
     user.isVerified = false;
     user.kycRejectionReason = '';
@@ -151,6 +216,7 @@ exports.submitKycDocuments = async (req, res, next) => {
     const ocrErrors = [];
     let frontOcrResult = null;
     let backOcrResult = null;
+    let faceComparisonResult = null;
 
     try {
       frontOcrResult = await runOcrOnBuffer(frontFile.buffer, 'cccdFront');
@@ -164,11 +230,18 @@ exports.submitKycDocuments = async (req, res, next) => {
       ocrErrors.push({ side: 'cccdBack', message: error?.message || 'OCR failed for cccdBack' });
     }
 
+    try {
+      faceComparisonResult = await runFaceCompareOnBuffers(frontFile.buffer, portraitFile.buffer);
+    } catch (error) {
+      ocrErrors.push({ side: 'faceCompare', message: error?.message || 'Face compare failed' });
+    }
+
     const extractedData = buildKycExtractedData({ frontOcrResult, backOcrResult, ocrErrors });
     const comparisonResult = buildKycComparisonResult({
       user,
       extractedData,
-      declaredIdNumber: req.body?.declaredIdNumber || '',
+      declaredIdNumber: declaredIdDigits,
+      faceComparisonResult,
     });
     const decision = decideKycOutcome({ comparisonResult, extractedData });
 
@@ -180,14 +253,21 @@ exports.submitKycDocuments = async (req, res, next) => {
       decisionNotes: decision.decisionNotes,
       decidedAt: new Date().toISOString(),
     };
+    user.kycFaceComparisonResult = faceComparisonResult
+      ? {
+          ...faceComparisonResult,
+          decidedAt: new Date().toISOString(),
+        }
+      : null;
     user.kycStatus = decision.kycStatus;
     user.isVerified = decision.isVerified;
     user.kycRejectionReason = decision.kycStatus === 'rejected' ? decision.kycRejectionReason : '';
     await user.save({ validateBeforeSave: false });
 
     const statusMessage = {
-      verified: 'KYC verified automatically',
-      rejected: 'KYC rejected automatically',
+      verified: 'Hồ sơ đã xác minh thành công',
+      rejected: 'Hồ sơ đã bị từ chối',
+      reviewing: 'Hồ sơ đã được gửi và đang xem xét',
     };
 
     res.status(200).json({
@@ -199,8 +279,47 @@ exports.submitKycDocuments = async (req, res, next) => {
         isVerified: user.isVerified,
         kycRejectionReason: user.kycRejectionReason || null,
         kycDocuments: user.kycDocuments,
+        kycPortraitUrl: user.kycPortraitUrl,
         kycExtractedData: user.kycExtractedData,
         kycComparisonResult: user.kycComparisonResult,
+        kycFaceComparisonResult: user.kycFaceComparisonResult,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Check Declared CCCD Availability ───────────────────────
+// GET /api/users/kyc/declared-id/check?declaredIdNumber=...
+exports.checkKycDeclaredIdAvailability = async (req, res, next) => {
+  try {
+    const declaredIdDigits = String(req.query?.declaredIdNumber || '').replace(/\D/g, '');
+
+    if (!declaredIdDigits) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'declaredIdNumber is required',
+      });
+    }
+
+    if (![9, 12].includes(declaredIdDigits.length)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'declaredIdNumber must contain 9 or 12 digits',
+      });
+    }
+
+    const duplicate = await findDuplicateUserByCccd({
+      declaredIdDigits,
+      excludeUserId: req.user.id,
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        declaredIdNumber: declaredIdDigits,
+        available: !duplicate,
       },
     });
   } catch (err) {

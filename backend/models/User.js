@@ -57,6 +57,10 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  kycPortraitUrl: {
+    type: String,
+    default: '',
+  },
   kycExtractedData: {
     type: mongoose.Schema.Types.Mixed,
     default: null,
@@ -71,7 +75,17 @@ const userSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  kycDeclaredIdNumber: {
+    type: String,
+    trim: true,
+    default: '',
+    index: true,
+  },
   kycComparisonResult: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  kycFaceComparisonResult: {
     type: mongoose.Schema.Types.Mixed,
     default: null,
   },

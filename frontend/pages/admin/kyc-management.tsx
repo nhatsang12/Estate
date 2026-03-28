@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/services/apiClient";
 import { userService } from "@/services/userService";
 import type { KycStatus, User } from "@/types/user";
+import { translateKycRejectionReason } from "@/utils/kycRejectionReason";
 
 type KycStatusFilter = KycStatus | "all";
 type SortOrder = "newest" | "oldest";
@@ -57,13 +58,23 @@ function prettyJson(value: unknown) {
   }
 }
 
+function normalizeAdminKycStatus(status?: string): KycStatus {
+  if (status === "submitted" || status === "reviewing") {
+    return "pending";
+  }
+  if (status === "verified" || status === "rejected" || status === "pending") {
+    return status;
+  }
+  return "pending";
+}
+
 export default function AdminKycManagementPage() {
   const router = useRouter();
   const { user, token, isAuthLoading } = useAuth();
 
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<KycStatusFilter>("submitted");
+  const [statusFilter, setStatusFilter] = useState<KycStatusFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("provider");
   const [loading, setLoading] = useState(true);
@@ -76,6 +87,11 @@ export default function AdminKycManagementPage() {
     () => users.find((candidate) => candidate._id === selectedUserId) || null,
     [selectedUserId, users]
   );
+
+  const canModerateSelectedUser = useMemo(() => {
+    if (!selectedUser) return false;
+    return selectedUser.kycStatus === "submitted" || selectedUser.kycStatus === "reviewing";
+  }, [selectedUser]);
 
   const loadUsers = useCallback(async () => {
     if (!token) {
@@ -132,6 +148,10 @@ export default function AdminKycManagementPage() {
     if (!token || !selectedUser) {
       return;
     }
+    if (!canModerateSelectedUser) {
+      setErrorMessage("Only submitted/reviewing KYC requests can be approved.");
+      return;
+    }
 
     if (selectedUser.role !== "provider") {
       setErrorMessage("Only provider accounts can be moderated via current backend endpoint.");
@@ -157,6 +177,10 @@ export default function AdminKycManagementPage() {
 
   const handleReject = async () => {
     if (!token || !selectedUser) {
+      return;
+    }
+    if (!canModerateSelectedUser) {
+      setErrorMessage("Only submitted/reviewing KYC requests can be rejected.");
       return;
     }
 
@@ -237,11 +261,9 @@ export default function AdminKycManagementPage() {
                   onChange={(event) => setStatusFilter(event.target.value as KycStatusFilter)}
                 >
                   <option value="all">All</option>
-                  <option value="submitted">Submitted</option>
-                  <option value="reviewing">Reviewing</option>
+                  <option value="pending">Pending</option>
                   <option value="rejected">Rejected</option>
                   <option value="verified">Verified</option>
-                  <option value="pending">Pending</option>
                 </select>
               </span>
             </label>
@@ -326,7 +348,7 @@ export default function AdminKycManagementPage() {
                         </td>
                         <td className="px-3 py-3 text-slate-700">{candidate.role}</td>
                         <td className="px-3 py-3">
-                          <KycStatusBadge status={candidate.kycStatus} />
+                          <KycStatusBadge status={normalizeAdminKycStatus(candidate.kycStatus)} />
                         </td>
                         <td className="px-3 py-3">
                           {candidate.isVerified ? (
@@ -364,7 +386,7 @@ export default function AdminKycManagementPage() {
                     <h2 className="text-xl font-semibold text-slate-900">{selectedUser.name}</h2>
                     <p className="text-sm text-slate-600">{selectedUser.email}</p>
                   </div>
-                  <KycStatusBadge status={selectedUser.kycStatus} />
+                  <KycStatusBadge status={normalizeAdminKycStatus(selectedUser.kycStatus)} />
                 </div>
 
                 <div className="grid gap-2 text-sm text-slate-700">
@@ -407,13 +429,6 @@ export default function AdminKycManagementPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">OCR Extracted Data</h3>
-                  <pre className="max-h-48 overflow-auto rounded-xl border border-white/70 bg-slate-900/95 p-3 text-xs text-slate-100">
-                    {prettyJson(selectedUser.kycExtractedData)}
-                  </pre>
-                </div>
-
-                <div className="space-y-2">
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Comparison Result</h3>
                   <pre className="max-h-48 overflow-auto rounded-xl border border-white/70 bg-slate-900/95 p-3 text-xs text-slate-100">
                     {prettyJson(selectedUser.kycComparisonResult)}
@@ -423,45 +438,49 @@ export default function AdminKycManagementPage() {
                 {selectedUser.kycRejectionReason ? (
                   <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
                     <p className="font-semibold">Current Rejection Reason</p>
-                    <p className="mt-1">{selectedUser.kycRejectionReason}</p>
+                    <p className="mt-1">{translateKycRejectionReason(selectedUser.kycRejectionReason)}</p>
                   </div>
                 ) : null}
 
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Rejection Reason
-                  </span>
-                  <span className="glass-input-wrapper">
-                    <textarea
-                      rows={3}
-                      className="glass-input resize-none"
-                      value={rejectionReason}
-                      onChange={(event) => setRejectionReason(event.target.value)}
-                      placeholder="Required when rejecting KYC"
-                    />
-                  </span>
-                </label>
+                {canModerateSelectedUser ? (
+                  <>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Rejection Reason
+                      </span>
+                      <span className="glass-input-wrapper">
+                        <textarea
+                          rows={3}
+                          className="glass-input resize-none"
+                          value={rejectionReason}
+                          onChange={(event) => setRejectionReason(event.target.value)}
+                          placeholder="Required when rejecting KYC"
+                        />
+                      </span>
+                    </label>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    className="glass-button-primary justify-center"
-                    disabled={actionLoading}
-                    onClick={() => void handleApprove()}
-                  >
-                    {actionLoading ? <LoaderCircle size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                    Approve KYC
-                  </button>
-                  <button
-                    type="button"
-                    className="glass-button justify-center border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
-                    disabled={actionLoading}
-                    onClick={() => void handleReject()}
-                  >
-                    {actionLoading ? <LoaderCircle size={14} className="animate-spin" /> : <XCircle size={14} />}
-                    Reject KYC
-                  </button>
-                </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        className="glass-button-primary justify-center"
+                        disabled={actionLoading}
+                        onClick={() => void handleApprove()}
+                      >
+                        {actionLoading ? <LoaderCircle size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                        Approve KYC
+                      </button>
+                      <button
+                        type="button"
+                        className="glass-button justify-center border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+                        disabled={actionLoading}
+                        onClick={() => void handleReject()}
+                      >
+                        {actionLoading ? <LoaderCircle size={14} className="animate-spin" /> : <XCircle size={14} />}
+                        Reject KYC
+                      </button>
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : (
               <p className="text-sm text-slate-600">Select a user from the queue to review KYC details.</p>

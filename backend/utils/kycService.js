@@ -6,6 +6,11 @@ const KYC_HTTP_RETRY_ON_TIMEOUT =
 const MATCH_THRESHOLD = Number(process.env.KYC_MATCH_THRESHOLD || 0.88);
 const ADDRESS_MATCH_THRESHOLD = Number(process.env.KYC_ADDRESS_MATCH_THRESHOLD || 0.7);
 const OCR_CONFIDENCE_THRESHOLD = Number(process.env.KYC_OCR_CONFIDENCE_THRESHOLD || 0.6);
+const FACE_MATCH_THRESHOLD = Number(process.env.KYC_FACE_MATCH_THRESHOLD || 0.65);
+const FACE_MATCH_HARD_FLOOR = Number(process.env.KYC_FACE_MATCH_HARD_FLOOR || 0.65);
+const KYC_PYTHON_FACE_COMPARE_URL =
+  process.env.KYC_PYTHON_FACE_COMPARE_URL ||
+  KYC_PYTHON_SERVICE_URL.replace(/\/process\/?$/, '/compare-face');
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -63,46 +68,69 @@ const normalizeFieldConfidences = (fieldConfidences = {}) => {
   return normalized;
 };
 
+const callPythonEndpoint = async (url, payload, timeoutMs = KYC_HTTP_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`KYC Python service timed out after ${timeoutMs}ms`);
+    }
+    throw new Error(`Unable to call KYC Python service: ${error.message}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const responseBody = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const upstreamMessage =
+      responseBody?.message || responseBody?.detail || `HTTP ${response.status}`;
+    throw new Error(`KYC Python service error: ${upstreamMessage}`);
+  }
+
+  if (responseBody?.status !== 'success') {
+    throw new Error('KYC Python service returned an invalid success payload');
+  }
+
+  return responseBody;
+};
+
 const callPythonKycService = async (buffer, sideLabel) => {
   const callOnce = async (timeoutMs) => {
     const payload = {
       image_base64: buffer.toString('base64'),
       side_label: sideLabel,
     };
+    return callPythonEndpoint(KYC_PYTHON_SERVICE_URL, payload, timeoutMs);
+  };
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    let response;
-    try {
-      response = await fetch(KYC_PYTHON_SERVICE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error(`KYC Python service timed out after ${timeoutMs}ms`);
-      }
-      throw new Error(`Unable to call KYC Python service: ${error.message}`);
-    } finally {
-      clearTimeout(timeout);
+  try {
+    return await callOnce(KYC_HTTP_TIMEOUT_MS);
+  } catch (error) {
+    const isTimeout = String(error.message || '').includes('timed out');
+    if (isTimeout && KYC_HTTP_RETRY_ON_TIMEOUT) {
+      return callOnce(Math.max(KYC_HTTP_TIMEOUT_MS, 120000));
     }
+    throw error;
+  }
+};
 
-    const responseBody = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const upstreamMessage =
-        responseBody?.message || responseBody?.detail || `HTTP ${response.status}`;
-      throw new Error(`KYC Python service error: ${upstreamMessage}`);
-    }
-
-    if (responseBody?.status !== 'success') {
-      throw new Error('KYC Python service returned an invalid success payload');
-    }
-
-    return responseBody;
+const callPythonFaceCompareService = async (cccdFrontBuffer, portraitBuffer) => {
+  const callOnce = async (timeoutMs) => {
+    const payload = {
+      cccd_front_base64: cccdFrontBuffer.toString('base64'),
+      portrait_base64: portraitBuffer.toString('base64'),
+    };
+    return callPythonEndpoint(KYC_PYTHON_FACE_COMPARE_URL, payload, timeoutMs);
   };
 
   try {
@@ -207,48 +235,30 @@ const buildIdComparison = ({ parsedData, declaredIdNumber }) => {
   const backId = normalizeDigits(parsedData?.perSide?.back?.idNumber || '');
   const declaredId = normalizeDigits(declaredIdNumber || '');
 
-  if (declaredId) {
-    const match = declaredId === extractedId;
-    return {
-      expected: declaredId,
-      extracted: extractedId || null,
-      score: match ? 1 : 0,
-      threshold: MATCH_THRESHOLD,
-      match,
-      comparedWith: 'declaredIdNumber',
-    };
-  }
-
-  if (frontId && backId) {
-    const match = frontId === backId;
-    return {
-      expected: frontId,
-      extracted: backId,
-      score: match ? 1 : 0,
-      threshold: MATCH_THRESHOLD,
-      match,
-      comparedWith: 'frontBackConsistency',
-    };
-  }
-
-  if (extractedId) {
+  if (!declaredId) {
     return {
       expected: null,
-      extracted: extractedId,
-      score: 1,
+      extracted: extractedId || null,
+      score: 0,
       threshold: MATCH_THRESHOLD,
-      match: true,
-      comparedWith: 'ocrExtractionOnly',
+      match: false,
+      comparedWith: 'declaredIdMissing',
     };
   }
 
+  const consistencyMismatch = Boolean(frontId && backId && frontId !== backId);
+  const idMatch = Boolean(extractedId && declaredId === extractedId);
+
   return {
-    expected: null,
-    extracted: null,
-    score: 0,
+    expected: declaredId,
+    extracted: extractedId || null,
+    score: idMatch ? 1 : 0,
     threshold: MATCH_THRESHOLD,
-    match: false,
-    comparedWith: 'unavailable',
+    match: idMatch && !consistencyMismatch,
+    comparedWith: 'declaredIdNumber',
+    meta: {
+      frontBackConsistency: frontId && backId ? frontId === backId : null,
+    },
   };
 };
 
@@ -272,6 +282,39 @@ exports.runOcrOnBuffer = async (buffer, sideLabel) => {
     fieldConfidences: normalizeFieldConfidences(responseBody.field_confidences || {}),
     processingMeta: responseBody.processing_meta || {},
   };
+};
+
+const normalizeFaceComparisonResult = (payload = {}) => {
+  const score = normalizeConfidence(payload.score);
+  const serviceThreshold = normalizeConfidence(payload.threshold || 0);
+  const configuredThreshold = normalizeConfidence(FACE_MATCH_THRESHOLD);
+  const threshold = clamp(
+    Math.max(serviceThreshold, configuredThreshold, FACE_MATCH_HARD_FLOOR),
+    0,
+    1
+  );
+  const serviceMatch = typeof payload.match === 'boolean' ? payload.match : true;
+  const match = serviceMatch && score >= threshold;
+
+  return {
+    score: Number(score.toFixed(4)),
+    threshold: Number(threshold.toFixed(4)),
+    match,
+    components: payload.components || {},
+    reason: payload.reason || '',
+    processingMeta: payload.processing_meta || payload.processingMeta || {},
+    selfieFaceDetected: Boolean(payload.selfie_face_detected),
+    cccdFaceDetected: Boolean(payload.cccd_face_detected),
+  };
+};
+
+exports.runFaceCompareOnBuffers = async (cccdFrontBuffer, portraitBuffer) => {
+  if (!Buffer.isBuffer(cccdFrontBuffer) || !Buffer.isBuffer(portraitBuffer)) {
+    throw new Error('Invalid image buffer for face comparison');
+  }
+
+  const responseBody = await callPythonFaceCompareService(cccdFrontBuffer, portraitBuffer);
+  return normalizeFaceComparisonResult(responseBody.data || {});
 };
 
 exports.buildKycExtractedData = ({ frontOcrResult, backOcrResult, ocrErrors = [] }) => {
@@ -313,12 +356,40 @@ exports.buildKycComparisonResult = ({
   user,
   extractedData,
   declaredIdNumber = '',
+  faceComparisonResult = null,
 }) => {
   const parsedData = extractedData?.parsed || {};
   const extractedName = parsedData.fullName || '';
   const nameField = buildStringFieldComparison(user?.name || '', extractedName, MATCH_THRESHOLD);
   const idField = buildIdComparison({ parsedData, declaredIdNumber });
-  const scores = [nameField.score, idField.score];
+  const faceField = faceComparisonResult
+    ? {
+        expected: 'portrait_vs_cccd_front',
+        extracted: faceComparisonResult?.score ?? 0,
+        score: Number(faceComparisonResult?.score ?? 0),
+        threshold: Number(faceComparisonResult?.threshold ?? FACE_MATCH_THRESHOLD),
+        match: Boolean(faceComparisonResult?.match),
+        comparedWith: 'portraitVsCccdFront',
+        meta: {
+          components: faceComparisonResult?.components || {},
+          reason: faceComparisonResult?.reason || '',
+          selfieFaceDetected: Boolean(faceComparisonResult?.selfieFaceDetected),
+          cccdFaceDetected: Boolean(faceComparisonResult?.cccdFaceDetected),
+          processingMeta: faceComparisonResult?.processingMeta || {},
+        },
+      }
+    : {
+        expected: 'portrait_vs_cccd_front',
+        extracted: null,
+        score: 0,
+        threshold: FACE_MATCH_THRESHOLD,
+        match: false,
+        comparedWith: 'unavailable',
+        meta: {
+          reason: 'Face comparison unavailable',
+        },
+      };
+  const scores = [nameField.score, idField.score, faceField.score];
 
   return {
     baseline: {
@@ -328,10 +399,12 @@ exports.buildKycComparisonResult = ({
     fields: {
       name: nameField,
       idNumber: idField,
+      facePortrait: faceField,
     },
     thresholds: {
       fieldMatch: MATCH_THRESHOLD,
       ocrConfidence: OCR_CONFIDENCE_THRESHOLD,
+      faceMatch: Number(faceField.threshold ?? FACE_MATCH_THRESHOLD),
     },
     overallScore: Number(average(scores).toFixed(4)),
   };
@@ -340,6 +413,7 @@ exports.buildKycComparisonResult = ({
 exports.decideKycOutcome = ({ comparisonResult, extractedData }) => {
   const nameField = comparisonResult?.fields?.name || {};
   const idField = comparisonResult?.fields?.idNumber || {};
+  const faceField = comparisonResult?.fields?.facePortrait || {};
   const averageConfidence = Number(extractedData?.ocrQuality?.averageConfidence || 0);
   const hasOcrErrors = Boolean(extractedData?.ocrQuality?.errors?.length);
   const frontFieldConfidence = extractedData?.raw?.front?.fieldConfidences || {};
@@ -356,33 +430,42 @@ exports.decideKycOutcome = ({ comparisonResult, extractedData }) => {
   };
 
   const reasons = [];
-  if (!nameField.match) reasons.push('Name mismatch');
-  if (!idField.match) reasons.push('ID number mismatch');
+  if (!nameField.match) reasons.push('Tên không trùng khớp');
+  if (!idField.match) reasons.push('Số căn cước không trùng khớp');
+  if (idField?.comparedWith === 'declaredIdMissing') reasons.push('Vui lòng nhập số căn cước công dân');
+  if (idField?.meta?.frontBackConsistency === false) {
+    reasons.push('Số căn cước trên mặt trước và mặt sau không trùng khớp');
+  }
+  if (faceField.match !== true) reasons.push('Khuôn mặt không trùng khớp');
+  if (faceField?.meta?.selfieFaceDetected === false) reasons.push('Không nhận diện được khuôn mặt ở ảnh chân dung');
+  if (faceField?.meta?.cccdFaceDetected === false) reasons.push('Không nhận diện được khuôn mặt trên CCCD');
   if (averageConfidence < OCR_CONFIDENCE_THRESHOLD) {
     reasons.push(
-      `OCR confidence too low (${averageConfidence.toFixed(3)} < ${OCR_CONFIDENCE_THRESHOLD})`
+      `Độ tin cậy OCR quá thấp (${averageConfidence.toFixed(3)} < ${OCR_CONFIDENCE_THRESHOLD})`
     );
   }
-  if (!extractedData?.parsed?.fullName) reasons.push('Unable to extract full name');
-  if (!extractedData?.parsed?.idNumber) reasons.push('Unable to extract ID number');
+  if (!extractedData?.parsed?.fullName) reasons.push('Không trích xuất được họ tên từ CCCD');
+  if (!extractedData?.parsed?.idNumber) reasons.push('Không trích xuất được số căn cước từ CCCD');
   if (criticalFieldConfidence.fullName < OCR_CONFIDENCE_THRESHOLD) {
     reasons.push(
-      `Full name confidence too low (${criticalFieldConfidence.fullName.toFixed(3)} < ${OCR_CONFIDENCE_THRESHOLD})`
+      `Độ tin cậy họ tên quá thấp (${criticalFieldConfidence.fullName.toFixed(3)} < ${OCR_CONFIDENCE_THRESHOLD})`
     );
   }
   if (criticalFieldConfidence.idNumber < OCR_CONFIDENCE_THRESHOLD) {
     reasons.push(
-      `ID number confidence too low (${criticalFieldConfidence.idNumber.toFixed(3)} < ${OCR_CONFIDENCE_THRESHOLD})`
+      `Độ tin cậy số căn cước quá thấp (${criticalFieldConfidence.idNumber.toFixed(3)} < ${OCR_CONFIDENCE_THRESHOLD})`
     );
   }
-  if (hasOcrErrors) reasons.push('OCR processing issue');
+  if (hasOcrErrors) reasons.push('Hệ thống OCR xử lý không ổn định');
 
-  const criticalFieldsMatch = nameField.match === true && idField.match === true;
+  const criticalFieldsMatch =
+    nameField.match === true &&
+    idField.match === true &&
+    faceField.match === true;
   const highConfidence = averageConfidence >= OCR_CONFIDENCE_THRESHOLD;
   const criticalFieldConfidencePass =
     criticalFieldConfidence.fullName >= OCR_CONFIDENCE_THRESHOLD &&
     criticalFieldConfidence.idNumber >= OCR_CONFIDENCE_THRESHOLD;
-
   if (criticalFieldsMatch && highConfidence && criticalFieldConfidencePass && !hasOcrErrors) {
     return {
       kycStatus: 'verified',
@@ -395,7 +478,7 @@ exports.decideKycOutcome = ({ comparisonResult, extractedData }) => {
   return {
     kycStatus: 'rejected',
     isVerified: false,
-    kycRejectionReason: unique(reasons).join(', ') || 'KYC rejected by automated checks',
+    kycRejectionReason: unique(reasons).join(', ') || 'Hồ sơ bị từ chối bởi kiểm tra tự động',
     decisionNotes: unique(reasons),
   };
 };

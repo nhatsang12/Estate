@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 import favoriteService from '@/services/favoriteService';
+import LuxuryLoginModal from './LuxuryLoginModal';
 import type { Property } from '@/types/property';
 import { formatVNDShort } from '@/utils/formatPrice';
 import { optimizeCloudinaryUrl } from '@/utils/imageOptimization';
@@ -374,6 +375,7 @@ export default function LuxuryListingCard({ property: p, horizontal = false }: L
     const { user } = useAuth();
     const [faved, setFaved] = useState(false);
     const [favoriteProcessing, setFavoriteProcessing] = useState(false);
+    const [showLoginModal, setShowLoginModal] = useState(false);
     const badge = getBadge(p);
 
     useEffect(() => {
@@ -415,7 +417,7 @@ export default function LuxuryListingCard({ property: p, horizontal = false }: L
         if (!p?._id || favoriteProcessing) return;
 
         if (!user) {
-            void router.push(`/auth/login?redirect=${encodeURIComponent(router.asPath)}`);
+            setShowLoginModal(true);
             return;
         }
 
@@ -464,74 +466,80 @@ export default function LuxuryListingCard({ property: p, horizontal = false }: L
     const displayTitle = (p.title || '').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
     return (
-        <div
-            className={`lc-card${horizontal ? ' lc-horizontal' : ''}`}
-            role="button"
-            tabIndex={0}
-            onClick={() => router.push(`/properties/${p._id}`)}
-            onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    router.push(`/properties/${p._id}`);
-                }
-            }}
-        >
-            {/* Image */}
-            <div className="lc-img-wrap">
-                <img 
-                    className="lc-img" 
-                    src={img} 
-                    alt={p.title} 
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="low"
-                />
-                {badge && (
-                    <span className={`lc-badge ${BADGE_CONFIG[badge].cls}`}>
-                        {BADGE_CONFIG[badge].label}
-                    </span>
-                )}
-                <button
-                    type="button"
-                    className={`lc-fav${faved ? ' is-faved' : ''}${favoriteProcessing ? ' is-loading' : ''}`}
-                    onClick={(event) => void handleToggleFavorite(event)}
-                    disabled={favoriteProcessing}
-                    aria-label="Yêu thích"
-                >
-                    <HeartIcon filled={faved} />
-                </button>
+        <>
+            <div
+                className={`lc-card${horizontal ? ' lc-horizontal' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push(`/properties/${p._id}`)}
+                onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(`/properties/${p._id}`);
+                    }
+                }}
+            >
+                {/* Image */}
+                <div className="lc-img-wrap">
+                    <img 
+                        className="lc-img" 
+                        src={img} 
+                        alt={p.title} 
+                        loading="lazy"
+                        decoding="async"
+                        fetchPriority="low"
+                    />
+                    {badge && (
+                        <span className={`lc-badge ${BADGE_CONFIG[badge].cls}`}>
+                            {BADGE_CONFIG[badge].label}
+                        </span>
+                    )}
+                    <button
+                        type="button"
+                        className={`lc-fav${faved ? ' is-faved' : ''}${favoriteProcessing ? ' is-loading' : ''}`}
+                        onClick={(event) => void handleToggleFavorite(event)}
+                        disabled={favoriteProcessing}
+                        aria-label="Yêu thích"
+                    >
+                        <HeartIcon filled={faved} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="lc-body">
+                    <div className="lc-type">{typeLabel}</div>
+                    <h3 className="lc-name">{displayTitle}</h3>
+                    <div className="lc-addr">
+                        <PinIcon />
+                        {shortenAddress(p.address)}
+                    </div>
+                    {(p.area != null || p.bedrooms != null || p.bathrooms != null) && (
+                        <div className="lc-specs">
+                            {p.area != null && <div className="lc-spec"><AreaIcon /> {p.area} m²</div>}
+                            {p.bedrooms != null && <div className="lc-spec"><BedIcon /> {p.bedrooms} PN</div>}
+                            {p.bathrooms != null && <div className="lc-spec"><BathIcon /> {p.bathrooms} WC</div>}
+                        </div>
+                    )}
+                    <div className="lc-footer">
+                        <div className="lc-price-wrap">
+                            <span className="lc-price-label">Giá</span>
+                            <span className="lc-price">{priceFormatted}</span>
+                        </div>
+                        <Link
+                            href={`/properties/${p._id}`}
+                            className="lc-cta"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            Chi tiết <ArrowIcon />
+                        </Link>
+                    </div>
+                </div>
             </div>
 
-            {/* Body */}
-            <div className="lc-body">
-                <div className="lc-type">{typeLabel}</div>
-                <h3 className="lc-name">{displayTitle}</h3>
-                <div className="lc-addr">
-                    <PinIcon />
-                    {shortenAddress(p.address)}
-                </div>
-                {(p.area != null || p.bedrooms != null || p.bathrooms != null) && (
-                    <div className="lc-specs">
-                        {p.area != null && <div className="lc-spec"><AreaIcon /> {p.area} m²</div>}
-                        {p.bedrooms != null && <div className="lc-spec"><BedIcon /> {p.bedrooms} PN</div>}
-                        {p.bathrooms != null && <div className="lc-spec"><BathIcon /> {p.bathrooms} WC</div>}
-                    </div>
-                )}
-                <div className="lc-footer">
-                    <div className="lc-price-wrap">
-                        <span className="lc-price-label">Giá</span>
-                        <span className="lc-price">{priceFormatted}</span>
-                    </div>
-                    <Link
-                        href={`/properties/${p._id}`}
-                        className="lc-cta"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        Chi tiết <ArrowIcon />
-                    </Link>
-                </div>
-            </div>
-        </div>
+            {showLoginModal && (
+                <LuxuryLoginModal onClose={() => setShowLoginModal(false)} />
+            )}
+        </>
     );
 }
 

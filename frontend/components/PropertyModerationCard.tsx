@@ -92,9 +92,9 @@ export default function PropertyModerationCard({
           </div>
         )}
 
-        {property.ownershipDocuments && property.ownershipDocuments.length > 0 && (
-          <div>
-            <p className="text-text-secondary text-sm font-medium mb-2">Giấy tờ pháp lý</p>
+        <div>
+          <p className="text-text-secondary text-sm font-medium mb-2">Giấy tờ pháp lý</p>
+          {property.ownershipDocuments && property.ownershipDocuments.length > 0 ? (
             <div className="grid grid-cols-2 gap-2">
               {property.ownershipDocuments.map((docUrl, idx) => (
                 <a
@@ -117,8 +117,12 @@ export default function PropertyModerationCard({
                 </a>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="rounded-xl border border-dashed border-boundary bg-surface px-3 py-2 text-xs text-text-secondary">
+              Giấy tờ nhà đất không có
+            </div>
+          )}
+        </div>
 
         {/* Owner Info */}
         {typeof property.ownerId !== "string" && property.ownerId && (

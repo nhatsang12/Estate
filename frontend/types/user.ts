@@ -21,6 +21,19 @@ export interface KycComparisonResult {
   [key: string]: unknown;
 }
 
+export interface KycFaceComparisonResult {
+  score?: number;
+  threshold?: number;
+  match?: boolean;
+  reason?: string;
+  selfieFaceDetected?: boolean;
+  cccdFaceDetected?: boolean;
+  components?: Record<string, unknown>;
+  processingMeta?: Record<string, unknown>;
+  decidedAt?: string;
+  [key: string]: unknown;
+}
+
 export interface SubscriptionInfo {
   plan: SubscriptionPlan;
   expiryDate?: string;
@@ -41,8 +54,11 @@ export interface User {
   isVerified?: boolean;
   kycStatus?: KycStatus;
   kycDocuments?: string[];
+  kycPortraitUrl?: string;
   kycExtractedData?: KycExtractedData | null;
+  kycDeclaredIdNumber?: string;
   kycComparisonResult?: KycComparisonResult | null;
+  kycFaceComparisonResult?: KycFaceComparisonResult | null;
   kycRejectionReason?: string;
   subscription?: SubscriptionInfo;
   subscriptionPlan?: SubscriptionPlan;

@@ -181,7 +181,7 @@ export default function ProfileSettings() {
                 fontFamily: 'var(--e-serif)', fontSize: 'clamp(4rem, 7vw, 7rem)',
                 fontWeight: 200, color: 'var(--e-beige)', lineHeight: 1,
                 letterSpacing: '-0.04em', userSelect: 'none',
-              }}>01</span>
+              }}></span>
               <div>
                 <div className="e-section-label">Hồ Sơ Của Bạn</div>
                 <h2 className="e-section-title text-[var(--e-charcoal)]" style={{ margin: 0 }}>

@@ -369,6 +369,20 @@ export const propertyService = {
     return response.data.property;
   },
 
+  async resubmitForApproval(propertyId: string) {
+    const response = await requestJson<PropertyResponse, { status: string; rejectionReason: string }>(
+      `/properties/${encodeURIComponent(propertyId)}`,
+      {
+        method: "PATCH",
+        body: {
+          status: "pending",
+          rejectionReason: "",
+        },
+      }
+    );
+    return response.data.property;
+  },
+
   async deleteProperty(id: string) {
     return requestJson(`/properties/${id}`, {
       method: "DELETE",

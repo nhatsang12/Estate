@@ -32,6 +32,7 @@ import {
 import PropertyForm from "@/components/PropertyForm";
 import type { Property } from "@/types/property";
 import type { SubscriptionPlan, User } from "@/types/user";
+import { translateKycRejectionReason } from "@/utils/kycRejectionReason";
 
 /* ═══════════════════════════════════════════════════════════
    HYDRATION-SAFE FORMATTERS
@@ -557,11 +558,12 @@ const FILTERS: { value: FilterType; label: string }[] = [
   { value: "sold", label: "Đã Bán" },
 ];
 
-function PropertiesView({ properties, onDelete, onEdit, onMarkSold, onToggleVisibility, onCreate }: {
+function PropertiesView({ properties, onDelete, onEdit, onMarkSold, onResubmit, onToggleVisibility, onCreate }: {
   properties: Property[];
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onMarkSold: (id: string) => void;
+  onResubmit: (id: string) => void;
   onToggleVisibility: (property: Property) => void;
   onCreate: () => void;
 }) {
@@ -673,6 +675,7 @@ function PropertiesView({ properties, onDelete, onEdit, onMarkSold, onToggleVisi
               onEdit={() => onEdit(property._id)}
               onDelete={() => onDelete(property._id)}
               onMarkSold={() => onMarkSold(property._id)}
+              onResubmit={() => onResubmit(property._id)}
               onToggleVisibility={() => onToggleVisibility(property)}
             />
           ))}
@@ -694,12 +697,13 @@ function PropertiesView({ properties, onDelete, onEdit, onMarkSold, onToggleVisi
 }
 
 /* Property Card — shared design language with admin moderation cards */
-function PropertyCard({ property, onEdit, onDelete, onMarkSold, onToggleVisibility }: {
-  property: Property; onEdit: () => void; onDelete: () => void; onMarkSold: () => void; onToggleVisibility: () => void;
+function PropertyCard({ property, onEdit, onDelete, onMarkSold, onResubmit, onToggleVisibility }: {
+  property: Property; onEdit: () => void; onDelete: () => void; onMarkSold: () => void; onResubmit: () => void; onToggleVisibility: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const canToggleVisibility = property.status === "approved" || property.status === "hidden";
   const canMarkSold = !isSoldListing(property) && (property.status === "approved" || property.status === "hidden");
+  const isRejected = property.status === "rejected";
 
   return (
     <div style={{
@@ -787,7 +791,9 @@ function PropertyCard({ property, onEdit, onDelete, onMarkSold, onToggleVisibili
             <Eye size={12} /> Xem
           </Link>
           <ActionBtn variant="outline" onClick={onEdit}><Check size={12} /> Sửa</ActionBtn>
-          {canMarkSold ? (
+          {isRejected ? (
+            <ActionBtn variant="gold" onClick={onResubmit}><UploadCloud size={12} /> Gửi Lại</ActionBtn>
+          ) : canMarkSold ? (
             <ActionBtn variant="dark" onClick={onMarkSold}><CheckCircle2 size={12} /> Đã Bán</ActionBtn>
           ) : !isSoldListing(property) ? (
             <ActionBtn variant="ghost" disabled><Clock size={12} /> Chưa Duyệt</ActionBtn>
@@ -1417,13 +1423,22 @@ function validateFile(file: File) {
   return null;
 }
 
+function normalizeDeclaredIdNumber(value: string) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function isValidDeclaredIdNumber(value: string) {
+  const digits = normalizeDeclaredIdNumber(value);
+  return digits.length === 9 || digits.length === 12;
+}
+
 function getKycErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return "Không thể xử lý yêu cầu KYC lúc này.";
 }
 
-type DocumentSide = "front" | "back";
+type DocumentSide = "front" | "back" | "portrait";
 
 interface UploadBoxProps {
   title: string; file: File | null; preview: string | null;
@@ -1433,6 +1448,7 @@ interface UploadBoxProps {
 
 function UploadBox({ title, file, preview, inputRef, onSelectFile, onClearFile }: UploadBoxProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const isSelfieBox = title.toLowerCase().includes("selfie");
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault(); setIsDragging(false);
     const f = e.dataTransfer.files?.[0]; if (f) onSelectFile(f);
@@ -1467,6 +1483,9 @@ function UploadBox({ title, file, preview, inputRef, onSelectFile, onClearFile }
             <UploadCloud size={26} color="var(--e-gold)" style={{ opacity: 0.45 }} />
             <p style={{ fontSize: "0.8rem", color: "var(--e-charcoal)", fontWeight: 600, textAlign: "center", fontFamily: "var(--e-sans)", margin: 0 }}>Kéo thả hoặc nhấn để chọn ảnh</p>
             <p style={{ fontSize: "0.67rem", color: "var(--e-light-muted)", fontFamily: "var(--e-sans)", margin: 0 }}>JPG / PNG · Tối đa 5MB</p>
+            {isSelfieBox && (
+              <p style={{ fontSize: "0.67rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)", margin: 0 }}>Ảnh selfie rõ mặt, không đeo khẩu trang/kính râm.</p>
+            )}
           </div>
         )}
       </div>
@@ -1491,11 +1510,18 @@ function KycView() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
+  const [portraitFile, setPortraitFile] = useState<File | null>(null);
   const [frontPreview, setFrontPreview] = useState<string | null>(null);
   const [backPreview, setBackPreview] = useState<string | null>(null);
+  const [portraitPreview, setPortraitPreview] = useState<string | null>(null);
   const [declaredIdNumber, setDeclaredIdNumber] = useState("");
+  const [checkingDeclaredId, setCheckingDeclaredId] = useState(false);
+  const [declaredIdInUse, setDeclaredIdInUse] = useState(false);
+  const [declaredIdCheckError, setDeclaredIdCheckError] = useState<string | null>(null);
+  const [checkedDeclaredId, setCheckedDeclaredId] = useState("");
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
+  const portraitInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!frontFile) { setFrontPreview(null); return; }
@@ -1510,6 +1536,12 @@ function KycView() {
   }, [backFile]);
 
   useEffect(() => {
+    if (!portraitFile) { setPortraitPreview(null); return; }
+    const url = URL.createObjectURL(portraitFile); setPortraitPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [portraitFile]);
+
+  useEffect(() => {
     if (!token) return;
     (async () => {
       setPageLoading(true);
@@ -1519,30 +1551,111 @@ function KycView() {
     })();
   }, [token]);
 
-  const canSubmit = useMemo(() => Boolean(frontFile && backFile && token && !submitting), [backFile, frontFile, submitting, token]);
+  const normalizedDeclaredId = useMemo(
+    () => normalizeDeclaredIdNumber(declaredIdNumber),
+    [declaredIdNumber]
+  );
+  const hasValidDeclaredId = useMemo(
+    () => isValidDeclaredIdNumber(declaredIdNumber),
+    [declaredIdNumber]
+  );
+
+  useEffect(() => {
+    if (!token) {
+      setCheckingDeclaredId(false);
+      setDeclaredIdInUse(false);
+      setDeclaredIdCheckError(null);
+      return;
+    }
+
+    if (!normalizedDeclaredId || !hasValidDeclaredId) {
+      setCheckingDeclaredId(false);
+      setDeclaredIdInUse(false);
+      setDeclaredIdCheckError(null);
+      setCheckedDeclaredId("");
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingDeclaredId(true);
+    setDeclaredIdCheckError(null);
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await userService.checkDeclaredIdAvailability(token, normalizedDeclaredId);
+        if (cancelled) return;
+        setCheckedDeclaredId(normalizedDeclaredId);
+        setDeclaredIdInUse(!result.available);
+      } catch (err) {
+        if (cancelled) return;
+        setCheckedDeclaredId("");
+        setDeclaredIdInUse(false);
+        setDeclaredIdCheckError(getKycErrorMessage(err));
+      } finally {
+        if (!cancelled) setCheckingDeclaredId(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [hasValidDeclaredId, normalizedDeclaredId, token]);
+
+  const canSubmit = useMemo(
+    () =>
+      Boolean(
+        frontFile &&
+          backFile &&
+          portraitFile &&
+          hasValidDeclaredId &&
+          checkedDeclaredId === normalizedDeclaredId &&
+          !declaredIdInUse &&
+          !checkingDeclaredId &&
+          token &&
+          !submitting
+      ),
+    [backFile, checkedDeclaredId, checkingDeclaredId, declaredIdInUse, frontFile, hasValidDeclaredId, normalizedDeclaredId, portraitFile, submitting, token]
+  );
 
   const handleSelectFile = (side: DocumentSide, file: File) => {
     const err = validateFile(file);
     if (err) { setErrorMessage(err); return; }
     setErrorMessage(null); setSuccessMessage(null);
     if (side === "front") setFrontFile(file);
-    else setBackFile(file);
+    else if (side === "back") setBackFile(file);
+    else setPortraitFile(file);
   };
 
   const handleClearFile = (side: DocumentSide) => {
     setErrorMessage(null); setSuccessMessage(null);
     if (side === "front") { setFrontFile(null); if (frontInputRef.current) frontInputRef.current.value = ""; }
-    else { setBackFile(null); if (backInputRef.current) backInputRef.current.value = ""; }
+    else if (side === "back") { setBackFile(null); if (backInputRef.current) backInputRef.current.value = ""; }
+    else { setPortraitFile(null); if (portraitInputRef.current) portraitInputRef.current.value = ""; }
   };
 
   const handleSubmit = async () => {
-    if (!token || !frontFile || !backFile) { setErrorMessage("Vui lòng tải lên cả mặt trước và mặt sau."); return; }
+    if (!token || !frontFile || !backFile || !portraitFile) {
+      setErrorMessage("Vui lòng tải lên mặt trước, mặt sau và ảnh chân dung.");
+      return;
+    }
+    if (!hasValidDeclaredId) {
+      setErrorMessage("Vui lòng nhập số CCCD hợp lệ (9 hoặc 12 số).");
+      return;
+    }
+    if (declaredIdInUse) {
+      setErrorMessage("Số CCCD này đã có người sử dụng. Vui lòng kiểm tra lại.");
+      return;
+    }
     setSubmitting(true); setErrorMessage(null); setSuccessMessage(null);
     try {
-      const res = await userService.submitKycDocuments(token, frontFile, backFile, declaredIdNumber);
+      const res = await userService.submitKycDocuments(token, frontFile, backFile, portraitFile, normalizedDeclaredId);
       setProfile(await userService.getMe(token));
       setSuccessMessage(res.message || "Nộp hồ sơ KYC thành công.");
-      setFrontFile(null); setBackFile(null); setDeclaredIdNumber("");
+      setFrontFile(null); setBackFile(null); setPortraitFile(null); setDeclaredIdNumber("");
+      if (frontInputRef.current) frontInputRef.current.value = "";
+      if (backInputRef.current) backInputRef.current.value = "";
+      if (portraitInputRef.current) portraitInputRef.current.value = "";
       await refreshProfile();
     } catch (err) { setErrorMessage(getKycErrorMessage(err)); }
     finally { setSubmitting(false); }
@@ -1605,7 +1718,7 @@ function KycView() {
       {profile.kycRejectionReason && (
         <div style={{ marginBottom: "1.5rem", border: "1px solid rgba(184,74,42,0.28)", background: "rgba(184,74,42,0.05)", padding: "1rem 1.2rem", borderRadius: 12 }}>
           <p style={{ fontSize: "0.56rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "#b84a2a", fontWeight: 700, marginBottom: 5, fontFamily: "var(--e-sans)" }}>Lý do từ chối</p>
-          <p style={{ fontSize: "0.8rem", color: "#b84a2a", lineHeight: 1.65, fontFamily: "var(--e-sans)", margin: 0 }}>{profile.kycRejectionReason}</p>
+          <p style={{ fontSize: "0.8rem", color: "#b84a2a", lineHeight: 1.65, fontFamily: "var(--e-sans)", margin: 0 }}>{translateKycRejectionReason(profile.kycRejectionReason)}</p>
         </div>
       )}
 
@@ -1616,25 +1729,51 @@ function KycView() {
           <h3 style={{ fontFamily: "var(--e-serif)", fontSize: "1.3rem", fontWeight: 500, color: "var(--e-charcoal)", marginBottom: "0.4rem" }}>
             Nộp Hồ Sơ <span style={{ fontFamily: "var(--e-sans)", fontWeight: 400, color: "var(--e-light-muted)" }}>CCCD</span>
           </h3>
-          <p style={{ fontSize: "0.78rem", color: "var(--e-light-muted)", lineHeight: 1.7, fontFamily: "var(--e-sans)", margin: 0 }}>Tải ảnh chụp rõ nét mặt trước và mặt sau CCCD. Định dạng JPG, PNG. Tối đa 5MB/ảnh.</p>
+          <p style={{ fontSize: "0.78rem", color: "var(--e-light-muted)", lineHeight: 1.7, fontFamily: "var(--e-sans)", margin: 0 }}>Tải ảnh rõ nét mặt trước, mặt sau CCCD và ảnh chân dung. Với ảnh chân dung, vui lòng dùng ảnh selfie rõ mặt. Định dạng JPG, PNG. Tối đa 5MB/ảnh. Số CCCD nhập tay là bắt buộc để hệ thống đối chiếu.</p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.4rem", marginBottom: "1.6rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.4rem", marginBottom: "1.6rem" }}>
           <UploadBox title="CCCD — Mặt Trước" file={frontFile} preview={frontPreview} inputRef={frontInputRef} onSelectFile={f => handleSelectFile("front", f)} onClearFile={() => handleClearFile("front")} />
           <UploadBox title="CCCD — Mặt Sau" file={backFile} preview={backPreview} inputRef={backInputRef} onSelectFile={f => handleSelectFile("back", f)} onClearFile={() => handleClearFile("back")} />
+          <UploadBox title="Ảnh Selfie (Chân Dung)" file={portraitFile} preview={portraitPreview} inputRef={portraitInputRef} onSelectFile={f => handleSelectFile("portrait", f)} onClearFile={() => handleClearFile("portrait")} />
         </div>
 
         {/* ID number input */}
         <div style={{ maxWidth: 420, marginBottom: "1.5rem" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.56rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700 }}>Số CCCD</span>
+            <span style={{ fontFamily: "var(--e-sans)", fontSize: "0.56rem", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700 }}>Số CCCD (Bắt buộc)</span>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", border: "1px solid rgba(154,124,69,0.2)", padding: "0 12px", background: "rgba(255,252,248,0.8)", borderRadius: 10, transition: "border-color 0.2s" }}
               onFocusCapture={e => (e.currentTarget.style.borderColor = "var(--e-gold)")}
               onBlurCapture={e => (e.currentTarget.style.borderColor = "rgba(154,124,69,0.2)")}>
               <IdCard size={14} color="var(--e-gold)" style={{ flexShrink: 0, opacity: 0.7 }} />
-              <input type="text" value={declaredIdNumber} onChange={e => setDeclaredIdNumber(e.target.value)} placeholder="Nhập số CCCD"
+              <input type="text" value={declaredIdNumber} onChange={e => setDeclaredIdNumber(e.target.value.replace(/\D/g, ""))} placeholder="Nhập số CCCD (9 hoặc 12 số)"
                 style={{ flex: 1, border: "none", background: "none", padding: "10px 0", fontFamily: "var(--e-sans)", fontSize: "0.84rem", color: "var(--e-charcoal)", outline: "none" }} />
             </div>
+            {declaredIdNumber && !hasValidDeclaredId && (
+              <p style={{ marginTop: 6, fontSize: "0.72rem", color: "#b84a2a", fontFamily: "var(--e-sans)" }}>
+                Số CCCD phải gồm 9 hoặc 12 chữ số.
+              </p>
+            )}
+            {hasValidDeclaredId && checkingDeclaredId && (
+              <p style={{ marginTop: 6, fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>
+                Đang kiểm tra số CCCD...
+              </p>
+            )}
+            {hasValidDeclaredId && !checkingDeclaredId && declaredIdInUse && (
+              <p style={{ marginTop: 6, fontSize: "0.72rem", color: "#b84a2a", fontFamily: "var(--e-sans)" }}>
+                Số CCCD này đã có tài khoản sử dụng.
+              </p>
+            )}
+            {hasValidDeclaredId && !checkingDeclaredId && !declaredIdInUse && !declaredIdCheckError && (
+              <p style={{ marginTop: 6, fontSize: "0.72rem", color: "#2d7a4f", fontFamily: "var(--e-sans)" }}>
+                Số CCCD hợp lệ và chưa bị trùng.
+              </p>
+            )}
+            {hasValidDeclaredId && !checkingDeclaredId && declaredIdCheckError && (
+              <p style={{ marginTop: 6, fontSize: "0.72rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>
+                Không thể kiểm tra trùng ngay lúc này. Bạn vẫn có thể nộp hồ sơ.
+              </p>
+            )}
           </label>
         </div>
 
@@ -1672,9 +1811,9 @@ function KycView() {
           </div>
         </div>
 
-        {profile.kycDocuments?.length ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.75rem" }}>
-            {profile.kycDocuments.map((docUrl, idx) => (
+        {((profile.kycDocuments?.length ?? 0) > 0 || Boolean(profile.kycPortraitUrl)) ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
+            {(profile.kycDocuments ?? []).map((docUrl, idx) => (
               <a key={`${docUrl}-${idx}`} href={docUrl} target="_blank" rel="noreferrer"
                 style={{ display: "block", overflow: "hidden", position: "relative", borderRadius: 12, border: "1px solid rgba(154,124,69,0.15)" }}>
                 <Image src={docUrl} alt={`KYC document ${idx + 1}`} width={900} height={700} unoptimized
@@ -1686,6 +1825,18 @@ function KycView() {
                 </div>
               </a>
             ))}
+            {profile.kycPortraitUrl && (
+              <a key={`portrait-${profile.kycPortraitUrl}`} href={profile.kycPortraitUrl} target="_blank" rel="noreferrer"
+                style={{ display: "block", overflow: "hidden", position: "relative", borderRadius: 12, border: "1px solid rgba(154,124,69,0.15)" }}>
+                <Image src={profile.kycPortraitUrl} alt="KYC portrait" width={900} height={700} unoptimized
+                  style={{ width: "100%", height: 200, objectFit: "cover", display: "block", transition: "transform 0.5s" }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.04)")}
+                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")} />
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "1rem 1.1rem", background: "linear-gradient(to top, rgba(17,28,20,0.7) 0%, transparent 100%)" }}>
+                  <p style={{ fontSize: "0.56rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-gold-light)", fontWeight: 700, fontFamily: "var(--e-sans)", margin: 0 }}>Ảnh chân dung</p>
+                </div>
+              </a>
+            )}
           </div>
         ) : (
           <div style={{ padding: "2.5rem 2rem", textAlign: "center", border: "1px dashed rgba(154,124,69,0.2)", background: "rgba(255,252,248,0.6)", borderRadius: 12 }}>
@@ -1911,6 +2062,37 @@ export default function ProviderDashboard() {
     }
   }, [fetchDashboardMeta, properties]);
 
+  const handleResubmitForApproval = useCallback(async (id: string) => {
+    const targetProperty = properties.find((item) => item._id === id);
+    if (!targetProperty || targetProperty.status !== "rejected") {
+      alert("Chỉ tin bị từ chối mới có thể gửi lại.");
+      return;
+    }
+
+    const accepted = confirm("Gửi lại tin này để admin duyệt lại?");
+    if (!accepted) return;
+
+    try {
+      const updatedProperty = await propertyService.resubmitForApproval(id);
+      setProperties((prev) =>
+        prev.map((item) =>
+          item._id === id
+            ? {
+                ...item,
+                ...updatedProperty,
+                status: "pending",
+                rejectionReason: "",
+              }
+            : item
+        )
+      );
+      alert("Đã gửi lại tin thành công. Tin đang chờ duyệt.");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Không thể gửi lại tin ngay lúc này.";
+      alert(message);
+    }
+  }, [properties]);
+
   const handleToggleVisibility = useCallback(async (property: Property) => {
     const isHidden = property.status === "hidden";
     const accepted = confirm(
@@ -2062,7 +2244,7 @@ export default function ProviderDashboard() {
           <div style={{ position: "relative", zIndex: 1, minHeight: "100%", display: "flex", flexDirection: "column", padding: "2rem 2.5rem" }}>
             <div style={{ width: "100%", maxWidth: "1200px", margin: "0 auto", flex: 1 }}>
               {view === "dashboard" && <ViewWrapper><DashboardView provider={user} stats={stats} properties={properties} recentProperties={properties.slice(0, 5)} onNavigate={handleSetView} salesStats={salesStats} subscriptionStatus={subscriptionStatus} /></ViewWrapper>}
-              {view === "properties" && <ViewWrapper><PropertiesView properties={properties} onDelete={handleDelete} onEdit={handleEditProperty} onMarkSold={handleMarkSold} onToggleVisibility={handleToggleVisibility} onCreate={() => handleSetView("create")} /></ViewWrapper>}
+              {view === "properties" && <ViewWrapper><PropertiesView properties={properties} onDelete={handleDelete} onEdit={handleEditProperty} onMarkSold={handleMarkSold} onResubmit={handleResubmitForApproval} onToggleVisibility={handleToggleVisibility} onCreate={() => handleSetView("create")} /></ViewWrapper>}
               {view === "plans" && <ViewWrapper><PlansView currentPlan={(subscriptionStatus?.planType as SubscriptionPlan | undefined) ?? getUserPlan(user)} listingsUsed={stats.total} /></ViewWrapper>}
               {view === "create" && <ViewWrapper><CreateView onCreated={handlePropertyCreated} /></ViewWrapper>}
               {view === "edit" && editPropertyId && <ViewWrapper><EditView propertyId={editPropertyId} onUpdated={handlePropertyUpdated} onCancel={() => handleSetView("properties")} /></ViewWrapper>}

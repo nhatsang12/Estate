@@ -9,7 +9,7 @@ import {
   Clock, Home, Users, FileText, Key,
   MapPin, ChevronDown, ChevronRight,
   SlidersHorizontal, Search, Phone,
-  BadgeCheck, AlertTriangle, Eye, CreditCard, User as UserIcon,
+  BadgeCheck, AlertTriangle, Eye, CreditCard, User as UserIcon, LogOut,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -25,6 +25,7 @@ import KycStatusBadge from "@/components/KycStatusBadge";
 import type { Property } from "@/types/property";
 import type { KycStatus, User } from "@/types/user";
 import { formatVNDShort } from "@/utils/formatPrice";
+import { translateKycRejectionReason } from "@/utils/kycRejectionReason";
 
 /* ═══════════════════════════════════════════════════════════
    TYPES
@@ -85,10 +86,6 @@ function formatDate(date?: string) {
     hour: "2-digit", minute: "2-digit",
     timeZone: "Asia/Ho_Chi_Minh",
   });
-}
-function prettyJson(value: unknown) {
-  if (!value) return "Không có dữ liệu";
-  try { return JSON.stringify(value, null, 2); } catch { return "Không thể hiển thị dữ liệu"; }
 }
 const fmtVND = (n: number) => formatVNDShort(n);
 function isImageUrl(url: string) {
@@ -1280,8 +1277,8 @@ function PropertyModerationRow({ property, onApprove, onReject, isLoading }: {
                 ))}
               </div>
             </>)}
-            {(property.ownershipDocuments?.length ?? 0) > 0 && (<>
-              <p style={{ fontSize: "0.54rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 7, fontFamily: "var(--e-sans)" }}>Giấy Tờ Pháp Lý</p>
+            <p style={{ fontSize: "0.54rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 7, fontFamily: "var(--e-sans)" }}>Giấy Tờ Pháp Lý</p>
+            {(property.ownershipDocuments?.length ?? 0) > 0 ? (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                 {property.ownershipDocuments?.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(154,124,69,0.15)" }}>
@@ -1290,7 +1287,11 @@ function PropertyModerationRow({ property, onApprove, onReject, isLoading }: {
                   </a>
                 ))}
               </div>
-            </>)}
+            ) : (
+              <div style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px dashed rgba(154,124,69,0.25)", background: "rgba(255,255,255,0.72)", fontSize: "0.74rem", color: "var(--e-muted)", fontFamily: "var(--e-sans)" }}>
+                Giấy tờ nhà đất không có
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1656,7 +1657,7 @@ function ProvidersView() {
               <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Tên hoặc email..." style={{ width: "100%", padding: "9px 12px 9px 30px", border: "1px solid rgba(154,124,69,0.25)", borderRadius: "8px", background: "rgba(255,255,255,0.92)", fontFamily: "var(--e-sans)", fontSize: "0.84rem", color: "var(--e-charcoal)", outline: "none" }} onFocus={e => e.target.style.borderColor = "var(--e-gold)"} onBlur={e => e.target.style.borderColor = "rgba(154,124,69,0.25)"} />
             </div>
           </div>
-          <AnimatedSelect label="Trạng Thái KYC" value={kycFilter} onChange={setKycFilter} icon={ShieldCheck} options={[{ value: "all", label: "Tất cả" }, { value: "pending", label: "Chờ xử lý" }, { value: "submitted", label: "Đã nộp" }, { value: "reviewing", label: "Đang xem xét" }, { value: "rejected", label: "Từ chối" }]} />
+          <AnimatedSelect label="Trạng Thái KYC" value={kycFilter} onChange={setKycFilter} icon={ShieldCheck} options={[{ value: "all", label: "Tất cả" }, { value: "pending", label: "Chờ xử lý" }, { value: "rejected", label: "Từ chối" }, { value: "verified", label: "Đã xác minh" }]} />
           <AnimatedSelect label="Sắp Xếp" value={sortBy} onChange={setSortBy} icon={SlidersHorizontal} options={[{ value: "newest", label: "Mới nhất" }, { value: "oldest", label: "Cũ nhất" }, { value: "name_asc", label: "Tên A→Z" }, { value: "name_desc", label: "Tên Z→A" }]} />
         </div>
       </div>
@@ -1686,14 +1687,18 @@ function ProvidersView() {
 ═══════════════════════════════════════════════════════════ */
 const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string; border: string; dot: string; icon: React.ReactNode }> = {
   verified: { label: "Đã xác minh", bg: "rgba(46,139,117,0.08)", color: "#1a7a62", border: "rgba(46,139,117,0.25)", dot: "#2E8B75", icon: <BadgeCheck size={11} /> },
-  submitted: { label: "Đã nộp", bg: "rgba(59,130,246,0.07)", color: "#1e56a0", border: "rgba(59,130,246,0.22)", dot: "#3b82f6", icon: <FileText size={11} /> },
-  reviewing: { label: "Đang xem xét", bg: "rgba(154,124,69,0.08)", color: "#7a5e28", border: "rgba(154,124,69,0.25)", dot: "var(--e-gold)", icon: <Eye size={11} /> },
   rejected: { label: "Từ chối", bg: "rgba(184,74,42,0.07)", color: "#9a3820", border: "rgba(184,74,42,0.22)", dot: "#b84a2a", icon: <XCircle size={11} /> },
   pending: { label: "Chờ xử lý", bg: "rgba(0,0,0,0.04)", color: "var(--e-light-muted)", border: "rgba(0,0,0,0.1)", dot: "#aaa", icon: <Clock size={11} /> },
 };
 
+const normalizeAdminKycStatus = (status?: string) => {
+  const normalized = String(status || "pending").toLowerCase();
+  if (normalized === "submitted" || normalized === "reviewing") return "pending";
+  return normalized;
+};
+
 function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
+  const cfg = STATUS_CONFIG[normalizeAdminKycStatus(status)] ?? STATUS_CONFIG.pending;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px 3px 8px", borderRadius: "20px", background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--e-sans)" }}>
       {cfg.icon}{cfg.label}
@@ -1702,7 +1707,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function KycUserCard({ user, isActive, onClick }: { user: User; isActive: boolean; onClick: () => void }) {
-  const cfg = STATUS_CONFIG[user.kycStatus ?? "pending"];
+  const cfg = STATUS_CONFIG[normalizeAdminKycStatus(user.kycStatus)] ?? STATUS_CONFIG.pending;
   const initials = user.name?.slice(0, 2)?.toUpperCase() ?? "??";
   const hue = (user.name?.charCodeAt(0) ?? 65) % 360;
   return (
@@ -1728,6 +1733,7 @@ function CaseFilePanel({ user, onApprove, onReject, actionLoading, errorMessage,
 }) {
   const [reason, setReason] = useState(user.kycRejectionReason || "");
   const [docOpen, setDocOpen] = useState(false);
+  const canModerate = user.kycStatus === "submitted" || user.kycStatus === "reviewing";
   useEffect(() => { setReason(user.kycRejectionReason || ""); }, [user._id, user.kycRejectionReason]);
   const initials = user.name?.slice(0, 2)?.toUpperCase() ?? "??";
   const hue = (user.name?.charCodeAt(0) ?? 65) % 360;
@@ -1799,34 +1805,28 @@ function CaseFilePanel({ user, onApprove, onReject, actionLoading, errorMessage,
           </div>
         </div>
 
-        {/* OCR */}
-        <div style={{ marginBottom: "1.4rem" }}>
-          <div style={{ fontSize: "0.52rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--e-gold)", fontWeight: 700, marginBottom: 10, fontFamily: "var(--e-sans)" }}>Dữ Liệu OCR Trích Xuất</div>
-          <pre style={{ background: "#16120d", color: "#c9a96e", padding: "1rem 1.1rem", borderRadius: "12px", fontSize: "0.67rem", lineHeight: 1.7, margin: 0, overflowY: "auto", maxHeight: 120, border: "1px solid rgba(201,169,110,0.12)", letterSpacing: "0.02em" }} className="custom-scrollbar">
-            {prettyJson(user.kycExtractedData)}
-          </pre>
-        </div>
-
         {/* Previous rejection */}
         {user.kycRejectionReason && (
           <div style={{ marginBottom: "1.4rem", padding: "1rem", background: "rgba(184,74,42,0.04)", border: "1px solid rgba(184,74,42,0.2)", borderRadius: "12px", borderLeft: "3px solid #b84a2a" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.52rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "#b84a2a", fontWeight: 700, fontFamily: "var(--e-sans)", marginBottom: 6 }}>
-              <AlertTriangle size={11} /> Lý Do Từ Chối Trước
+              <AlertTriangle size={11} /> Lý Do Từ Chối
             </div>
-            <p style={{ fontSize: "0.78rem", color: "#9a3820", lineHeight: 1.65, margin: 0, fontFamily: "var(--e-sans)" }}>{user.kycRejectionReason}</p>
+            <p style={{ fontSize: "0.78rem", color: "#9a3820", lineHeight: 1.65, margin: 0, fontFamily: "var(--e-sans)" }}>{translateKycRejectionReason(user.kycRejectionReason)}</p>
           </div>
         )}
 
         {/* Reason textarea */}
-        <div style={{ marginBottom: "1.2rem" }}>
-          <label style={{ display: "block", fontSize: "0.52rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>
-            Lý do từ chối <span style={{ color: "rgba(0,0,0,0.3)", textTransform: "none", letterSpacing: 0 }}>(bắt buộc khi từ chối)</span>
-          </label>
-          <textarea rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="Mô tả chi tiết lý do từ chối hồ sơ KYC này..."
-            style={{ width: "100%", padding: "10px 13px", border: "1px solid rgba(154,124,69,0.22)", borderRadius: "10px", background: "rgba(255,252,248,0.95)", fontFamily: "var(--e-sans)", fontSize: "0.82rem", color: "var(--e-charcoal)", outline: "none", resize: "none", minHeight: 72, transition: "border-color 0.2s, box-shadow 0.2s" }}
-            onFocus={e => { e.target.style.borderColor = "var(--e-gold)"; e.target.style.boxShadow = "0 0 0 3px rgba(154,124,69,0.08)"; }}
-            onBlur={e => { e.target.style.borderColor = "rgba(154,124,69,0.22)"; e.target.style.boxShadow = "none"; }} />
-        </div>
+        {canModerate && (
+          <div style={{ marginBottom: "1.2rem" }}>
+            <label style={{ display: "block", fontSize: "0.52rem", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--e-muted)", fontWeight: 700, marginBottom: 8, fontFamily: "var(--e-sans)" }}>
+              Lý do từ chối <span style={{ color: "rgba(0,0,0,0.3)", textTransform: "none", letterSpacing: 0 }}>(bắt buộc khi từ chối)</span>
+            </label>
+            <textarea rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="Mô tả chi tiết lý do từ chối hồ sơ KYC này..."
+              style={{ width: "100%", padding: "10px 13px", border: "1px solid rgba(154,124,69,0.22)", borderRadius: "10px", background: "rgba(255,252,248,0.95)", fontFamily: "var(--e-sans)", fontSize: "0.82rem", color: "var(--e-charcoal)", outline: "none", resize: "none", minHeight: 72, transition: "border-color 0.2s, box-shadow 0.2s" }}
+              onFocus={e => { e.target.style.borderColor = "var(--e-gold)"; e.target.style.boxShadow = "0 0 0 3px rgba(154,124,69,0.08)"; }}
+              onBlur={e => { e.target.style.borderColor = "rgba(154,124,69,0.22)"; e.target.style.boxShadow = "none"; }} />
+          </div>
+        )}
 
         {errorMessage && (
           <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", borderRadius: "9px", background: "rgba(184,74,42,0.07)", border: "1px solid rgba(184,74,42,0.22)", fontSize: "0.78rem", color: "#9a3820", fontFamily: "var(--e-sans)", display: "flex", alignItems: "center", gap: 7 }}>
@@ -1841,20 +1841,22 @@ function CaseFilePanel({ user, onApprove, onReject, actionLoading, errorMessage,
       </div>
 
       {/* Sticky action footer */}
-      <div style={{ padding: "1.2rem 1.6rem", borderTop: "1px solid rgba(154,124,69,0.12)", background: "rgba(255,252,248,0.98)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
-        <button onClick={onApprove} disabled={actionLoading}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: "11px", background: actionLoading ? "#7cbdaf" : "linear-gradient(135deg, #2E8B75, #1e6b57)", color: "#fff", border: "none", cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", boxShadow: actionLoading ? "none" : "0 4px 16px rgba(46,139,117,0.3)", transition: "all 0.22s" }}
-          onMouseEnter={e => { if (!actionLoading) e.currentTarget.style.transform = "translateY(-1px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = "none"; }}>
-          {actionLoading ? <LoaderCircle size={13} className="animate-spin" /> : <ShieldCheck size={13} />}Duyệt KYC
-        </button>
-        <button onClick={() => onReject(reason)} disabled={actionLoading}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: "11px", background: "rgba(184,74,42,0.05)", color: "#b84a2a", border: "1px solid rgba(184,74,42,0.28)", cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.22s" }}
-          onMouseEnter={e => { if (!actionLoading) { e.currentTarget.style.background = "#b84a2a"; e.currentTarget.style.color = "#fff"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-          onMouseLeave={e => { if (!actionLoading) { e.currentTarget.style.background = "rgba(184,74,42,0.05)"; e.currentTarget.style.color = "#b84a2a"; e.currentTarget.style.transform = "none"; } }}>
-          {actionLoading ? <LoaderCircle size={13} className="animate-spin" /> : <XCircle size={13} />}Từ Chối
-        </button>
-      </div>
+      {canModerate && (
+        <div style={{ padding: "1.2rem 1.6rem", borderTop: "1px solid rgba(154,124,69,0.12)", background: "rgba(255,252,248,0.98)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
+          <button onClick={onApprove} disabled={actionLoading}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: "11px", background: actionLoading ? "#7cbdaf" : "linear-gradient(135deg, #2E8B75, #1e6b57)", color: "#fff", border: "none", cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", boxShadow: actionLoading ? "none" : "0 4px 16px rgba(46,139,117,0.3)", transition: "all 0.22s" }}
+            onMouseEnter={e => { if (!actionLoading) e.currentTarget.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "none"; }}>
+            {actionLoading ? <LoaderCircle size={13} className="animate-spin" /> : <ShieldCheck size={13} />}Duyệt KYC
+          </button>
+          <button onClick={() => onReject(reason)} disabled={actionLoading}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: "11px", background: "rgba(184,74,42,0.05)", color: "#b84a2a", border: "1px solid rgba(184,74,42,0.28)", cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "var(--e-sans)", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", transition: "all 0.22s" }}
+            onMouseEnter={e => { if (!actionLoading) { e.currentTarget.style.background = "#b84a2a"; e.currentTarget.style.color = "#fff"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+            onMouseLeave={e => { if (!actionLoading) { e.currentTarget.style.background = "rgba(184,74,42,0.05)"; e.currentTarget.style.color = "#b84a2a"; e.currentTarget.style.transform = "none"; } }}>
+            {actionLoading ? <LoaderCircle size={13} className="animate-spin" /> : <XCircle size={13} />}Từ Chối
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1863,7 +1865,7 @@ function KycView() {
   const { token } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<KycStatusFilter>("submitted");
+  const [statusFilter, setStatusFilter] = useState<KycStatusFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("provider");
   const [search, setSearch] = useState("");
@@ -1880,7 +1882,10 @@ function KycView() {
   }, [users, search]);
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
-    users.forEach(u => { const s = u.kycStatus ?? "pending"; map[s] = (map[s] ?? 0) + 1; });
+    users.forEach(u => {
+      const s = normalizeAdminKycStatus(u.kycStatus);
+      map[s] = (map[s] ?? 0) + 1;
+    });
     return map;
   }, [users]);
 
@@ -1900,12 +1905,20 @@ function KycView() {
 
   const handleApprove = async () => {
     if (!token || !selectedUser) return;
+    if (!(selectedUser.kycStatus === "submitted" || selectedUser.kycStatus === "reviewing")) {
+      setErrorMessage("Chỉ có thể duyệt hồ sơ ở trạng thái đã nộp hoặc đang xem xét.");
+      return;
+    }
     setActionLoading(true); setErrorMessage(null); setSuccessMessage(null);
     try { await userService.updateUserKycStatus(token, selectedUser._id, { isVerified: true, kycStatus: "verified" }); setSuccessMessage("Đã duyệt KYC thành công."); await loadUsers(); }
     catch (err) { setErrorMessage(getErrorMessage(err)); } finally { setActionLoading(false); }
   };
   const handleReject = async (reason: string) => {
     if (!token || !selectedUser) return;
+    if (!(selectedUser.kycStatus === "submitted" || selectedUser.kycStatus === "reviewing")) {
+      setErrorMessage("Chỉ có thể từ chối hồ sơ ở trạng thái đã nộp hoặc đang xem xét.");
+      return;
+    }
     if (!reason.trim()) { setErrorMessage("Vui lòng nhập lý do từ chối."); return; }
     setActionLoading(true); setErrorMessage(null); setSuccessMessage(null);
     try { await userService.updateUserKycStatus(token, selectedUser._id, { isVerified: false, kycStatus: "rejected", kycRejectionReason: reason.trim() }); setSuccessMessage("Đã từ chối KYC."); await loadUsers(); }
@@ -1941,8 +1954,9 @@ function KycView() {
                 onFocus={e => e.target.style.borderColor = "var(--e-gold)"} onBlur={e => e.target.style.borderColor = "rgba(154,124,69,0.25)"} />
             </div>
           </div>
-          <AnimatedSelect label="Trạng Thái" value={statusFilter} onChange={v => setStatusFilter(v as KycStatusFilter)} icon={ShieldCheck}
-            options={[{ value: "all", label: "Tất cả" }, { value: "submitted", label: "Đã nộp" }, { value: "reviewing", label: "Đang xem xét" }, { value: "rejected", label: "Từ chối" }, { value: "verified", label: "Đã xác minh" }, { value: "pending", label: "Chờ xử lý" }]} />
+          <AnimatedSelect label="Trạng Thái" value={statusFilter} onChange={v => setStatusFilter(v as KycStatusFilter)}
+            icon={ShieldCheck}
+            options={[{ value: "all", label: "Tất cả" }, { value: "pending", label: "Chờ xử lý" }, { value: "rejected", label: "Từ chối" }, { value: "verified", label: "Đã xác minh" }]} />
           <AnimatedSelect label="Vai Trò" value={roleFilter} onChange={v => setRoleFilter(v as RoleFilter)} icon={Users}
             options={[{ value: "provider", label: "Provider" }, { value: "user", label: "Người dùng" }]} />
         </div>
@@ -2017,7 +2031,7 @@ const NAV_ITEMS: { view: View; label: string; icon: React.ReactNode }[] = [
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user, isAuthLoading } = useAuth();
+  const { user, isAuthLoading, logout } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("dashboard");
@@ -2031,6 +2045,11 @@ export default function AdminDashboard() {
     setView(newView);
     void router.replace({ pathname: "/admin/dashboard", query: newView === "dashboard" ? {} : { view: newView } }, undefined, { shallow: true });
   }, [router]);
+
+  const handleSidebarLogout = useCallback(() => {
+    logout();
+    void router.push("/");
+  }, [logout, router]);
 
   useEffect(() => {
     const init = async () => {
@@ -2109,6 +2128,15 @@ export default function AdminDashboard() {
                 <span className="opacity-90">←</span>
                 <span className="text-[0.8rem] font-medium tracking-wide">Về Trang Chủ</span>
               </a>
+              <button
+                type="button"
+                onClick={handleSidebarLogout}
+                className="w-full flex items-center gap-4 px-5 py-3.5 text-white/40 hover:text-[#ffb69d] hover:bg-[#b84a2a]/10 rounded-xl transition-all duration-300 border border-transparent"
+                style={{ fontFamily: "var(--e-sans)" }}
+              >
+                <LogOut size={15} className="opacity-90" />
+                <span className="text-[0.8rem] font-medium tracking-wide">Đăng Xuất</span>
+              </button>
             </nav>
             <div className="p-5 border-t border-[#D4AF37]/10 bg-black/20">
               <div className="flex items-center gap-3">

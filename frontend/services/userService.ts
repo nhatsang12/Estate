@@ -24,8 +24,10 @@ interface SubmitKycResponse {
     isVerified: boolean;
     kycRejectionReason: string | null;
     kycDocuments: string[];
+    kycPortraitUrl: string;
     kycExtractedData: Record<string, unknown> | null;
     kycComparisonResult: Record<string, unknown> | null;
+    kycFaceComparisonResult: Record<string, unknown> | null;
   };
 }
 
@@ -56,6 +58,14 @@ interface ChangePasswordPayload {
 interface ChangePasswordResponse {
   status: string;
   message: string;
+}
+
+interface DeclaredIdAvailabilityResponse {
+  status: string;
+  data: {
+    declaredIdNumber: string;
+    available: boolean;
+  };
 }
 
 export interface KycReviewFilters {
@@ -111,21 +121,34 @@ export const userService = {
     token: string,
     cccdFront: File,
     cccdBack: File,
-    declaredIdNumber?: string
+    portrait: File,
+    declaredIdNumber: string
   ) {
     const formData = new FormData();
     formData.append("cccdFront", cccdFront);
     formData.append("cccdBack", cccdBack);
+    formData.append("portrait", portrait);
 
-    if (declaredIdNumber?.trim()) {
-      formData.append("declaredIdNumber", declaredIdNumber.trim());
-    }
+    formData.append("declaredIdNumber", declaredIdNumber.trim());
 
     return requestJson<SubmitKycResponse, FormData>("/users/kyc/submit", {
       method: "PATCH",
       token,
       body: formData,
     });
+  },
+
+  async checkDeclaredIdAvailability(token: string, declaredIdNumber: string) {
+    const normalized = declaredIdNumber.replace(/\D/g, "");
+    const query = new URLSearchParams({ declaredIdNumber: normalized }).toString();
+    const response = await requestJson<DeclaredIdAvailabilityResponse>(
+      `/users/kyc/declared-id/check?${query}`,
+      {
+        method: "GET",
+        token,
+      }
+    );
+    return response.data;
   },
 
   async getKycStatus(token: string) {
@@ -135,8 +158,10 @@ export const userService = {
       isVerified: user.isVerified ?? false,
       kycRejectionReason: user.kycRejectionReason ?? "",
       kycDocuments: user.kycDocuments ?? [],
+      kycPortraitUrl: user.kycPortraitUrl ?? "",
       kycExtractedData: user.kycExtractedData ?? null,
       kycComparisonResult: user.kycComparisonResult ?? null,
+      kycFaceComparisonResult: user.kycFaceComparisonResult ?? null,
     };
   },
 

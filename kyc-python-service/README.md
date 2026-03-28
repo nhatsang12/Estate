@@ -38,6 +38,16 @@ docker run --rm -p 8001:8001 estate-kyc-service
     - `field_confidences`: confidence by field
     - `raw_text`: OCR text
 
+- `POST /compare-face`
+  - Accepts either:
+    - `multipart/form-data` with `portrait` + `cccd_front`
+    - JSON body with `portrait_base64` + `cccd_front_base64`
+  - Response:
+    - `score`: face similarity score (0..1)
+    - `threshold`: match threshold
+    - `match`: boolean result
+    - `components`: detailed similarity components
+
 ## 4. Health Check
 
 - `GET /health`
