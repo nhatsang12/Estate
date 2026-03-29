@@ -827,7 +827,7 @@ const PLANS_CONFIG = [
   {
     plan: "Pro" as SubscriptionPlan, name: "Pro",
     tagline: "Dành cho nhà môi giới chuyên nghiệp",
-    price: "299.000", priceUnit: "/ tháng",
+    price: "19.990.000", priceUnit: "/ tháng",
     accent: "#C9A96E", accentLight: "rgba(212,175,55,0.07)", accentBorder: "rgba(212,175,55,0.25)",
     icon: <Zap size={18} />,
     features: ["Tối đa 20 tin đăng", "Ưu tiên duyệt tin", "Thống kê lượt xem chi tiết", "Hỗ trợ ưu tiên 8h–22h", "Badge xác minh chuyên nghiệp"],
@@ -836,7 +836,7 @@ const PLANS_CONFIG = [
   {
     plan: "ProPlus" as SubscriptionPlan, name: "Pro Plus",
     tagline: "Không giới hạn — không nhượng bộ",
-    price: "599.000", priceUnit: "/ tháng",
+    price: "99.990.000", priceUnit: "/ tháng",
     accent: "#c9a96e", accentLight: "rgba(201,169,110,0.08)", accentBorder: "rgba(201,169,110,0.3)",
     icon: <Crown size={18} />,
     features: ["Tin đăng không giới hạn", "Duyệt tin tức thì", "Hiển thị nổi bật trang chủ", "Phân tích & báo cáo nâng cao", "Hỗ trợ 24/7 qua Zalo & phone", "Tích hợp API"],

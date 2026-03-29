@@ -8,11 +8,11 @@ const VNPAY_LOCALE = process.env.VNPAY_LOCALE || 'vn';
 
 const PLAN_PRICING = {
   Pro: {
-    VNPay: Number(process.env.PRICING_PRO_VNPAY_VND || 199000),
+    VNPay: Number(process.env.PRICING_PRO_VNPAY_VND || 19990000),
     PayPal: Number(process.env.PRICING_PRO_PAYPAL_USD || 9.99),
   },
   ProPlus: {
-    VNPay: Number(process.env.PRICING_PROPLUS_VNPAY_VND || 499000),
+    VNPay: Number(process.env.PRICING_PROPLUS_VNPAY_VND || 99990000),
     PayPal: Number(process.env.PRICING_PROPLUS_PAYPAL_USD || 19.99),
   },
 };

@@ -41,11 +41,12 @@ interface SubscriptionHistoryResponse {
   };
 }
 
-interface SubscriptionInfo {
-  plan: "Free" | SubscriptionPlan;
-  expiryDate?: string;
-  isActive: boolean;
-  createdAt?: string;
+interface SubscriptionPlanConfig {
+  name: string;
+  price: number;
+  pricingDisplay: string;
+  duration: number;
+  features: string[];
 }
 
 export interface CurrentSubscriptionStatus {
@@ -115,11 +116,11 @@ export const paymentService = {
   SUBSCRIPTION_PLANS: {
     Pro: {
       name: "Pro",
-      price: 199000,
-      pricingDisplay: "199,000₫/tháng",
+      price: 19990000,
+      pricingDisplay: "19.990.000₫/tháng",
       duration: 30,
       features: [
-        "Đăng tối đa 10 bất động sản",
+        "Đăng tối đa 20 bất động sản",
         "Ưu tiên hiển thị cao",
         "Phân tích chi tiết",
         "Hỗ trợ ưu tiên",
@@ -127,18 +128,18 @@ export const paymentService = {
     },
     ProPlus: {
       name: "Pro Plus",
-      price: 499000,
-      pricingDisplay: "499,000₫/tháng",
+      price: 99990000,
+      pricingDisplay: "99.990.000₫/tháng",
       duration: 30,
       features: [
-        "Đăng tối đa 50 bất động sản",
+        "Tin đăng không giới hạn",
         "Ưu tiên hiển thị tối cao",
         "Phân tích chi tiết + AI insights",
         "Hỗ trợ VIP 24/7",
         "Quản lý đại lý",
       ],
     },
-  } as Record<SubscriptionPlan, any>,
+  } as Record<SubscriptionPlan, SubscriptionPlanConfig>,
 };
 
 export default paymentService;
