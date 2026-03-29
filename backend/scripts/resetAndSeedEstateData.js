@@ -70,7 +70,7 @@ const LIFESTYLE_TEXT = [
   'Không gian sống rộng rãi, đón nắng tự nhiên và thông gió tốt.',
   'Thiết kế hiện đại với nội thất cao cấp, tối ưu công năng sử dụng.',
   'Khu dân cư an ninh, gần trung tâm thương mại, bệnh viện và trường học quốc tế.',
-  'Phù hợp để ở lâu dài hoặc đầu tư khai thác cho thuê với tiềm năng tăng giá ổn định.',
+  'Phù hợp để an cư lâu dài hoặc đầu tư gia tăng giá trị với tiềm năng tăng giá ổn định.',
   'Hệ thống tiện ích nội khu đầy đủ, đáp ứng tiêu chuẩn sống cao cấp.',
 ];
 

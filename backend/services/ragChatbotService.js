@@ -1,7 +1,7 @@
 const axios = require('axios');
 const Property = require('../models/Property');
-const { ROUTE_KNOWLEDGE, COMMON_WORKFLOWS } = require('../config/chatbotKnowledge');
 const { loadChatbotKnowledge } = require('../config/chatbotKnowledgeLoader');
+const { buildSkillContext } = require('./chatbotAdvisorySkills');
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -25,9 +25,16 @@ const capabilities = {
 };
 
 const KNOWLEDGE_BASE = loadChatbotKnowledge();
+const ROUTE_KNOWLEDGE = Array.isArray(KNOWLEDGE_BASE.routeKnowledge)
+  ? KNOWLEDGE_BASE.routeKnowledge
+  : [];
+const COMMON_WORKFLOWS = Array.isArray(KNOWLEDGE_BASE.commonWorkflows)
+  ? KNOWLEDGE_BASE.commonWorkflows
+  : [];
 const TYPE_MAP = KNOWLEDGE_BASE.propertyTypeMap || {};
 const AMENITY_ALIASES = KNOWLEDGE_BASE.amenityAliasMap || {};
 const NAVIGATION_GUIDE_SECTIONS = KNOWLEDGE_BASE.navigationGuideSections || [];
+const ADVISORY_PLAYBOOK = KNOWLEDGE_BASE.advisoryPlaybook || {};
 
 const NAVIGATION_KEYWORDS = [
   'đăng nhập',
@@ -73,7 +80,61 @@ const PROPERTY_KEYWORDS = [
   'bán',
   'nội thất',
 ];
+
+const DEFAULT_ADVISORY_KEYWORDS = [
+  'tư vấn',
+  'tu van',
+  'phân tích',
+  'phan tich',
+  'đánh giá',
+  'danh gia',
+  'nên mua',
+  'co nen mua',
+  'rủi ro',
+  'rui ro',
+  'pháp lý',
+  'phap ly',
+  'thanh khoản',
+  'thanh khoan',
+  'chiến lược',
+  'chien luoc',
+  'so sánh',
+  'so sanh',
+  'phù hợp',
+  'phu hop',
+  'đầu tư',
+  'dau tu',
+];
+
+const DEFAULT_LISTING_REQUEST_KEYWORDS = [
+  'gợi ý',
+  'goi y',
+  'đề xuất',
+  'de xuat',
+  'liệt kê',
+  'liet ke',
+  'tìm',
+  'tim',
+  'show',
+  'top',
+  'có căn nào',
+  'co can nao',
+  'danh sách',
+  'danh sach',
+  'bất động sản nào',
+  'bat dong san nao',
+  'property nào',
+  'property nao',
+];
 const CHAT_HISTORY_LIMIT = 12;
+const ADVISORY_KEYWORDS = Array.isArray(ADVISORY_PLAYBOOK.advisoryKeywords)
+  && ADVISORY_PLAYBOOK.advisoryKeywords.length > 0
+  ? ADVISORY_PLAYBOOK.advisoryKeywords
+  : DEFAULT_ADVISORY_KEYWORDS;
+const LISTING_REQUEST_KEYWORDS = Array.isArray(ADVISORY_PLAYBOOK.listingRequestKeywords)
+  && ADVISORY_PLAYBOOK.listingRequestKeywords.length > 0
+  ? ADVISORY_PLAYBOOK.listingRequestKeywords
+  : DEFAULT_LISTING_REQUEST_KEYWORDS;
 
 const resolveGeminiApiKey = () =>
   String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
@@ -479,6 +540,37 @@ const heuristicallyDetectIntent = (question) => {
   return 'property';
 };
 
+const containsAnyKeyword = (text = '', keywords = []) => {
+  const asciiText = normalizeAscii(text);
+  return keywords.some((keyword) => asciiText.includes(normalizeAscii(keyword)));
+};
+
+const getCriteriaSignalCount = (criteria = {}) => {
+  let score = 0;
+  if (Number.isFinite(Number(criteria.minPrice))) score += 1;
+  if (Number.isFinite(Number(criteria.maxPrice))) score += 1;
+  if (Number.isFinite(Number(criteria.bedrooms))) score += 1;
+  if (Number.isFinite(Number(criteria.bathrooms))) score += 1;
+  if (String(criteria.locationKeyword || '').trim()) score += 1;
+  if (Array.isArray(criteria.propertyTypes) && criteria.propertyTypes.length > 0) score += 1;
+  if (Array.isArray(criteria.amenities) && criteria.amenities.length > 0) score += 1;
+  if (typeof criteria.furnished === 'boolean') score += 1;
+  return score;
+};
+
+const resolveResponseMode = ({ question = '', intent = 'property', criteria = {} }) => {
+  if (intent === 'navigation') return 'navigation';
+
+  const listingRequested = containsAnyKeyword(question, LISTING_REQUEST_KEYWORDS);
+  const advisoryRequested = containsAnyKeyword(question, ADVISORY_KEYWORDS);
+  const criteriaSignalCount = getCriteriaSignalCount(criteria);
+
+  if (advisoryRequested && listingRequested) return 'hybrid';
+  if (advisoryRequested) return 'advisory';
+  if (!listingRequested && criteriaSignalCount <= 1) return 'advisory';
+  return 'discovery';
+};
+
 const callGemini = async ({ apiKey, prompt, temperature = 0.2, maxOutputTokens = 900 }) => {
   if (!apiKey) {
     throw new Error('Gemini API key is missing');
@@ -830,7 +922,14 @@ const buildNavigationContext = (navigation = { routes: [], workflows: [], guideS
   return `Routes:\n${routeText || 'Không có'}\n\nWorkflows:\n${workflowText || 'Không có'}\n\nGuide Sections:\n${guideText || 'Không có'}`;
 };
 
-const buildFallbackAnswer = ({ intent, properties, navigation }) => {
+const buildFallbackAnswer = ({ intent, properties, navigation, responseMode = 'discovery' }) => {
+  if (responseMode === 'advisory') {
+    if (properties.length > 0) {
+      return 'Mình có một số phương án phù hợp sơ bộ. Trước khi chốt căn cụ thể, mình sẽ tư vấn theo mục tiêu mua (ở thực/đầu tư), mức ngân sách an toàn và rủi ro pháp lý cần kiểm tra.';
+    }
+    return 'Để tư vấn sát nhu cầu hơn, bạn cho mình 3 thông tin: mục tiêu mua (ở thực hay đầu tư), ngân sách tối đa, và khu vực ưu tiên.';
+  }
+
   if ((intent === 'property' || intent === 'mixed') && properties.length > 0) {
     return `Mình tìm thấy ${properties.length} bất động sản phù hợp. Bạn có thể xem chi tiết theo các đường dẫn được gợi ý trong kết quả.`;
   }
@@ -843,7 +942,13 @@ const buildFallbackAnswer = ({ intent, properties, navigation }) => {
   return 'Mình chưa đủ dữ liệu để trả lời chính xác. Bạn có thể cung cấp thêm điều kiện hoặc mục tiêu cần thao tác trên website.';
 };
 
-const buildSuggestions = ({ intent, properties, navigation }) => {
+const buildSuggestions = ({
+  intent,
+  properties,
+  navigation,
+  responseMode = 'discovery',
+  skillSuggestedQuestions = [],
+}) => {
   const suggestions = [];
   const pushSuggestion = (value) => {
     const text = String(value || '').trim();
@@ -851,6 +956,20 @@ const buildSuggestions = ({ intent, properties, navigation }) => {
     if (suggestions.includes(text)) return;
     suggestions.push(text);
   };
+
+  if (responseMode === 'advisory') {
+    skillSuggestedQuestions.forEach((item) => pushSuggestion(item));
+    if (!suggestions.length) {
+      pushSuggestion('Bạn đang ưu tiên mua để ở hay mua để đầu tư tăng giá?');
+      pushSuggestion('Ngân sách tối đa bạn có thể chốt là bao nhiêu tỷ?');
+      if (properties.length > 0) {
+        pushSuggestion('Nếu muốn, mình có thể phân tích sâu 1 căn cụ thể về pháp lý, vị trí và thanh khoản.');
+      } else {
+        pushSuggestion('Bạn ưu tiên khu vực nào và số phòng ngủ tối thiểu là bao nhiêu?');
+      }
+    }
+    return suggestions.slice(0, 3);
+  }
 
   if (intent === 'property' || intent === 'mixed') {
     if (properties.length > 0) {
@@ -980,10 +1099,18 @@ const buildFocusedPropertyAdvice = ({ property, referenceIndex }) => {
     ? `Mình tư vấn nhanh cho bất động sản số ${referenceIndex} bạn vừa chọn:`
     : 'Mình tư vấn nhanh cho bất động sản bạn vừa chọn:';
 
+  const advisoryNotes = [
+    '- Điểm phù hợp: cần đối chiếu ngân sách, nhu cầu ở thực hay đầu tư, và kỳ vọng thanh khoản.',
+    '- Điểm cần kiểm tra trước khi chốt: pháp lý sổ, quy hoạch khu vực, chất lượng xây dựng và hạ tầng kết nối.',
+    '- Bước tiếp theo nên làm: đi xem thực tế + so sánh thêm 2 căn tương đương cùng khu vực để định giá tốt hơn.',
+  ];
+
   return [
     head,
     `${property.title} | Khu vực: ${property.address || 'N/A'} | Giá: ${formatPriceVnd(property.price)} | Loại: ${property.type || 'N/A'} | PN/PT: ${property.bedrooms ?? 'N/A'}/${property.bathrooms ?? 'N/A'} | Chi tiết: ${property.url}`,
-    'Nếu bạn muốn, mình có thể phân tích sâu hơn về mức giá khu vực, tính thanh khoản và so sánh với 2-3 căn tương tự để chốt quyết định mua.',
+    'Nhận định tư vấn:',
+    ...advisoryNotes,
+    'Nếu bạn muốn, mình sẽ phân tích sâu tiếp theo mục tiêu của bạn (ở thực hay đầu tư) để ra quyết định phù hợp hơn.',
   ]
     .join('\n\n')
     .trim();
@@ -1058,7 +1185,15 @@ const buildSingleNavigationResult = (navigation = { routes: [], workflows: [], g
   return 'Mình chưa tìm thấy route phù hợp. Bạn nói rõ hơn mục tiêu cần thao tác nhé.';
 };
 
-const buildEnrichedAnswer = ({ answerText, intent, properties, navigation, suggestions }) => {
+const buildEnrichedAnswer = ({
+  answerText,
+  intent,
+  properties,
+  navigation,
+  suggestions,
+  responseMode = 'discovery',
+  shouldAutoList = true,
+}) => {
   const normalized = toChatPlainText(answerText);
   const sections = [];
   const normalizedUrlCount = (normalized.match(/https?:\/\/\S+/g) || []).length;
@@ -1068,7 +1203,21 @@ const buildEnrichedAnswer = ({ answerText, intent, properties, navigation, sugge
     return concise.trim();
   }
 
-  if (intent === 'property' && properties.length > 0) {
+  if (responseMode === 'advisory') {
+    if (normalized) {
+      const advisorySections = [normalized];
+      if (Array.isArray(suggestions) && suggestions.length > 0) {
+        advisorySections.push('Gợi ý tiếp theo:');
+        suggestions.slice(0, 3).forEach((item, index) => {
+          advisorySections.push(`${index + 1}. ${toChatPlainText(item)}`);
+        });
+      }
+      return advisorySections.join('\n\n').trim();
+    }
+    return 'Để tư vấn chính xác hơn, bạn cho mình mục tiêu mua (ở thực hay đầu tư), ngân sách tối đa và khu vực ưu tiên nhé.';
+  }
+
+  if (intent === 'property' && properties.length > 0 && shouldAutoList) {
     const propertyOnlySections = [
       `Mình đã tìm thấy ${properties.length} bất động sản phù hợp với nhu cầu hiện tại của bạn.`,
       'Bất động sản gợi ý:',
@@ -1089,7 +1238,12 @@ const buildEnrichedAnswer = ({ answerText, intent, properties, navigation, sugge
     sections.push(normalized);
   }
 
-  if ((intent === 'property' || intent === 'mixed') && properties.length > 0 && normalizedUrlCount < 2) {
+  if (
+    shouldAutoList &&
+    (intent === 'property' || intent === 'mixed') &&
+    properties.length > 0 &&
+    normalizedUrlCount < 2
+  ) {
     sections.push('Bất động sản gợi ý:');
     sections.push(...buildPropertyDetailLines(properties));
   }
@@ -1112,6 +1266,29 @@ const buildEnrichedAnswer = ({ answerText, intent, properties, navigation, sugge
   return combined || normalized || 'Mình chưa có đủ dữ liệu để tư vấn lúc này.';
 };
 
+const mergeSkillOverlayIntoAnswer = ({
+  answer = '',
+  skillContext = {},
+  responseMode = 'discovery',
+}) => {
+  const base = String(answer || '').trim();
+  if (!base) return base;
+
+  if (responseMode !== 'advisory' && responseMode !== 'hybrid') {
+    return base;
+  }
+
+  const overlay = String(skillContext?.advisoryOverlay || '').trim();
+  if (!overlay) return base;
+
+  const normalized = normalizeAscii(base);
+  const alreadyInjected =
+    normalized.includes('khung tu van mua bds') || normalized.includes('checklist phap ly');
+  if (alreadyInjected) return base;
+
+  return `${overlay}\n\n${base}`.trim();
+};
+
 const answerQuestion = async ({ question, history = [], memorySummary = '', preferenceProfile = {}, user }) => {
   const apiKey = resolveGeminiApiKey();
 
@@ -1129,12 +1306,28 @@ const answerQuestion = async ({ question, history = [], memorySummary = '', pref
     history
   );
   if (referencedProperty?.property) {
-    const focusedAnswer = buildFocusedPropertyAdvice(referencedProperty);
+    const focusedSkillContext = buildSkillContext({
+      question: normalizedQuestion,
+      responseMode: 'advisory',
+      criteria: {},
+      preferenceProfile: preferenceProfile || {},
+      properties: [referencedProperty.property],
+    });
+
+    const focusedAnswer = mergeSkillOverlayIntoAnswer({
+      answer: buildFocusedPropertyAdvice(referencedProperty),
+      skillContext: focusedSkillContext,
+      responseMode: 'advisory',
+    });
+
     const focusedSuggestions = [
+      ...(Array.isArray(focusedSkillContext.suggestedQuestions)
+        ? focusedSkillContext.suggestedQuestions
+        : []),
       `Xem chi tiết bất động sản: ${referencedProperty.property.url}`,
       'Bạn muốn mình phân tích thêm pháp lý, vị trí hay tiềm năng tăng giá của căn này?',
       'Mình có thể gợi ý thêm 2-3 căn tương tự để bạn so sánh trước khi quyết định mua.',
-    ];
+    ].filter((item, index, arr) => item && arr.indexOf(item) === index).slice(0, 3);
 
     return {
       answer: focusedAnswer,
@@ -1151,6 +1344,10 @@ const answerQuestion = async ({ question, history = [], memorySummary = '', pref
         usedVectorSearch: false,
         llmEnabled: Boolean(apiKey),
         usedHistoryTurns: sanitizeHistory(history).length,
+        responseMode: 'advisory',
+        shouldAutoList: false,
+        advisorySkills: focusedSkillContext.appliedSkills || ['advisory_consulting'],
+        legalRequested: Boolean(focusedSkillContext.legalRequested),
         resolvedFromHistoryReference: true,
         timestamp: new Date().toISOString(),
       },
@@ -1178,6 +1375,12 @@ const answerQuestion = async ({ question, history = [], memorySummary = '', pref
     preferenceProfile || {}
   );
   const propertyCriteria = mergeCriteriaWithQuestionHints(mergedWithProfile, questionHints);
+  const responseMode = resolveResponseMode({
+    question: normalizedQuestion,
+    intent,
+    criteria: propertyCriteria,
+  });
+  const shouldAutoList = responseMode === 'discovery' || responseMode === 'hybrid';
   const navigationTopics = classification.navigationTopics || [];
 
   let properties = [];
@@ -1217,6 +1420,35 @@ const answerQuestion = async ({ question, history = [], memorySummary = '', pref
   const navigation = retrieveNavigationKnowledge(normalizedQuestion, navigationTopics);
   const propertyContext = buildPropertyContext(properties);
   const navigationContext = buildNavigationContext(navigation);
+  const skillContext = buildSkillContext({
+    question: normalizedQuestion,
+    responseMode,
+    criteria: propertyCriteria,
+    preferenceProfile: preferenceProfile || {},
+    properties,
+  });
+
+  const advisorySkillPromptContext = String(skillContext.promptContext || '').trim() || 'N/A';
+  const responseModeGuidance =
+    responseMode === 'advisory'
+      ? [
+          '- Bạn đang ở chế độ tư vấn. Không tự động liệt kê danh sách dài bất động sản nếu user không yêu cầu rõ.',
+          '- Trả lời theo vai trò chuyên viên tư vấn mua bán: phân tích nhu cầu, rủi ro, pháp lý, thanh khoản, và bước ra quyết định.',
+          '- Chỉ nêu tối đa 1-2 ví dụ bất động sản nếu thực sự cần minh hoạ cho tư vấn.',
+          '- Kết thúc bằng 1 câu hỏi làm rõ quan trọng nhất để tiếp tục tư vấn.',
+        ].join('\n')
+      : responseMode === 'hybrid'
+        ? [
+            '- Bạn đang ở chế độ kết hợp tư vấn + gợi ý.',
+            '- Trước tiên tư vấn ngắn theo nhu cầu, sau đó mới liệt kê tối đa 3 bất động sản phù hợp.',
+          ].join('\n')
+        : [
+            '- Bạn đang ở chế độ tìm kiếm/gợi ý.',
+          '- Nếu có kết quả phù hợp, liệt kê 3-5 bất động sản đầu tiên, mỗi dòng gồm tên, địa chỉ, giá, loại, PN/PT và link.',
+        ].join('\n');
+  const skillGuidance = Array.isArray(skillContext.appliedSkills) && skillContext.appliedSkills.length > 0
+    ? `- Bắt buộc áp dụng các skill tư vấn đang bật: ${skillContext.appliedSkills.join(', ')}.`
+    : '- Không có skill tư vấn bổ sung bắt buộc cho câu hỏi này.';
 
   const answerPrompt = `
 Bạn là trợ lý AI cho website EstateManager.
@@ -1224,13 +1456,14 @@ Yêu cầu:
 - Trả lời rõ ràng, chuyên nghiệp, đầy đủ thông tin, không dùng emoji.
 - Không dùng markdown (không dùng ký tự định dạng như dấu sao kép, heading, code block).
 - Đây là nền tảng mua bán bất động sản, không phải nền tảng cho thuê theo tháng.
-- Nếu câu hỏi về bất động sản và có kết quả: luôn liệt kê từ 3 đến 5 bất động sản đầu tiên, mỗi dòng gồm tên, địa chỉ, giá, loại, số phòng ngủ/phòng tắm và link.
-- Nếu câu hỏi về bất động sản và chưa đủ điều kiện lọc: hỏi thêm tối đa 2 câu để làm rõ (ngân sách mua, khu vực, số phòng).
+- Nếu chưa đủ điều kiện lọc: hỏi thêm tối đa 2 câu để làm rõ (ngân sách mua, khu vực, số phòng).
 - Nếu câu hỏi điều hướng web: hướng dẫn theo từng bước, nêu route cụ thể.
 - Nếu câu hỏi điều hướng web: chỉ đưa ra 1 phương án phù hợp nhất (1 route chính), không liệt kê nhiều route.
 - Không thêm các tiêu đề như "Các route phù hợp", "Hướng dẫn từ tài liệu", "Gợi ý tiếp theo" trong câu trả lời điều hướng.
 - Nếu là câu hỏi mixed: trả lời cả phần bất động sản và điều hướng.
 - Trả lời cùng ngôn ngữ với câu hỏi của user.
+${responseModeGuidance}
+${skillGuidance}
 
 Question:
 ${normalizedQuestion}
@@ -1250,11 +1483,17 @@ ${user?.role || 'guest'}
 Intent:
 ${intent}
 
+Response mode:
+${responseMode}
+
 Property retrieval context:
 ${propertyContext}
 
 Website navigation knowledge context:
 ${navigationContext}
+
+Advisory/legal skill context:
+${advisorySkillPromptContext}
 `.trim();
 
   let answerText = '';
@@ -1271,14 +1510,33 @@ ${navigationContext}
     }
   }
 
-  const rawAnswer = answerText || buildFallbackAnswer({ intent, properties, navigation });
-  const suggestions = buildSuggestions({ intent, properties, navigation });
-  const finalAnswer = buildEnrichedAnswer({
+  const rawAnswerBase =
+    answerText || buildFallbackAnswer({ intent, properties, navigation, responseMode });
+  const rawAnswer = mergeSkillOverlayIntoAnswer({
+    answer: rawAnswerBase,
+    skillContext,
+    responseMode,
+  });
+  const suggestions = buildSuggestions({
+    intent,
+    properties,
+    navigation,
+    responseMode,
+    skillSuggestedQuestions: skillContext.suggestedQuestions || [],
+  });
+  const finalAnswerBase = buildEnrichedAnswer({
     answerText: rawAnswer,
     intent,
     properties,
     navigation,
     suggestions,
+    responseMode,
+    shouldAutoList,
+  });
+  const finalAnswer = mergeSkillOverlayIntoAnswer({
+    answer: finalAnswerBase,
+    skillContext,
+    responseMode,
   });
 
   return {
@@ -1308,6 +1566,10 @@ ${navigationContext}
       usedVectorSearch,
       llmEnabled: Boolean(apiKey),
       usedHistoryTurns: sanitizeHistory(history).length,
+      responseMode,
+      shouldAutoList,
+      advisorySkills: skillContext.appliedSkills || [],
+      legalRequested: Boolean(skillContext.legalRequested),
       timestamp: new Date().toISOString(),
     },
     detectedCriteria: propertyCriteria,

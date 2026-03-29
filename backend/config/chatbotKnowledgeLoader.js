@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const EXTERNAL_KNOWLEDGE_DIR =
-  process.env.CHATBOT_KB_DIR || 'C:\\Users\\tkien\\Downloads\\crewAI_prj\\project_test\\knowledge';
+const LOCAL_CHATBOT_KNOWLEDGE_DIR = path.join(ROOT_DIR, 'knowledge', 'chatbot');
+const EXTERNAL_KNOWLEDGE_DIR = process.env.CHATBOT_KB_DIR || '';
 
 const DEFAULT_PROPERTY_TYPE_MAP = {
   apartment: 'apartment',
@@ -68,22 +68,135 @@ const STOP_WORDS = new Set([
 
 const normalizeText = (value) => String(value || '').trim().toLowerCase();
 
+const readFileIfExists = (filePath) => {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return '';
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    return '';
+  }
+};
+
 const readMarkdownFile = (fileName) => {
-  const candidatePaths = [
-    path.join(ROOT_DIR, fileName),
-    path.join(EXTERNAL_KNOWLEDGE_DIR, fileName),
-  ];
+  const candidatePaths = [];
+  if (EXTERNAL_KNOWLEDGE_DIR) {
+    candidatePaths.push(path.join(EXTERNAL_KNOWLEDGE_DIR, fileName));
+  }
+  candidatePaths.push(path.join(LOCAL_CHATBOT_KNOWLEDGE_DIR, fileName));
+  candidatePaths.push(path.join(ROOT_DIR, fileName));
 
   for (const filePath of candidatePaths) {
-    try {
-      if (!fs.existsSync(filePath)) continue;
-      return fs.readFileSync(filePath, 'utf8');
-    } catch (error) {
-      // Try next source path
-    }
+    const content = readFileIfExists(filePath);
+    if (content) return content;
   }
 
   return '';
+};
+
+const extractJsonFromMarkdown = (markdown) => {
+  const content = String(markdown || '').trim();
+  if (!content) return null;
+
+  const fencedMatch = content.match(/```json\s*([\s\S]*?)```/i);
+  const candidate = fencedMatch ? String(fencedMatch[1] || '').trim() : content;
+
+  try {
+    return JSON.parse(candidate);
+  } catch (error) {
+    const startArray = candidate.indexOf('[');
+    const endArray = candidate.lastIndexOf(']');
+    if (startArray !== -1 && endArray !== -1 && endArray > startArray) {
+      try {
+        return JSON.parse(candidate.slice(startArray, endArray + 1));
+      } catch (innerError) {
+        // continue
+      }
+    }
+
+    const startObject = candidate.indexOf('{');
+    const endObject = candidate.lastIndexOf('}');
+    if (startObject !== -1 && endObject !== -1 && endObject > startObject) {
+      try {
+        return JSON.parse(candidate.slice(startObject, endObject + 1));
+      } catch (innerError) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+};
+
+const ensureStringArray = (value) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+    : [];
+
+const parseRouteKnowledge = (markdown) => {
+  const parsed = extractJsonFromMarkdown(markdown);
+  const rows = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.routes) ? parsed.routes : [];
+  const normalized = rows
+    .map((row) => ({
+      route: String(row?.route || '').trim(),
+      title: String(row?.title || '').trim(),
+      summary: String(row?.summary || '').trim(),
+      keywords: ensureStringArray(row?.keywords),
+      steps: ensureStringArray(row?.steps),
+    }))
+    .filter((row) => row.route && row.title);
+
+  return normalized;
+};
+
+const parseCommonWorkflows = (markdown) => {
+  const parsed = extractJsonFromMarkdown(markdown);
+  const rows = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.workflows) ? parsed.workflows : [];
+  const normalized = rows
+    .map((row) => ({
+      title: String(row?.title || '').trim(),
+      keywords: ensureStringArray(row?.keywords),
+      guidance: ensureStringArray(row?.guidance),
+      routes: ensureStringArray(row?.routes),
+    }))
+    .filter((row) => row.title);
+
+  return normalized;
+};
+
+const parseAdvisoryPlaybook = (markdown) => {
+  const parsed = extractJsonFromMarkdown(markdown);
+  const advisoryKeywords = ensureStringArray(parsed?.advisoryKeywords);
+  const listingRequestKeywords = ensureStringArray(parsed?.listingRequestKeywords);
+  const investmentKeywords = ensureStringArray(parsed?.investmentKeywords);
+  const selfUseKeywords = ensureStringArray(parsed?.selfUseKeywords);
+
+  const consultingQuestionsRaw = parsed?.consultingQuestions || {};
+  const consultingQuestions = {
+    unknown: ensureStringArray(consultingQuestionsRaw.unknown),
+    investment: ensureStringArray(consultingQuestionsRaw.investment),
+    self_use: ensureStringArray(consultingQuestionsRaw.self_use),
+    legal: ensureStringArray(consultingQuestionsRaw.legal),
+  };
+
+  return {
+    advisoryKeywords,
+    listingRequestKeywords,
+    investmentKeywords,
+    selfUseKeywords,
+    consultingQuestions,
+  };
+};
+
+const parseLegalChecklist = (markdown) => {
+  const parsed = extractJsonFromMarkdown(markdown);
+  return {
+    legalKeywords: ensureStringArray(parsed?.legalKeywords),
+    riskKeywords: ensureStringArray(parsed?.riskKeywords),
+    checklist: ensureStringArray(parsed?.checklist),
+    disclaimer: String(parsed?.disclaimer || '').trim(),
+  };
 };
 
 const normalizeStandardType = (value) => {
@@ -243,11 +356,20 @@ const loadChatbotKnowledge = () => {
   const propertyTypeMarkdown = readMarkdownFile('property_type_mappings.md');
   const amenityMarkdown = readMarkdownFile('amenity_aliases.md');
   const navigationMarkdown = readMarkdownFile('web_navigation_guide.md');
+  const routeKnowledgeMarkdown = readMarkdownFile('route_knowledge.md');
+  const workflowMarkdown = readMarkdownFile('common_workflows.md');
+  const advisoryPlaybookMarkdown = readMarkdownFile('advisory_playbook.md');
+  const legalChecklistMarkdown = readMarkdownFile('legal_checklist.md');
 
   knowledgeCache = {
     propertyTypeMap: parsePropertyTypeMappings(propertyTypeMarkdown),
     amenityAliasMap: parseAmenityAliases(amenityMarkdown),
     navigationGuideSections: parseWebNavigationGuide(navigationMarkdown),
+    routeKnowledge: parseRouteKnowledge(routeKnowledgeMarkdown),
+    commonWorkflows: parseCommonWorkflows(workflowMarkdown),
+    advisoryPlaybook: parseAdvisoryPlaybook(advisoryPlaybookMarkdown),
+    legalChecklist: parseLegalChecklist(legalChecklistMarkdown),
+    knowledgeDir: EXTERNAL_KNOWLEDGE_DIR || LOCAL_CHATBOT_KNOWLEDGE_DIR,
   };
 
   return knowledgeCache;
@@ -258,4 +380,8 @@ module.exports = {
   parsePropertyTypeMappings,
   parseAmenityAliases,
   parseWebNavigationGuide,
+  parseRouteKnowledge,
+  parseCommonWorkflows,
+  parseAdvisoryPlaybook,
+  parseLegalChecklist,
 };

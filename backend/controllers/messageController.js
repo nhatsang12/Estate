@@ -555,7 +555,7 @@ exports.chatbotPlaceholder = async (req, res, next) => {
         createdAt: new Date().toISOString(),
         suggestions: [
           'So sánh giá khu vực',
-          'Ước lượng lợi suất cho thuê',
+          'Ước lượng tiềm năng tăng giá',
           'Đánh giá vị trí theo tiện ích lân cận',
         ],
       },

@@ -43,7 +43,6 @@ export default function ListingCard({ property }: ListingCardProps) {
   const optimizedImage = mainImage ? optimizeCloudinaryUrl(mainImage, 640) : null;
   const [saved, setSaved] = useState(false);
   const [favoriteProcessing, setFavoriteProcessing] = useState(false);
-  const isRental = property.type === "apartment" || property.type === "office";
 
   useEffect(() => {
     let cancelled = false;
@@ -438,7 +437,6 @@ export default function ListingCard({ property }: ListingCardProps) {
 
           <div className="lc-price-row">
             <span className="lc-price">{formatVNDShort(property.price)}</span>
-            {isRental && <span className="lc-price-unit">/ tháng</span>}
           </div>
 
           <p className="lc-address">

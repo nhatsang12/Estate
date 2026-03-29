@@ -1,0 +1,43 @@
+# Legal Checklist
+
+```json
+{
+  "legalKeywords": [
+    "phap ly",
+    "pháp lý",
+    "so do",
+    "sổ đỏ",
+    "so hong",
+    "sổ hồng",
+    "quy hoach",
+    "quy hoạch",
+    "tranh chap",
+    "tranh chấp",
+    "the chap",
+    "thế chấp",
+    "hop dong",
+    "hợp đồng",
+    "cong chung",
+    "công chứng",
+    "sang ten",
+    "sang tên",
+    "dat coc",
+    "đặt cọc"
+  ],
+  "riskKeywords": [
+    "rui ro",
+    "rủi ro",
+    "hop dong",
+    "hợp đồng"
+  ],
+  "checklist": [
+    "Kiểm tra quyền sở hữu: sổ đỏ/sổ hồng, thông tin chủ sở hữu, tình trạng đồng sở hữu.",
+    "Kiểm tra ràng buộc pháp lý: thế chấp, kê biên, tranh chấp, hạn chế chuyển nhượng.",
+    "Kiểm tra quy hoạch: lộ giới, quy hoạch treo, mục đích sử dụng đất và chỉ tiêu xây dựng.",
+    "Kiểm tra hồ sơ giao dịch: hợp đồng đặt cọc, điều khoản phạt, mốc thanh toán, điều kiện hoàn cọc.",
+    "Kiểm tra nghĩa vụ tài chính: thuế, phí trước bạ, chi phí công chứng và sang tên."
+  ],
+  "disclaimer": "Lưu ý: nội dung này mang tính hỗ trợ tham khảo, không thay thế tư vấn của luật sư/công chứng viên."
+}
+```
+

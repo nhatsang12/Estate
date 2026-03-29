@@ -35,7 +35,7 @@ const FALLBACK: FeaturedItem[] = [
         name: 'Villa Lumière',
         type: 'Biệt Thự',
         location: 'Thủ Đức, TP.HCM',
-        price: '85 tr/tháng',
+        price: '85 tỷ',
         img: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200&q=85',
         badge: 'vip',
         area: '420 m²',
@@ -45,7 +45,7 @@ const FALLBACK: FeaturedItem[] = [
         name: 'The Riviera Sky',
         type: 'Căn Hộ Cao Cấp',
         location: 'Quận 2, TP.HCM',
-        price: '32 tr/tháng',
+        price: '32 tỷ',
         img: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=900&q=85',
         badge: 'new',
         area: '148 m²',
@@ -55,7 +55,7 @@ const FALLBACK: FeaturedItem[] = [
         name: 'Maison Indochine',
         type: 'Nhà Phố Thiết Kế',
         location: 'Quận 7, TP.HCM',
-        price: '45 tr/tháng',
+        price: '45 tỷ',
         img: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=900&q=85',
         badge: 'hot',
         area: '210 m²',
@@ -91,7 +91,7 @@ function toItem(p: Property, i: number): FeaturedItem {
         name: (p.title || '').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
         type: TYPE_LABEL[p.type] ?? p.type,
         location: shortenAddress(p.address),
-        price: formatVNDShort(p.price) + ' / tháng',
+        price: formatVNDShort(p.price),
         img: getImg(p.images?.[0]),
         badge: i === 0 ? 'vip' : i === 1 ? 'new' : 'hot',
         area: FALLBACK[i]?.area,
@@ -585,7 +585,7 @@ export default function FeaturedSection({ properties }: FeaturedSectionProps) {
                             <div className="ah-divider" />
                             <div className="ah-footer">
                                 <div className="ah-price-wrap">
-                                    <span className="ah-price-lbl">Giá thuê / tháng</span>
+                                    <span className="ah-price-lbl">Giá bán</span>
                                     <span className="ah-price">{hero.price}</span>
                                 </div>
                                 <span className="ah-arrow">
@@ -625,7 +625,7 @@ export default function FeaturedSection({ properties }: FeaturedSectionProps) {
                                         <div className="ah-divider" />
                                         <div className="ah-footer">
                                             <div className="ah-price-wrap">
-                                                <span className="ah-price-lbl">Giá / tháng</span>
+                                                <span className="ah-price-lbl">Giá bán</span>
                                                 <span className="ah-price">{card.price}</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>

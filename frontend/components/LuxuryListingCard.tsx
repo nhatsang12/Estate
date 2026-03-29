@@ -459,9 +459,7 @@ export default function LuxuryListingCard({ property: p, horizontal = false }: L
     // const optimizeCloudinaryUrl = (url: string): string => { ... }
 
     const img = getImg(p.images?.[0]);
-    const priceFormatted = p.price
-        ? formatVNDShort(p.price) + (p.type === 'apartment' || p.type === 'office' ? ' / tháng' : '')
-        : '—';
+    const priceFormatted = p.price ? formatVNDShort(p.price) : '—';
     const typeLabel = TYPE_LABEL[p.type] ?? 'Bất Động Sản';
     const displayTitle = (p.title || '').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
