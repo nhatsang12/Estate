@@ -110,6 +110,12 @@ const ensureStringArray = (value) =>
         .filter(Boolean)
     : [];
 
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+};
+
 const parseRouteKnowledge = (markdown) => {
   const parsed = extractJsonFromMarkdown(markdown);
   const rows = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.routes) ? parsed.routes : [];
@@ -156,12 +162,22 @@ const parseAdvisoryPlaybook = (markdown) => {
     legal: ensureStringArray(consultingQuestionsRaw.legal),
   };
 
+  const escalationRaw = parsed?.escalation || {};
+  const escalation = {
+    maxClarifyingQuestions: parsePositiveInt(escalationRaw.maxClarifyingQuestions, 2),
+    strategy: String(escalationRaw.strategy || '').trim() || 'ask_then_handoff',
+    insufficientDataSignal: String(escalationRaw.insufficientDataSignal || '').trim(),
+    humanHandoffRoute: String(escalationRaw.humanHandoffRoute || '').trim(),
+    humanHandoffMessage: String(escalationRaw.humanHandoffMessage || '').trim(),
+  };
+
   return {
     advisoryKeywords,
     listingRequestKeywords,
     investmentKeywords,
     selfUseKeywords,
     consultingQuestions,
+    escalation,
   };
 };
 
@@ -172,6 +188,9 @@ const parseLegalChecklist = (markdown) => {
     riskKeywords: ensureStringArray(parsed?.riskKeywords),
     checklist: ensureStringArray(parsed?.checklist),
     disclaimer: String(parsed?.disclaimer || '').trim(),
+    disclaimerShort: String(parsed?.disclaimerShort || '').trim(),
+    disclaimerLong: String(parsed?.disclaimerLong || '').trim(),
+    mandatoryDisclaimerPolicy: String(parsed?.mandatoryDisclaimerPolicy || '').trim(),
   };
 };
 
@@ -199,6 +218,22 @@ const parseBotIdentity = (markdown) => {
   };
 };
 
+const parsePromptInjectionRules = (markdown) => {
+  const content = String(markdown || '').trim();
+  const lines = content ? content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) : [];
+  const bulletRules = lines
+    .filter((line) => /^[-*]\s+/.test(line) || /^\d+\.\d+/.test(line) || /^\d+\./.test(line))
+    .map((line) => line.replace(/^[-*]\s+/, '').trim())
+    .filter(Boolean);
+
+  return {
+    content,
+    excerpt: content.slice(0, 2000),
+    bulletRules,
+    keywords: extractKeywords(content),
+  };
+};
+
 const normalizeStandardType = (value) => {
   const normalized = normalizeText(value).replace(/\(.*?\)/g, '').trim();
   if (!normalized) return '';
@@ -217,6 +252,15 @@ const normalizeStandardType = (value) => {
   }
   if (normalized.includes('office') || normalized.includes('văn phòng')) {
     return 'office';
+  }
+  if (normalized.includes('land') || normalized.includes('đất') || normalized.includes('dat')) {
+    return 'land';
+  }
+  if (normalized.includes('shophouse') || normalized.includes('shop house') || normalized.includes('nhà phố thương mại') || normalized.includes('nha pho thuong mai')) {
+    return 'shophouse';
+  }
+  if (normalized.includes('condotel')) {
+    return 'condotel';
   }
 
   return normalized;
@@ -362,6 +406,7 @@ const loadChatbotKnowledge = () => {
   const legalChecklistMarkdown = readMarkdownFile('legal_checklist.md');
   const humanConversationStyleMarkdown = readMarkdownFile('human_conversation_style.md');
   const botIdentityMarkdown = readMarkdownFile('bot_identity.md');
+  const promptInjectionRuleMarkdown = readMarkdownFile('RULE.md');
 
   knowledgeCache = {
     propertyTypeMap: ensureNonEmptyObject(
@@ -379,6 +424,7 @@ const loadChatbotKnowledge = () => {
     legalChecklist: parseLegalChecklist(legalChecklistMarkdown),
     humanConversationStyle: parseHumanConversationStyle(humanConversationStyleMarkdown),
     botIdentity: parseBotIdentity(botIdentityMarkdown),
+    promptInjectionRules: parsePromptInjectionRules(promptInjectionRuleMarkdown),
     knowledgeDir: EXTERNAL_KNOWLEDGE_DIR || LOCAL_CHATBOT_KNOWLEDGE_DIR,
   };
 
@@ -396,4 +442,5 @@ module.exports = {
   parseLegalChecklist,
   parseHumanConversationStyle,
   parseBotIdentity,
+  parsePromptInjectionRules,
 };

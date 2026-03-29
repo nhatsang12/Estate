@@ -199,6 +199,27 @@ const LISTING_REQUEST_KEYWORDS = Array.isArray(ADVISORY_PLAYBOOK.listingRequestK
 const LEGAL_INTENT_KEYWORDS = Array.isArray(LEGAL_CHECKLIST.legalKeywords) && LEGAL_CHECKLIST.legalKeywords.length > 0
   ? LEGAL_CHECKLIST.legalKeywords
   : DEFAULT_LEGAL_INTENT_KEYWORDS;
+const DEFAULT_ADVISORY_ESCALATION = {
+  maxClarifyingQuestions: 2,
+  strategy: 'ask_then_handoff',
+  insufficientDataSignal:
+    'Nếu thiếu dữ liệu sau số lượt hỏi làm rõ tối đa, Clara phải chủ động đề xuất chuyển tư vấn viên người thật.',
+  humanHandoffRoute: '/contact-support',
+  humanHandoffMessage:
+    'Nếu sau 2 lượt làm rõ mà vẫn chưa đủ dữ liệu để kết luận, mình sẽ đề xuất chuyển bạn sang tư vấn viên người thật.',
+};
+const ADVISORY_ESCALATION = {
+  ...DEFAULT_ADVISORY_ESCALATION,
+  ...(ADVISORY_PLAYBOOK.escalation || {}),
+};
+const ADVISORY_MAX_CLARIFYING_QUESTIONS = Math.max(
+  1,
+  Number.parseInt(String(ADVISORY_ESCALATION.maxClarifyingQuestions || 2), 10) || 2
+);
+const ADVISORY_ESCALATION_ROUTE = String(ADVISORY_ESCALATION.humanHandoffRoute || '').trim();
+const ADVISORY_ESCALATION_MESSAGE =
+  String(ADVISORY_ESCALATION.humanHandoffMessage || '').trim() ||
+  DEFAULT_ADVISORY_ESCALATION.humanHandoffMessage;
 const DEFAULT_BOT_IDENTITY = {
   name: 'Clara',
   displayName: 'Clara',
@@ -1188,10 +1209,14 @@ const retrieveNavigationKnowledge = (question, topics = []) => {
     .sort((a, b) => b.relevance - a.relevance)
     .slice(0, 4);
 
+  // Source of truth: route_knowledge + common_workflows.
+  // web_navigation_guide is only fallback to avoid duplicate/conflicting navigation context.
+  const shouldUseGuideFallback = routeMatches.length === 0 && workflowMatches.length === 0;
+
   return {
     routes: routeMatches,
     workflows: workflowMatches,
-    guideSections: guideSectionMatches,
+    guideSections: shouldUseGuideFallback ? guideSectionMatches : [],
   };
 };
 
@@ -1240,7 +1265,10 @@ const buildFallbackAnswer = ({ intent, properties, navigation, responseMode = 'd
     if (properties.length > 0) {
       return 'Mình có một số phương án phù hợp sơ bộ. Trước khi chốt căn cụ thể, mình sẽ tư vấn theo mục tiêu mua (ở thực/đầu tư), mức ngân sách an toàn và rủi ro pháp lý cần kiểm tra.';
     }
-    return 'Để tư vấn sát hơn, mình xin thêm 1-2 thông tin quan trọng: ngân sách tối đa và khu vực ưu tiên của bạn.';
+    const escalationTail = ADVISORY_ESCALATION_MESSAGE
+      ? ` ${ADVISORY_ESCALATION_MESSAGE}`
+      : '';
+    return `Để tư vấn sát hơn, mình xin thêm 1-2 thông tin quan trọng: ngân sách tối đa và khu vực ưu tiên của bạn.${escalationTail}`.trim();
   }
 
   if ((intent === 'property' || intent === 'mixed') && properties.length > 0) {
@@ -1305,6 +1333,12 @@ const buildSuggestions = ({
           pushSuggestion('Ngân sách tối đa bạn có thể chốt là bao nhiêu tỷ?');
         }
       }
+    }
+    if (!properties.length && getCriteriaSignalCount(criteria) <= 1) {
+      const handoffHint = ADVISORY_ESCALATION_ROUTE
+        ? `Nếu muốn, mình có thể chuyển bạn sang tư vấn viên người thật tại ${ADVISORY_ESCALATION_ROUTE}.`
+        : 'Nếu muốn, mình có thể chuyển bạn sang tư vấn viên người thật để trao đổi trực tiếp.';
+      pushSuggestion(handoffHint);
     }
     return suggestions.slice(0, 2);
   }
@@ -1874,6 +1908,7 @@ Yêu cầu:
 - Trả lời cùng ngôn ngữ với câu hỏi của user.
 ${responseModeGuidance}
 ${skillGuidance}
+- Escalation policy: chỉ hỏi làm rõ tối đa ${ADVISORY_MAX_CLARIFYING_QUESTIONS} lượt khi thiếu dữ liệu. Sau ngưỡng này phải chủ động đề xuất handoff theo quy tắc: "${ADVISORY_ESCALATION_MESSAGE}".
 
 Question:
 ${normalizedQuestion}

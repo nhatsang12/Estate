@@ -1,79 +1,53 @@
-# EstateManager Website Navigation Guide
+# EstateManager Web Navigation Guide (Fallback Layer)
 
-This guide provides instructions on how to use various features and navigate different sections of the EstateManager platform. It is designed to assist users with common inquiries about website functionality.
+Lưu ý quan trọng:
+- Nguồn điều hướng chuẩn trong hệ thống là `route_knowledge.md` (dữ liệu structured).
+- File này chỉ dùng làm fallback narrative khi không tìm thấy route/workflow match trực tiếp.
+- Không dùng file này để override route cụ thể đã có trong `route_knowledge.md`.
 
-## 1. Hướng dẫn Đăng ký và Đăng nhập (Registration & Login)
+## 1. Fallback Cho Trường Hợp User Không Nhớ Tên Route
 
-### 1.1. Đăng ký tài khoản
-Để tạo một tài khoản mới trên EstateManager:
-1.  Truy cập trang chủ của nền tảng.
-2.  Tìm và nhấp vào nút "Đăng ký" hoặc "Sign Up" (thường nằm ở góc trên bên phải).
-3.  Điền các thông tin yêu cầu: Tên, Email, Mật khẩu, Xác nhận mật khẩu.
-4.  Chọn vai trò của bạn (User hoặc Provider).
-5.  Nhấp "Hoàn tất đăng ký".
+### 1.1 User chỉ nói mục tiêu, không nói trang
+- Cách phản hồi: xác nhận mục tiêu, sau đó hướng người dùng tới route phù hợp nhất.
+- Ưu tiên:
+1. Route trực tiếp theo `route_knowledge.md`.
+2. Nếu không có route match rõ ràng, đưa hướng dẫn thao tác theo menu.
 
-### 1.2. Đăng nhập
-Để truy cập tài khoản của bạn:
-1.  Truy cập trang chủ.
-2.  Nhấp vào nút "Đăng nhập" hoặc "Login".
-3.  Nhập Email và Mật khẩu đã đăng ký.
-4.  Nhấp "Đăng nhập".
+### 1.2 User hỏi kiểu "bấm ở đâu"
+- Trả lời ngắn theo bước:
+1. Vào khu vực chính (Home / Provider Dashboard / Admin Dashboard).
+2. Chọn tab chức năng gần nhất.
+3. Nêu hành động cuối cùng (xem chi tiết, tạo checkout, gửi KYC, v.v.).
 
-### 1.3. Đổi mật khẩu / Quên mật khẩu
-Nếu bạn quên mật khẩu hoặc muốn thay đổi:
-1.  Trên trang đăng nhập, nhấp vào liên kết "Quên mật khẩu?" hoặc "Forgot Password?".
-2.  Nhập địa chỉ email đã đăng ký của bạn.
-3.  Kiểm tra hộp thư đến email để nhận hướng dẫn đặt lại mật khẩu.
+## 2. Fallback Cho Luồng Giao Dịch/Quản Trị
 
-## 2. Hướng dẫn Chat với Chủ sở hữu/Đại lý (Chat with Owner/Agent)
+### 2.1 Subscription & Payment
+- Nếu user không vào được trang gói:
+1. Kiểm tra đã đăng nhập đúng role provider chưa.
+2. Mở Provider Dashboard, chọn tab Gói dịch vụ.
+3. Chọn gói và phương thức thanh toán.
 
-Để liên hệ trực tiếp với người cho thuê hoặc bán bất động sản:
-1.  **Truy cập trang chi tiết bất động sản:** Tìm và nhấp vào bất động sản bạn quan tâm từ danh sách.
-2.  **Nhấp nút "Chat với chủ sở hữu":** Trên trang chi tiết bất động sản, bạn sẽ thấy một nút hoặc biểu tượng "Chat với chủ sở hữu".
-3.  **Mở hộp chat:** Một hộp chat pop-up sẽ xuất hiện ở góc dưới bên phải màn hình.
-4.  **Soạn tin nhắn tư vấn:** Một modal có thể tự động xuất hiện, soạn sẵn thông tin về bất động sản. Bạn có thể chỉnh sửa tin nhắn này và gửi đi.
-5.  **Gửi ảnh:** Trong hộp chat, bạn có thể sử dụng biểu tượng đính kèm để gửi hình ảnh.
+### 2.2 KYC
+- Nếu user/provider chưa thấy nút nộp KYC:
+1. Vào trang hồ sơ hoặc dashboard role tương ứng.
+2. Kiểm tra trạng thái KYC hiện tại.
+3. Tải lại trang và thử nộp lại bộ hồ sơ đúng định dạng.
 
-## 3. Hướng dẫn Xác thực KYC (Know Your Customer)
+### 2.3 Moderation
+- Nếu provider thắc mắc vì sao tin chưa hiển thị:
+1. Vào khu vực Quản lý BĐS của provider.
+2. Kiểm tra trạng thái `pending/rejected/sold/hidden`.
+3. Nếu rejected, sửa và gửi lại.
 
-Đối với các Provider (chủ sở hữu/đại lý) để xác minh danh tính:
-1.  Đăng nhập vào tài khoản của bạn.
-2.  Truy cập trang Hồ sơ hoặc "KYC Management" (nếu bạn là Admin).
-3.  Tìm phần "Xác thực KYC" và tải lên hình ảnh mặt trước và mặt sau của CCCD/CMND.
-4.  Điền các thông tin bổ sung nếu được yêu cầu.
-5.  Nhấp "Gửi để xác thực".
+## 3. Fallback Keyword Hỗ Trợ Nhận Diện Ý Định
 
-## 4. Hướng dẫn Đăng ký và Thanh toán Gói dịch vụ (Subscription & Payment)
+- điều hướng, đi đâu, route, url
+- vào trang nào, bấm ở đâu, thao tác thế nào
+- không thấy nút, không thấy mục, không vào được
+- gói dịch vụ, thanh toán, KYC, duyệt tin, dashboard
 
-Để nâng cấp tài khoản hoặc xem các gói dịch vụ:
-1.  Đăng nhập vào tài khoản.
-2.  Truy cập trang "Subscription Plans" hoặc "Gói dịch vụ" (thường trong menu hồ sơ).
-3.  Xem các gói "Pro", "ProPlus" và các tính năng của chúng.
-4.  Chọn gói mong muốn và nhấp "Thanh toán".
-5.  Chọn phương thức thanh toán (ví dụ: VNPay) và hoàn tất giao dịch.
+## 4. Chính Sách Trả Lời Khi Dùng Fallback Guide
 
-## 5. Hướng dẫn Đăng bài/Đăng bất động sản (Listing a Property)
-
-Đối với Providers (chủ sở hữu/đại lý):
-1.  Đăng nhập vào tài khoản Provider của bạn.
-2.  Truy cập trang "Quản lý Bất động sản" hoặc "Đăng Bất động sản mới".
-3.  Điền tất cả các thông tin chi tiết về bất động sản (mô tả, giá, vị trí, tiện ích, v.v.).
-4.  Tải lên nhiều hình ảnh chất lượng cao của bất động sản.
-5.  Gửi bài đăng để kiểm duyệt (nếu có).
-
-## 6. Các từ khóa Điều hướng chính
-
-Các từ khóa này có thể được sử dụng trong các câu hỏi để chatbot hướng dẫn bạn đến đúng trang hoặc chức năng:
-- đăng nhập, login
-- đăng ký, register
-- đổi mật khẩu, forgot password, reset password
-- đi đâu, truy cập, vào trang, đến đâu
-- dashboard, bảng điều khiển
-- profile, hồ sơ
-- subscription, gói dịch vụ
-- kyc, xác thực
-- hướng dẫn, how to, where is
-- nút nào, menu, route, url
-- bất động sản, properties
-- chat, nhắn tin, liên hệ
-
+- Chỉ đưa 1 lộ trình thao tác phù hợp nhất ở thời điểm hiện tại.
+- Không liệt kê nhiều route nếu user chưa yêu cầu so sánh.
+- Nếu đã có route chính xác từ `route_knowledge.md`, không lặp lại mô tả dài dòng từ file fallback này.

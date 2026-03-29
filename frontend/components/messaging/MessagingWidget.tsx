@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import Image from "next/image";
 import {
   ImagePlus,
@@ -150,8 +150,8 @@ export default function MessagingWidget() {
   );
   const isSubmitting = sendingMessage || chatbotThinking;
 
-  const handleSend = async (event: FormEvent) => {
-    event.preventDefault();
+  const submitCurrentMessage = async () => {
+    if (isSubmitting) return;
     if (isSubscriptionOneWayConversation) {
       setLocalError("Đây là kênh thông báo 1 chiều từ Subcription. Bạn không thể nhắn ngược lại.");
       return;
@@ -183,6 +183,20 @@ export default function MessagingWidget() {
       }
       setLocalError(error instanceof Error ? error.message : "Không thể gửi tin nhắn.");
     }
+  };
+
+  const handleSend = async (event: FormEvent) => {
+    event.preventDefault();
+    await submitCurrentMessage();
+  };
+
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter") return;
+    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.nativeEvent.isComposing) return;
+
+    event.preventDefault();
+    void submitCurrentMessage();
   };
 
   const onPickImage = () => {
@@ -574,6 +588,7 @@ export default function MessagingWidget() {
                   <textarea
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={handleDraftKeyDown}
                     rows={1}
                     disabled={isSubscriptionOneWayConversation}
                     placeholder={

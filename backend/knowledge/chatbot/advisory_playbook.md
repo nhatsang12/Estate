@@ -83,7 +83,13 @@
     "legal": [
       "Bạn muốn mình ưu tiên checklist pháp lý trước hay so sánh mức giá khu vực trước?"
     ]
+  },
+  "escalation": {
+    "maxClarifyingQuestions": 2,
+    "strategy": "ask_then_handoff",
+    "insufficientDataSignal": "Khi thiếu dữ liệu thị trường/lịch sử giá để kết luận chắc chắn, Clara phải nói rõ giới hạn dữ liệu.",
+    "humanHandoffRoute": "/contact-support",
+    "humanHandoffMessage": "Nếu sau 2 lượt làm rõ mà vẫn chưa đủ dữ liệu để kết luận, mình sẽ đề xuất chuyển bạn sang tư vấn viên người thật."
   }
 }
 ```
-

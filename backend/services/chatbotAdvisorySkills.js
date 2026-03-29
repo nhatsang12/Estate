@@ -76,8 +76,10 @@ const DEFAULT_LEGAL_CHECKLIST = [
   'Kiểm tra hồ sơ giao dịch: hợp đồng đặt cọc, điều khoản phạt, mốc thanh toán, điều kiện hoàn cọc.',
   'Kiểm tra nghĩa vụ tài chính: thuế, phí trước bạ, chi phí công chứng và sang tên.',
 ];
-const DEFAULT_LEGAL_DISCLAIMER =
-  'Lưu ý: nội dung này mang tính hỗ trợ tham khảo, không thay thế tư vấn của luật sư/công chứng viên.';
+const DEFAULT_LEGAL_DISCLAIMER_SHORT =
+  'Lưu ý pháp lý bắt buộc: thông tin Clara cung cấp chỉ để tham khảo, không thay thế ý kiến pháp lý chính thức.';
+const DEFAULT_LEGAL_DISCLAIMER_LONG =
+  'Khuyến nghị: trước khi đặt cọc hoặc ký hợp đồng chuyển nhượng, bạn cần kiểm tra hồ sơ thực tế với công chứng viên/luật sư và cơ quan nhà nước có thẩm quyền.';
 const DEFAULT_HUMAN_TONE_RULES = [
   'Mở đầu ngắn gọn để xác nhận đã hiểu nhu cầu của người dùng.',
   'Dùng giọng tư vấn tự nhiên kiểu "mình - bạn", hạn chế văn phong hành chính.',
@@ -111,7 +113,15 @@ const LEGAL_CHECKLIST_LINES =
   Array.isArray(LEGAL_RULES.checklist) && LEGAL_RULES.checklist.length > 0
     ? LEGAL_RULES.checklist
     : DEFAULT_LEGAL_CHECKLIST;
-const LEGAL_DISCLAIMER = String(LEGAL_RULES.disclaimer || '').trim() || DEFAULT_LEGAL_DISCLAIMER;
+const LEGAL_DISCLAIMER_SHORT =
+  String(LEGAL_RULES.disclaimerShort || '').trim() ||
+  String(LEGAL_RULES.disclaimer || '').trim() ||
+  DEFAULT_LEGAL_DISCLAIMER_SHORT;
+const LEGAL_DISCLAIMER_LONG =
+  String(LEGAL_RULES.disclaimerLong || '').trim() || DEFAULT_LEGAL_DISCLAIMER_LONG;
+const LEGAL_DISCLAIMER_POLICY =
+  String(LEGAL_RULES.mandatoryDisclaimerPolicy || '').trim() ||
+  'Bắt buộc gắn disclaimer trong mọi phản hồi có nội dung pháp lý.';
 const HUMAN_TONE_RULES =
   Array.isArray(HUMAN_CONVERSATION_STYLE.toneRules) && HUMAN_CONVERSATION_STYLE.toneRules.length > 0
     ? HUMAN_CONVERSATION_STYLE.toneRules
@@ -294,8 +304,9 @@ const buildLegalChecklistLines = ({ focusProperty = null }) => {
 
   return [
     focusLine,
+    `- ${LEGAL_DISCLAIMER_SHORT}`,
     ...LEGAL_CHECKLIST_LINES.map((line) => `- ${line}`),
-    LEGAL_DISCLAIMER,
+    LEGAL_DISCLAIMER_LONG,
   ];
 };
 
@@ -420,8 +431,12 @@ const buildSkillContext = ({
     legalChecklist = legalLines.join('\n');
     advisoryOverlay.push('');
     advisoryOverlay.push('Checklist pháp lý nên kiểm tra trước khi xuống tiền:');
-    legalLines.slice(1, 6).forEach((line) => advisoryOverlay.push(line));
+    legalLines.slice(1, 7).forEach((line) => advisoryOverlay.push(line));
+    advisoryOverlay.push(`- ${LEGAL_DISCLAIMER_LONG}`);
     promptContext.push('Skill pháp lý giao dịch đang bật: nhấn mạnh kiểm tra sở hữu, quy hoạch, ràng buộc và điều khoản đặt cọc.');
+    promptContext.push(`- Chính sách disclaimer pháp lý: ${LEGAL_DISCLAIMER_POLICY}`);
+    promptContext.push(`- Disclaimer ngắn (bắt buộc xuất hiện khi trả lời pháp lý): ${LEGAL_DISCLAIMER_SHORT}`);
+    promptContext.push(`- Disclaimer mở rộng (ưu tiên thêm ở đoạn kết): ${LEGAL_DISCLAIMER_LONG}`);
   }
 
   const suggestedQuestions = buildConsultingQuestions({

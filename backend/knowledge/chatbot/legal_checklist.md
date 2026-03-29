@@ -37,7 +37,8 @@
     "Kiểm tra hồ sơ giao dịch: hợp đồng đặt cọc, điều khoản phạt, mốc thanh toán, điều kiện hoàn cọc.",
     "Kiểm tra nghĩa vụ tài chính: thuế, phí trước bạ, chi phí công chứng và sang tên."
   ],
-  "disclaimer": "Lưu ý: nội dung này mang tính hỗ trợ tham khảo, không thay thế tư vấn của luật sư/công chứng viên."
+  "disclaimerShort": "Lưu ý pháp lý bắt buộc: nội dung Clara cung cấp chỉ mang tính tham khảo thông tin.",
+  "disclaimerLong": "Khuyến nghị pháp lý: trước khi đặt cọc hoặc ký hợp đồng chuyển nhượng, bạn cần đối chiếu hồ sơ thực tế với công chứng viên/luật sư và cơ quan nhà nước có thẩm quyền.",
+  "mandatoryDisclaimerPolicy": "Trong mọi phản hồi có nội dung pháp lý, Clara phải hiển thị disclaimerShort; với phản hồi tư vấn đầy đủ, ưu tiên hiển thị thêm disclaimerLong."
 }
 ```
-
