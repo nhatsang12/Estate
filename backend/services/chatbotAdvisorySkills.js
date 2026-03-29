@@ -299,26 +299,58 @@ const buildLegalChecklistLines = ({ focusProperty = null }) => {
   ];
 };
 
-const buildConsultingQuestions = ({ goal = 'unknown', hasProperties = false, isLegalRequested = false }) => {
+const buildConsultingQuestions = ({
+  goal = 'unknown',
+  hasProperties = false,
+  isLegalRequested = false,
+  criteria = {},
+  preferenceProfile = {},
+}) => {
   const questions = [];
+  const pushQuestion = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return;
+    if (questions.includes(text)) return;
+    questions.push(text);
+  };
+
+  const normalizeNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const mergedBudgetMin = normalizeNumber(criteria?.minPrice) ?? normalizeNumber(preferenceProfile?.budgetMin);
+  const mergedBudgetMax = normalizeNumber(criteria?.maxPrice) ?? normalizeNumber(preferenceProfile?.budgetMax);
+  const hasBudget = Number.isFinite(mergedBudgetMin) || Number.isFinite(mergedBudgetMax);
+  const hasLocation = Boolean(String(criteria?.locationKeyword || preferenceProfile?.locationKeyword || '').trim());
+  const hasBedrooms =
+    Number.isFinite(normalizeNumber(criteria?.bedrooms)) || Number.isFinite(normalizeNumber(preferenceProfile?.bedrooms));
 
   if (goal === 'investment') {
-    questions.push(...CONSULTING_QUESTION_TEMPLATES.investment);
+    CONSULTING_QUESTION_TEMPLATES.investment.forEach((item) => pushQuestion(item));
   } else if (goal === 'self_use') {
-    questions.push(...CONSULTING_QUESTION_TEMPLATES.self_use);
+    CONSULTING_QUESTION_TEMPLATES.self_use.forEach((item) => pushQuestion(item));
   } else {
-    questions.push(...CONSULTING_QUESTION_TEMPLATES.unknown);
+    CONSULTING_QUESTION_TEMPLATES.unknown.forEach((item) => pushQuestion(item));
   }
 
-  questions.push('Ngân sách tối đa bạn có thể chốt (bao gồm dự phòng thuế/phí) là bao nhiêu?');
+  if (!hasBudget) {
+    pushQuestion('Ngân sách tối đa bạn có thể chốt (bao gồm dự phòng thuế/phí) là bao nhiêu?');
+  }
+  if (!isLegalRequested && !hasLocation) {
+    pushQuestion('Bạn muốn ưu tiên khu vực nào để mình khoanh vùng phương án phù hợp hơn?');
+  }
+  if (!isLegalRequested && !hasBedrooms) {
+    pushQuestion('Bạn cần tối thiểu bao nhiêu phòng ngủ để mình lọc đúng nhu cầu ở thực?');
+  }
 
   if (isLegalRequested) {
-    questions.push(...CONSULTING_QUESTION_TEMPLATES.legal);
+    CONSULTING_QUESTION_TEMPLATES.legal.forEach((item) => pushQuestion(item));
   } else if (hasProperties) {
-    questions.push('Bạn muốn mình phân tích sâu căn số mấy để đi vào pháp lý và rủi ro giao dịch?');
+    pushQuestion('Bạn muốn mình phân tích sâu căn số mấy để đi vào pháp lý và rủi ro giao dịch?');
   }
 
-  return Array.from(new Set(questions)).slice(0, 3);
+  return questions.slice(0, 3);
 };
 
 const buildSkillContext = ({
@@ -396,6 +428,8 @@ const buildSkillContext = ({
     goal,
     hasProperties,
     isLegalRequested: legalRequested,
+    criteria,
+    preferenceProfile,
   });
 
   return {

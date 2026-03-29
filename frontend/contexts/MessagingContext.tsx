@@ -22,7 +22,17 @@ import type {
 export const AI_CONVERSATION_ID = "ai-assistant";
 const AI_USER_ID = "ai-assistant";
 const AI_DISPLAY_NAME = "Clara";
+const AI_AVATAR_URL = "/clara-avatar.svg";
+const AI_WELCOME_TEXT = "Xin chào, tôi là Clara\nTôi có thể giúp gì cho bạn";
 const CONVERSATION_REFRESH_THROTTLE_MS = 2500;
+const CHATBOT_IDLE_WARNING_MS = Math.max(
+  10_000,
+  Number(process.env.NEXT_PUBLIC_CHATBOT_IDLE_WARNING_MS || 5 * 60 * 1000)
+);
+const CHATBOT_AUTO_CLEAR_AFTER_WARNING_MS = Math.max(
+  10_000,
+  Number(process.env.NEXT_PUBLIC_CHATBOT_AUTO_CLEAR_AFTER_WARNING_MS || 5 * 60 * 1000)
+);
 const getConversationId = (userA: string, userB: string) =>
   [String(userA), String(userB)].sort().join(":");
 
@@ -130,11 +140,11 @@ const buildAiMessage = (
       ? {
           _id: AI_USER_ID,
           name: AI_DISPLAY_NAME,
-          avatar: "",
+          avatar: AI_AVATAR_URL,
           role: "provider",
         }
       : null,
-    receiver: fromAi ? null : { _id: AI_USER_ID, name: AI_DISPLAY_NAME, avatar: "" },
+    receiver: fromAi ? null : { _id: AI_USER_ID, name: AI_DISPLAY_NAME, avatar: AI_AVATAR_URL },
     messageType: "text",
     content,
     imageUrl: "",
@@ -145,6 +155,14 @@ const buildAiMessage = (
     updatedAt: now,
   };
 };
+
+const buildAiWelcomeMessage = (
+  currentUserId: string,
+  customId = `ai-welcome-${Date.now()}`
+) =>
+  buildAiMessage(currentUserId, AI_WELCOME_TEXT, true, {
+    customId,
+  });
 
 export function MessagingProvider({ children }: { children: ReactNode }) {
   const { user, token, isAuthLoading } = useAuth();
@@ -169,6 +187,8 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
   const conversationsRef = useRef(conversations);
   const lastConversationsRefreshRef = useRef(0);
   const socketRef = useRef<Socket | null>(null);
+  const chatbotIdleWarningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatbotAutoClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     activeConversationRef.current = activeConversationId;
@@ -188,6 +208,52 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
   const isMessagingEnabled =
     Boolean(user && token && !isAuthLoading && (user.role === "user" || user.role === "provider"));
+
+  const clearChatbotSessionTimers = useCallback(() => {
+    if (chatbotIdleWarningTimerRef.current) {
+      clearTimeout(chatbotIdleWarningTimerRef.current);
+      chatbotIdleWarningTimerRef.current = null;
+    }
+    if (chatbotAutoClearTimerRef.current) {
+      clearTimeout(chatbotAutoClearTimerRef.current);
+      chatbotAutoClearTimerRef.current = null;
+    }
+  }, []);
+
+  const resetChatbotSessionTimers = useCallback(() => {
+    clearChatbotSessionTimers();
+    if (!isMessagingEnabled || !user?._id) return;
+
+    const currentUserId = String(user._id);
+    const autoClearMinutes = Math.max(
+      1,
+      Math.round(CHATBOT_AUTO_CLEAR_AFTER_WARNING_MS / 60000)
+    );
+    const warningMessage = `Bạn còn muốn mình hỗ trợ thêm gì không? Nếu chưa phản hồi, cuộc trò chuyện AI sẽ tự động xóa sau ${autoClearMinutes} phút.`;
+
+    chatbotIdleWarningTimerRef.current = setTimeout(() => {
+      setAiMessages((prev) => [
+        ...prev,
+        buildAiMessage(currentUserId, warningMessage, true, {
+          customId: `ai-idle-warning-${Date.now()}`,
+        }),
+      ]);
+
+      chatbotAutoClearTimerRef.current = setTimeout(() => {
+        void (async () => {
+          try {
+            await messageService.clearChatbotMemory();
+          } catch {
+            // Keep UI reset even if API clear fails temporarily.
+          }
+          setAiMessages([
+            buildAiWelcomeMessage(currentUserId, `ai-welcome-after-clear-${Date.now()}`),
+          ]);
+          clearChatbotSessionTimers();
+        })();
+      }, CHATBOT_AUTO_CLEAR_AFTER_WARNING_MS);
+    }, CHATBOT_IDLE_WARNING_MS);
+  }, [clearChatbotSessionTimers, isMessagingEnabled, user?._id]);
 
   const upsertMessageIntoCache = useCallback((message: ChatMessage) => {
     setMessagesByConversation((prev) => {
@@ -492,6 +558,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
       if (!user) return;
       const normalized = prompt.trim();
       if (!normalized) return;
+      resetChatbotSessionTimers();
 
       const userMessage = buildAiMessage(user._id, normalized, false);
       setAiMessages((prev) => [...prev, userMessage]);
@@ -502,24 +569,26 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
         const response = await messageService.askChatbot(normalized);
         const aiMessage = buildAiMessage(
           user._id,
-          response.answer || "AI assistant is processing your request.",
+          response.answer || "Clara đang xử lý yêu cầu của bạn.",
           true
         );
         setAiMessages((prev) => [...prev, aiMessage]);
+        resetChatbotSessionTimers();
       } catch (error) {
         const fallback = "Không thể kết nối AI assistant.";
         setErrorMessage(error instanceof Error ? error.message || fallback : fallback);
         const aiFallback = buildAiMessage(
           user._id,
-          "AI assistant hiện chưa phản hồi được. Vui lòng thử lại sau.",
+          "Clara hiện chưa phản hồi được. Vui lòng thử lại sau.",
           true
         );
         setAiMessages((prev) => [...prev, aiFallback]);
+        resetChatbotSessionTimers();
       } finally {
         setChatbotThinking(false);
       }
     },
-    [user]
+    [resetChatbotSessionTimers, user]
   );
 
   const openPropertyPrefill = useCallback((payload: OpenPropertyChatPayload) => {
@@ -566,6 +635,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isMessagingEnabled) {
+      clearChatbotSessionTimers();
       setConversations([]);
       setUnreadCount(0);
       setMessagesByConversation({});
@@ -580,7 +650,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
     }
 
     void refreshConversations({ force: true });
-  }, [isMessagingEnabled, refreshConversations]);
+  }, [clearChatbotSessionTimers, isMessagingEnabled, refreshConversations]);
 
   useEffect(() => {
     if (!isMessagingEnabled || !user?._id) return;
@@ -603,9 +673,22 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
           })
           .filter((item): item is ChatMessage => Boolean(item));
 
-        setAiMessages(hydrated);
+        const nextAiMessages =
+          hydrated.length > 0
+            ? hydrated
+            : [buildAiWelcomeMessage(user._id, `ai-welcome-hydrate-${Date.now()}`)];
+        setAiMessages(nextAiMessages);
+        resetChatbotSessionTimers();
       } catch {
         // Keep local-memory fallback if backend memory cannot be loaded.
+        if (!disposed) {
+          setAiMessages((prev) =>
+            prev.length > 0
+              ? prev
+              : [buildAiWelcomeMessage(user._id, `ai-welcome-fallback-${Date.now()}`)]
+          );
+          resetChatbotSessionTimers();
+        }
       }
     };
 
@@ -613,7 +696,13 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
     return () => {
       disposed = true;
     };
-  }, [isMessagingEnabled, user?._id]);
+  }, [clearChatbotSessionTimers, isMessagingEnabled, resetChatbotSessionTimers, user?._id]);
+
+  useEffect(() => {
+    return () => {
+      clearChatbotSessionTimers();
+    };
+  }, [clearChatbotSessionTimers]);
 
   useEffect(() => {
     if (!isMessagingEnabled || !token || !user) return;

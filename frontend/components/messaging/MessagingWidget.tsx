@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import Image from "next/image";
 import {
-  Bot,
   ImagePlus,
   MessageCircle,
   SendHorizontal,
@@ -46,6 +45,7 @@ const isHttpUrl = (value: string) => /^https?:\/\/\S+$/i.test(value);
 const isPropertyDetailUrl = (value: string) => PROPERTY_DETAIL_URL_PATTERN.test(value);
 const SUBSCRIPTION_SYSTEM_NAMES = new Set(["subcription", "subscription", "subscripton"]);
 const CHATBOT_DISPLAY_NAME = "Clara";
+const CHATBOT_AVATAR_URL = "/clara-avatar.svg";
 
 const isSubscriptionSystemConversation = (
   conversation?: ConversationSummary | null
@@ -111,7 +111,7 @@ export default function MessagingWidget() {
       participant: {
         _id: AI_CONVERSATION_ID,
         name: CHATBOT_DISPLAY_NAME,
-        avatar: "",
+        avatar: CHATBOT_AVATAR_URL,
         role: "provider",
       },
       unreadCount: 0,
@@ -269,6 +269,8 @@ export default function MessagingWidget() {
                   allConversations.map((conversation) => {
                     const isActive = conversation.conversationId === activeConversationId;
                     const isSystemOneWay = isSubscriptionSystemConversation(conversation);
+                    const avatarUrl = conversation.participant?.avatar || "";
+                    const avatarAlt = conversation.participant?.name || "Avatar";
                     const preview =
                       conversation.lastMessage.messageType === "image"
                         ? "Đã gửi hình ảnh"
@@ -286,7 +288,7 @@ export default function MessagingWidget() {
                       >
                         <div className="flex items-start gap-3">
                           <div
-                            className="flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold"
+                            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border text-sm font-semibold"
                             style={{
                               borderColor: "rgba(154,124,69,0.22)",
                               background:
@@ -299,8 +301,15 @@ export default function MessagingWidget() {
                                   : "var(--e-charcoal)",
                             }}
                           >
-                            {conversation.conversationId === AI_CONVERSATION_ID ? (
-                              <Bot size={16} />
+                            {avatarUrl ? (
+                              <Image
+                                src={avatarUrl}
+                                alt={avatarAlt}
+                                width={40}
+                                height={40}
+                                unoptimized
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
                               (conversation.participant?.name || "?")
                                 .slice(0, 1)
@@ -350,20 +359,39 @@ export default function MessagingWidget() {
                 className="flex shrink-0 items-center justify-between border-b px-4 py-3"
                 style={{ borderColor: "rgba(154,124,69,0.14)" }}
               >
-                <div>
-                  <p
-                    className="text-[10px] font-bold uppercase tracking-[0.16em]"
-                    style={{ color: "var(--e-gold)" }}
+                <div className="flex min-w-0 items-center gap-3">
+                  <div
+                    className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border bg-white/85 text-sm font-semibold"
+                    style={{ borderColor: "rgba(154,124,69,0.22)", color: "var(--e-charcoal)" }}
                   >
-                    {isAiConversation
-                      ? "Clara Assistant"
-                      : isSubscriptionOneWayConversation
-                        ? "System Notification"
-                        : "Direct Chat"}
-                  </p>
-                  <p className="text-sm font-semibold" style={{ color: "var(--e-charcoal)" }}>
-                    {activeConversation.participant?.name || "Tin nhắn"}
-                  </p>
+                    {activeConversation.participant?.avatar ? (
+                      <Image
+                        src={activeConversation.participant.avatar}
+                        alt={activeConversation.participant?.name || "Avatar"}
+                        width={40}
+                        height={40}
+                        unoptimized
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      (activeConversation.participant?.name || "?").slice(0, 1).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p
+                      className="text-[10px] font-bold uppercase tracking-[0.16em]"
+                      style={{ color: "var(--e-gold)" }}
+                    >
+                      {isAiConversation
+                        ? "Clara Assistant"
+                        : isSubscriptionOneWayConversation
+                          ? "System Notification"
+                          : "Direct Chat"}
+                    </p>
+                    <p className="truncate text-sm font-semibold" style={{ color: "var(--e-charcoal)" }}>
+                      {activeConversation.participant?.name || "Tin nhắn"}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"

@@ -7,6 +7,8 @@ const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models
 const CHATBOT_SUMMARY_EVERY_TURNS = Number(process.env.CHATBOT_SUMMARY_EVERY_TURNS || 6);
 const CHATBOT_RECENT_MEMORY_LIMIT = Number(process.env.CHATBOT_RECENT_MEMORY_LIMIT || 20);
 const CHATBOT_RECENT_AFTER_SUMMARY = Number(process.env.CHATBOT_RECENT_AFTER_SUMMARY || 10);
+const CHATBOT_SESSION_TTL_MINUTES = Number(process.env.CHATBOT_SESSION_TTL_MINUTES || 30);
+const CHATBOT_SESSION_TTL_MS = Math.max(1, CHATBOT_SESSION_TTL_MINUTES) * 60 * 1000;
 
 const KNOWLEDGE_BASE = loadChatbotKnowledge();
 const TYPE_MAP = KNOWLEDGE_BASE.propertyTypeMap || {};
@@ -367,17 +369,54 @@ const toPublicMemory = (memory) => ({
   preferenceProfile: memory?.preferenceProfile || {},
   recentMessages: Array.isArray(memory?.recentMessages) ? memory.recentMessages : [],
   turnsSinceSummary: Number(memory?.turnsSinceSummary || 0),
+  lastActivityAt: memory?.updatedAt || null,
+  sessionExpiresAt: memory?.updatedAt
+    ? new Date(new Date(memory.updatedAt).getTime() + CHATBOT_SESSION_TTL_MS)
+    : null,
+  sessionTtlMinutes: CHATBOT_SESSION_TTL_MINUTES,
   updatedAt: memory?.updatedAt || null,
 });
 
+const hasMeaningfulMemoryPayload = (memory) => {
+  if (!memory) return false;
+  const hasMessages = Array.isArray(memory.recentMessages) && memory.recentMessages.length > 0;
+  const hasSummary = String(memory.summary || '').trim().length > 0;
+  const profile = memory.preferenceProfile || {};
+  const hasProfileData =
+    Number.isFinite(Number(profile.budgetMin)) ||
+    Number.isFinite(Number(profile.budgetMax)) ||
+    String(profile.locationKeyword || '').trim().length > 0 ||
+    Number.isFinite(Number(profile.bedrooms)) ||
+    Number.isFinite(Number(profile.bathrooms)) ||
+    (Array.isArray(profile.propertyTypes) && profile.propertyTypes.length > 0) ||
+    (Array.isArray(profile.amenities) && profile.amenities.length > 0) ||
+    typeof profile.furnished === 'boolean';
+  return hasMessages || hasSummary || hasProfileData;
+};
+
+const clearMemoryFields = (memory) => {
+  memory.recentMessages = [];
+  memory.summary = '';
+  memory.preferenceProfile = {};
+  memory.turnsSinceSummary = 0;
+  return memory;
+};
+
+const ensureSessionNotExpired = async (memory) => {
+  if (!memory?.updatedAt) return memory;
+  const lastActivityAt = new Date(memory.updatedAt).getTime();
+  if (!Number.isFinite(lastActivityAt)) return memory;
+  const isExpired = Date.now() - lastActivityAt >= CHATBOT_SESSION_TTL_MS;
+  if (!isExpired) return memory;
+  if (!hasMeaningfulMemoryPayload(memory)) return memory;
+  clearMemoryFields(memory);
+  await memory.save();
+  return memory;
+};
+
 const getMemoryContextForChat = async (userId) => {
-  const memory = await getOrCreateMemory(userId);
-  return {
-    summary: memory.summary || '',
-    preferenceProfile: memory.preferenceProfile || {},
-    recentMessages: Array.isArray(memory.recentMessages) ? memory.recentMessages : [],
-    turnsSinceSummary: Number(memory.turnsSinceSummary || 0),
-  };
+  const memory = await ensureSessionNotExpired(await getOrCreateMemory(userId));
+  return toPublicMemory(memory);
 };
 
 const recordChatbotTurn = async ({
@@ -439,10 +478,7 @@ const recordChatbotTurn = async ({
 
 const clearMemory = async (userId) => {
   const memory = await getOrCreateMemory(userId);
-  memory.recentMessages = [];
-  memory.summary = '';
-  memory.preferenceProfile = {};
-  memory.turnsSinceSummary = 0;
+  clearMemoryFields(memory);
   await memory.save();
   return toPublicMemory(memory);
 };

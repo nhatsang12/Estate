@@ -35,6 +35,7 @@ const TYPE_MAP = KNOWLEDGE_BASE.propertyTypeMap || {};
 const AMENITY_ALIASES = KNOWLEDGE_BASE.amenityAliasMap || {};
 const NAVIGATION_GUIDE_SECTIONS = KNOWLEDGE_BASE.navigationGuideSections || [];
 const ADVISORY_PLAYBOOK = KNOWLEDGE_BASE.advisoryPlaybook || {};
+const LEGAL_CHECKLIST = KNOWLEDGE_BASE.legalChecklist || {};
 const BOT_IDENTITY = KNOWLEDGE_BASE.botIdentity || {};
 
 const NAVIGATION_KEYWORDS = [
@@ -127,6 +128,65 @@ const DEFAULT_LISTING_REQUEST_KEYWORDS = [
   'property nào',
   'property nao',
 ];
+const DEFAULT_LEGAL_INTENT_KEYWORDS = [
+  'phap ly',
+  'pháp lý',
+  'hop dong',
+  'hợp đồng',
+  'sổ đỏ',
+  'so do',
+  'sổ hồng',
+  'so hong',
+  'công chứng',
+  'cong chung',
+  'sang tên',
+  'sang ten',
+  'đặt cọc',
+  'dat coc',
+];
+const LOCATION_POTENTIAL_KEYWORDS = [
+  'tiem nang',
+  'tiềm năng',
+  'phat trien',
+  'phát triển',
+  'quy hoach',
+  'quy hoạch',
+  'ha tang',
+  'hạ tầng',
+  'thanh khoan khu vuc',
+  'thanh khoản khu vực',
+  'khu vuc nay',
+  'khu vực này',
+  'vi tri nay',
+  'vị trí này',
+];
+const FINANCING_KEYWORDS = [
+  'vay',
+  'ngan hang',
+  'ngân hàng',
+  'lai suat',
+  'lãi suất',
+  'tra gop',
+  'trả góp',
+  'dong tien',
+  'dòng tiền',
+  'don bay',
+  'đòn bẩy',
+];
+const PROPERTY_REFERENCE_KEYWORDS = [
+  'can so',
+  'căn số',
+  'can nay',
+  'căn này',
+  'bds nay',
+  'bđs này',
+  'bat dong san nay',
+  'bất động sản này',
+  'nha nay',
+  'nhà này',
+];
+const CHATBOT_EXPOSE_SKILL_OVERLAY =
+  String(process.env.CHATBOT_EXPOSE_SKILL_OVERLAY || 'false').trim().toLowerCase() === 'true';
 const CHAT_HISTORY_LIMIT = 12;
 const ADVISORY_KEYWORDS = Array.isArray(ADVISORY_PLAYBOOK.advisoryKeywords)
   && ADVISORY_PLAYBOOK.advisoryKeywords.length > 0
@@ -136,6 +196,9 @@ const LISTING_REQUEST_KEYWORDS = Array.isArray(ADVISORY_PLAYBOOK.listingRequestK
   && ADVISORY_PLAYBOOK.listingRequestKeywords.length > 0
   ? ADVISORY_PLAYBOOK.listingRequestKeywords
   : DEFAULT_LISTING_REQUEST_KEYWORDS;
+const LEGAL_INTENT_KEYWORDS = Array.isArray(LEGAL_CHECKLIST.legalKeywords) && LEGAL_CHECKLIST.legalKeywords.length > 0
+  ? LEGAL_CHECKLIST.legalKeywords
+  : DEFAULT_LEGAL_INTENT_KEYWORDS;
 const DEFAULT_BOT_IDENTITY = {
   name: 'Clara',
   displayName: 'Clara',
@@ -628,6 +691,186 @@ const getCriteriaSignalCount = (criteria = {}) => {
   return score;
 };
 
+const hasBudgetCriteria = (criteria = {}) =>
+  Number.isFinite(Number(criteria.minPrice)) || Number.isFinite(Number(criteria.maxPrice));
+
+const detectSuggestionFocus = ({ question = '', intent = 'property' } = {}) => {
+  const asciiQuestion = normalizeAscii(question);
+  const asksLegal = containsAnyKeyword(asciiQuestion, LEGAL_INTENT_KEYWORDS);
+  const asksLocationPotential = containsAnyKeyword(asciiQuestion, LOCATION_POTENTIAL_KEYWORDS);
+  const asksFinance = containsAnyKeyword(asciiQuestion, FINANCING_KEYWORDS);
+  const asksComparison = containsAnyKeyword(asciiQuestion, [
+    'so sanh',
+    'đối chiếu',
+    'doi chieu',
+    'canh voi',
+    'cạnh với',
+    'tuong duong',
+    'tương đương',
+  ]);
+  const pointsToSpecificProperty =
+    containsAnyKeyword(asciiQuestion, PROPERTY_REFERENCE_KEYWORDS) ||
+    /\b(can|bds|bat dong san|nha)\s*(so\s*)?\d+\b/i.test(asciiQuestion);
+
+  return {
+    asksLegal,
+    asksLocationPotential,
+    asksFinance,
+    asksComparison,
+    pointsToSpecificProperty,
+    isNavigationOnly: intent === 'navigation',
+  };
+};
+
+const filterQuestionsByKnownCriteria = ({ questions = [], criteria = {} } = {}) => {
+  const hasBudget = hasBudgetCriteria(criteria);
+  const hasLocation = Boolean(String(criteria.locationKeyword || '').trim());
+  const hasType = normalizePropertyType(criteria.propertyTypes || []).length > 0;
+  const hasBedrooms = Number.isFinite(Number(criteria.bedrooms));
+  const hasBathrooms = Number.isFinite(Number(criteria.bathrooms));
+  const hasFurnished = typeof criteria.furnished === 'boolean';
+
+  return questions
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .filter((item, index, arr) => arr.indexOf(item) === index)
+    .filter((item) => {
+      const normalized = normalizeAscii(item);
+      if (hasBudget && /(ngan sach|ngân sách|bao nhieu ty|bao nhiêu tỷ|toi da|max|min|gia tran|trần ngân sách)/i.test(normalized)) {
+        return false;
+      }
+      if (hasLocation && /(khu vuc|khu vực|quan|quận|phuong|phường|vi tri|vị trí|dia diem|địa điểm)/i.test(normalized)) {
+        return false;
+      }
+      if (hasType && /(loai bds|loại bđs|can ho|căn hộ|nha pho|nhà phố|biet thu|biệt thự|van phong|văn phòng)/i.test(normalized)) {
+        return false;
+      }
+      if (hasBedrooms && /(phong ngu|phòng ngủ|pn)/i.test(normalized)) {
+        return false;
+      }
+      if (hasBathrooms && /(phong tam|phòng tắm|phong ve sinh|wc|pt)/i.test(normalized)) {
+        return false;
+      }
+      if (hasFurnished && /(noi that|nội thất|furnished)/i.test(normalized)) {
+        return false;
+      }
+      return true;
+    });
+};
+
+const buildContextualSuggestionCandidates = ({
+  focus = {},
+  criteria = {},
+  properties = [],
+  responseMode = 'discovery',
+}) => {
+  const suggestions = [];
+  const pushSuggestion = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return;
+    if (suggestions.includes(text)) return;
+    suggestions.push(text);
+  };
+
+  if (focus.asksLocationPotential) {
+    pushSuggestion('Bạn đang nghiêng về mua ở thực hay đầu tư tăng giá tại khu vực này?');
+    if (!hasBudgetCriteria(criteria)) {
+      pushSuggestion('Với khu vực này, bạn dự kiến ngân sách tối đa bao nhiêu để mình chốt phân khúc phù hợp?');
+    }
+    if (properties.length > 0) {
+      pushSuggestion('Bạn muốn mình so sánh căn này với 2 bất động sản tương đương cùng khu vực để nhìn rõ biên an toàn giá?');
+    }
+  }
+
+  if (focus.pointsToSpecificProperty) {
+    pushSuggestion('Bạn muốn mình phân tích sâu căn này theo 3 trục: pháp lý, giá khu vực và thanh khoản không?');
+  }
+
+  if (focus.asksComparison) {
+    pushSuggestion('Bạn muốn mình so sánh theo tiêu chí nào trước: pháp lý, tiềm năng tăng giá hay mức giá trên m2?');
+  }
+
+  if (focus.asksFinance) {
+    pushSuggestion('Bạn dự kiến dùng vốn tự có khoảng bao nhiêu %, phần còn lại có cần phương án vay ngân hàng không?');
+  }
+
+  if (focus.asksLegal) {
+    pushSuggestion('Bạn muốn mình đi trước phần giấy tờ sở hữu hay điều khoản đặt cọc để giảm rủi ro?');
+  }
+
+  if (responseMode === 'advisory' || responseMode === 'hybrid') {
+    pushSuggestion('Bạn muốn mình chốt giúp 2 phương án hành động tiếp theo để ra quyết định nhanh hơn không?');
+  }
+
+  return filterQuestionsByKnownCriteria({
+    questions: suggestions,
+    criteria,
+  });
+};
+
+const buildAdaptiveCriteriaQuestions = ({
+  criteria = {},
+  intent = 'property',
+  question = '',
+  focus = null,
+} = {}) => {
+  if (!['property', 'mixed'].includes(intent)) return [];
+  if (containsAnyKeyword(question, LEGAL_INTENT_KEYWORDS)) return [];
+  const questionFocus = focus || detectSuggestionFocus({ question, intent });
+  if (questionFocus.pointsToSpecificProperty || questionFocus.asksLegal) return [];
+
+  const normalizedTypes = normalizePropertyType(criteria.propertyTypes || []);
+  const hasLocation = Boolean(String(criteria.locationKeyword || '').trim());
+  const hasBedrooms = Number.isFinite(Number(criteria.bedrooms));
+  const hasBathrooms = Number.isFinite(Number(criteria.bathrooms));
+  const hasFurnished = typeof criteria.furnished === 'boolean';
+  const hasType = normalizedTypes.length > 0;
+  const hasBudget = hasBudgetCriteria(criteria);
+
+  const questions = [];
+  const pushQuestion = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return;
+    if (questions.includes(text)) return;
+    questions.push(text);
+  };
+
+  if (questionFocus.asksLocationPotential) {
+    if (!hasBudget) {
+      pushQuestion('Với khu vực này, bạn dự kiến ngân sách tối đa bao nhiêu để mình đánh giá sát hơn?');
+    }
+    if (!hasType) {
+      pushQuestion('Trong khu vực này, bạn nhắm phân khúc nào: căn hộ, nhà phố hay biệt thự?');
+    }
+  } else {
+    if (!hasBudget) {
+      pushQuestion('Bạn muốn chốt ngân sách tối đa khoảng bao nhiêu tỷ để mình lọc sát hơn?');
+    }
+    if (!hasLocation) {
+      pushQuestion('Bạn ưu tiên khu vực/quận nào để mình khoanh vùng chính xác?');
+    }
+    if (!hasType) {
+      pushQuestion('Bạn muốn loại BĐS nào: căn hộ, nhà phố, biệt thự hay văn phòng?');
+    }
+  }
+
+  const shouldAskRooms = !hasType || normalizedTypes.some((type) =>
+    ['apartment', 'house', 'villa', 'studio', 'office'].includes(type)
+  );
+
+  if (shouldAskRooms && !hasBedrooms) {
+    pushQuestion('Bạn cần tối thiểu bao nhiêu phòng ngủ?');
+  }
+  if (shouldAskRooms && !hasBathrooms) {
+    pushQuestion('Bạn cần tối thiểu bao nhiêu phòng tắm?');
+  }
+  if (shouldAskRooms && !hasFurnished) {
+    pushQuestion('Bạn có cần căn đã có nội thất sẵn không?');
+  }
+
+  return filterQuestionsByKnownCriteria({ questions, criteria }).slice(0, 2);
+};
+
 const resolveResponseMode = ({ question = '', intent = 'property', criteria = {} }) => {
   if (intent === 'navigation') return 'navigation';
 
@@ -997,7 +1240,7 @@ const buildFallbackAnswer = ({ intent, properties, navigation, responseMode = 'd
     if (properties.length > 0) {
       return 'Mình có một số phương án phù hợp sơ bộ. Trước khi chốt căn cụ thể, mình sẽ tư vấn theo mục tiêu mua (ở thực/đầu tư), mức ngân sách an toàn và rủi ro pháp lý cần kiểm tra.';
     }
-    return 'Để tư vấn sát nhu cầu hơn, bạn cho mình 3 thông tin: mục tiêu mua (ở thực hay đầu tư), ngân sách tối đa, và khu vực ưu tiên.';
+    return 'Để tư vấn sát hơn, mình xin thêm 1-2 thông tin quan trọng: ngân sách tối đa và khu vực ưu tiên của bạn.';
   }
 
   if ((intent === 'property' || intent === 'mixed') && properties.length > 0) {
@@ -1017,6 +1260,8 @@ const buildSuggestions = ({
   properties,
   navigation,
   responseMode = 'discovery',
+  question = '',
+  criteria = {},
   skillSuggestedQuestions = [],
 }) => {
   const suggestions = [];
@@ -1027,29 +1272,58 @@ const buildSuggestions = ({
     suggestions.push(text);
   };
 
+  const focus = detectSuggestionFocus({ question, intent });
+  const adaptiveQuestions = buildAdaptiveCriteriaQuestions({
+    criteria,
+    intent,
+    question,
+    focus,
+  });
+  const contextualSuggestions = buildContextualSuggestionCandidates({
+    focus,
+    criteria,
+    properties,
+    responseMode,
+  });
+  const filteredSkillQuestions = filterQuestionsByKnownCriteria({
+    questions: skillSuggestedQuestions,
+    criteria,
+  });
+
   if (responseMode === 'advisory') {
-    skillSuggestedQuestions.forEach((item) => pushSuggestion(item));
+    contextualSuggestions.forEach((item) => pushSuggestion(item));
+    adaptiveQuestions.forEach((item) => pushSuggestion(item));
+    filteredSkillQuestions.forEach((item) => pushSuggestion(item));
     if (!suggestions.length) {
-      pushSuggestion('Bạn đang ưu tiên mua để ở hay mua để đầu tư tăng giá?');
-      pushSuggestion('Ngân sách tối đa bạn có thể chốt là bao nhiêu tỷ?');
-      if (properties.length > 0) {
-        pushSuggestion('Nếu muốn, mình có thể phân tích sâu 1 căn cụ thể về pháp lý, vị trí và thanh khoản.');
+      if (focus.asksLocationPotential) {
+        pushSuggestion('Bạn muốn mình phân tích thêm theo kịch bản 1-3 năm hay 3-5 năm cho khu vực này?');
+      } else if (focus.asksLegal) {
+        pushSuggestion('Bạn muốn mình gửi checklist giấy tờ cần có trước khi đặt cọc không?');
       } else {
-        pushSuggestion('Bạn ưu tiên khu vực nào và số phòng ngủ tối thiểu là bao nhiêu?');
+        pushSuggestion('Bạn đang ưu tiên mua để ở thực hay đầu tư tăng giá?');
+        if (!hasBudgetCriteria(criteria)) {
+          pushSuggestion('Ngân sách tối đa bạn có thể chốt là bao nhiêu tỷ?');
+        }
       }
     }
-    return suggestions.slice(0, 3);
+    return suggestions.slice(0, 2);
   }
 
   if (intent === 'property' || intent === 'mixed') {
+    contextualSuggestions.forEach((item) => pushSuggestion(item));
+    adaptiveQuestions.forEach((item) => pushSuggestion(item));
     if (properties.length > 0) {
-      pushSuggestion('Bạn muốn mình so sánh nhanh căn này với 2-3 bất động sản tương đương cùng khu vực không?');
-      pushSuggestion(`Bạn có thể mở nhanh căn đầu tiên tại: ${properties[0].url}`);
-      pushSuggestion('Nếu cần lọc sâu hơn, bạn cho mình thêm quận/phường ưu tiên và số phòng ngủ mong muốn.');
+      if (!focus.pointsToSpecificProperty && !focus.asksComparison) {
+        pushSuggestion('Bạn muốn mình so sánh nhanh 2-3 bất động sản tương đương cùng khu vực để chốt phương án tốt nhất không?');
+      }
+      if (!focus.pointsToSpecificProperty && !focus.asksLocationPotential) {
+        pushSuggestion('Nếu cần lọc sâu hơn, bạn cho mình thêm quận/phường ưu tiên và số phòng ngủ mong muốn.');
+      }
     } else {
-      pushSuggestion('Cho mình ngân sách mua dự kiến (ví dụ: dưới 20 tỷ) để lọc chính xác hơn.');
-      pushSuggestion('Bạn muốn ưu tiên khu vực nào tại TP.HCM (quận/phường cụ thể)?');
-      pushSuggestion('Bạn cần loại BĐS nào (căn hộ/nhà phố/biệt thự), mấy phòng ngủ và có nội thất không?');
+      if (!adaptiveQuestions.length && !contextualSuggestions.length) {
+        pushSuggestion('Cho mình ngân sách mua dự kiến (ví dụ: dưới 20 tỷ) để lọc chính xác hơn.');
+        pushSuggestion('Bạn muốn ưu tiên khu vực nào tại TP.HCM (quận/phường cụ thể)?');
+      }
     }
   }
 
@@ -1064,7 +1338,13 @@ const buildSuggestions = ({
     pushSuggestion('Nếu chưa có kết quả phù hợp, bạn thử nới điều kiện giá hoặc mở rộng khu vực.');
   }
 
-  return suggestions.slice(0, 3);
+  const shouldTightenSuggestionCount =
+    responseMode === 'hybrid' ||
+    focus.asksLocationPotential ||
+    focus.asksLegal ||
+    focus.pointsToSpecificProperty ||
+    focus.asksComparison;
+  return suggestions.slice(0, shouldTightenSuggestionCount ? 2 : 3);
 };
 
 const formatPriceVnd = (value) => `${Number(value || 0).toLocaleString('vi-VN')} VND`;
@@ -1080,6 +1360,53 @@ const toChatPlainText = (value) => {
     .replace(/^\s*\*\s+/gm, '- ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+};
+
+const looksLikeStructuredAnswer = (text = '') => {
+  const normalized = String(text || '');
+  return (
+    /\n\s*\d+\.\s/.test(normalized) ||
+    /\n\s*-\s+/.test(normalized) ||
+    /https?:\/\/\S+/.test(normalized)
+  );
+};
+
+const looksIncompleteAnswer = (text = '') => {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return false;
+  if (looksLikeStructuredAnswer(trimmed)) return false;
+  if (trimmed.split(/\s+/).length < 10) return false;
+  if (/[.!?…)"'”’]$/.test(trimmed)) return false;
+  if (/[,:;]$/.test(trimmed)) return true;
+  if (/[A-Za-zÀ-ỹ0-9]$/.test(trimmed)) return true;
+  return false;
+};
+
+const stitchContinuation = (base = '', continuation = '') => {
+  const left = String(base || '').trim();
+  const right = toChatPlainText(continuation);
+  const normalizedRight = String(right || '').trim();
+  if (!normalizedRight) return left;
+
+  const lowerLeft = left.toLowerCase();
+  const lowerRight = normalizedRight.toLowerCase();
+  const maxOverlap = Math.min(140, lowerLeft.length, lowerRight.length);
+
+  let overlap = 0;
+  for (let size = maxOverlap; size >= 12; size -= 1) {
+    if (lowerLeft.slice(-size) === lowerRight.slice(0, size)) {
+      overlap = size;
+      break;
+    }
+  }
+
+  if (overlap > 0) {
+    const remaining = normalizedRight.slice(overlap).trim();
+    if (!remaining) return left;
+    return `${left} ${remaining}`.replace(/\s{2,}/g, ' ').trim();
+  }
+
+  return `${left} ${normalizedRight}`.replace(/\s{2,}/g, ' ').trim();
 };
 
 const buildPropertyDetailLines = (properties = []) => {
@@ -1163,25 +1490,27 @@ const resolveReferencedPropertyFromHistory = async (question = '', history = [])
   return null;
 };
 
-const buildFocusedPropertyAdvice = ({ property, referenceIndex }) => {
+const buildFocusedPropertyAdvice = ({ property, referenceIndex, preferenceProfile = {} }) => {
   if (!property) return '';
-  const head = referenceIndex
-    ? `Mình tư vấn nhanh cho bất động sản số ${referenceIndex} bạn vừa chọn:`
-    : 'Mình tư vấn nhanh cho bất động sản bạn vừa chọn:';
+  const preferredTypes = normalizePropertyType(preferenceProfile?.propertyTypes || []);
+  const typeMismatchNotice =
+    preferredTypes.length > 0 && !preferredTypes.includes(property.type)
+      ? `Lưu ý nhanh: căn này là loại ${property.type}, trong khi nhu cầu bạn đang ưu tiên là ${preferredTypes.join(', ')}.`
+      : '';
 
-  const advisoryNotes = [
-    '- Điểm phù hợp: cần đối chiếu ngân sách, nhu cầu ở thực hay đầu tư, và kỳ vọng thanh khoản.',
-    '- Điểm cần kiểm tra trước khi chốt: pháp lý sổ, quy hoạch khu vực, chất lượng xây dựng và hạ tầng kết nối.',
-    '- Bước tiếp theo nên làm: đi xem thực tế + so sánh thêm 2 căn tương đương cùng khu vực để định giá tốt hơn.',
-  ];
+  const intro = referenceIndex
+    ? `Mình xem nhanh bất động sản số ${referenceIndex} bạn vừa chọn nhé.`
+    : 'Mình xem nhanh căn bạn vừa chọn nhé.';
 
   return [
-    head,
-    `${property.title} | Khu vực: ${property.address || 'N/A'} | Giá: ${formatPriceVnd(property.price)} | Loại: ${property.type || 'N/A'} | PN/PT: ${property.bedrooms ?? 'N/A'}/${property.bathrooms ?? 'N/A'} | Chi tiết: ${property.url}`,
-    'Nhận định tư vấn:',
-    ...advisoryNotes,
-    'Nếu bạn muốn, mình sẽ phân tích sâu tiếp theo mục tiêu của bạn (ở thực hay đầu tư) để ra quyết định phù hợp hơn.',
+    intro,
+    `Thông tin chính: ${property.title} | Khu vực: ${property.address || 'N/A'} | Giá: ${formatPriceVnd(property.price)} | Loại: ${property.type || 'N/A'} | PN/PT: ${property.bedrooms ?? 'N/A'}/${property.bathrooms ?? 'N/A'} | Chi tiết: ${property.url}`,
+    typeMismatchNotice,
+    'Đánh giá nhanh: căn này có thể phù hợp nếu mục tiêu của bạn là giữ tài sản an toàn và ưu tiên vị trí. Tuy nhiên vẫn cần đối chiếu thêm mục tiêu ở thực hay đầu tư để chốt đúng phương án.',
+    'Trước khi quyết định, bạn nên kiểm tra kỹ pháp lý sổ, quy hoạch khu vực, và so sánh thêm 2 căn tương đương để định giá tốt hơn.',
+    'Nếu bạn muốn, mình sẽ tư vấn sâu ngay theo mục tiêu của bạn (ở thực hay đầu tư) để ra quyết định rõ ràng hơn.',
   ]
+    .filter(Boolean)
     .join('\n\n')
     .trim();
 };
@@ -1343,6 +1672,9 @@ const mergeSkillOverlayIntoAnswer = ({
 }) => {
   const base = String(answer || '').trim();
   if (!base) return base;
+  if (!CHATBOT_EXPOSE_SKILL_OVERLAY) {
+    return base;
+  }
 
   if (responseMode !== 'advisory' && responseMode !== 'hybrid') {
     return base;
@@ -1385,7 +1717,10 @@ const answerQuestion = async ({ question, history = [], memorySummary = '', pref
     });
 
     const focusedAnswer = mergeSkillOverlayIntoAnswer({
-      answer: buildFocusedPropertyAdvice(referencedProperty),
+      answer: buildFocusedPropertyAdvice({
+        ...referencedProperty,
+        preferenceProfile: preferenceProfile || {},
+      }),
       skillContext: focusedSkillContext,
       responseMode: 'advisory',
     });
@@ -1505,12 +1840,16 @@ const answerQuestion = async ({ question, history = [], memorySummary = '', pref
       ? [
           '- Bạn đang ở chế độ tư vấn. Không tự động liệt kê danh sách dài bất động sản nếu user không yêu cầu rõ.',
           '- Trả lời theo vai trò chuyên viên tư vấn mua bán: phân tích nhu cầu, rủi ro, pháp lý, thanh khoản, và bước ra quyết định.',
+          '- Khi thiếu dữ liệu lọc, chỉ hỏi tối đa 1-2 tiêu chí quan trọng nhất mỗi lượt (ví dụ: ngân sách, khu vực, phòng ngủ, nội thất).',
+          '- Không hỏi dồn toàn bộ checklist trong một câu trả lời.',
+          '- Nếu user đã cung cấp tiêu chí nào thì không hỏi lại tiêu chí đó.',
           '- Chỉ nêu tối đa 1-2 ví dụ bất động sản nếu thực sự cần minh hoạ cho tư vấn.',
           '- Kết thúc bằng 1 câu hỏi làm rõ quan trọng nhất để tiếp tục tư vấn.',
         ].join('\n')
       : responseMode === 'hybrid'
         ? [
             '- Bạn đang ở chế độ kết hợp tư vấn + gợi ý.',
+            '- Chỉ hỏi tối đa 1-2 tiêu chí còn thiếu ở mỗi lượt, không hỏi hết một lần.',
             '- Trước tiên tư vấn ngắn theo nhu cầu, sau đó mới liệt kê tối đa 3 bất động sản phù hợp.',
           ].join('\n')
         : [
@@ -1596,6 +1935,8 @@ ${botIdentityPromptContext}
     properties,
     navigation,
     responseMode,
+    question: normalizedQuestion,
+    criteria: propertyCriteria,
     skillSuggestedQuestions: skillContext.suggestedQuestions || [],
   });
   const finalAnswerBase = buildEnrichedAnswer({
@@ -1612,9 +1953,41 @@ ${botIdentityPromptContext}
     skillContext,
     responseMode,
   });
+  let completedAnswer = finalAnswer;
+  if (apiKey && looksIncompleteAnswer(completedAnswer)) {
+    try {
+      const continuationPrompt = `
+Tin nhắn trả lời dưới đây đang bị ngắt giữa chừng.
+Hãy viết DUY NHẤT phần nối tiếp để kết thúc tự nhiên.
+Quy tắc:
+- Không lặp lại nội dung đã có.
+- Tối đa 1-2 câu ngắn.
+- Kết thúc bằng dấu câu đầy đủ.
+- Trả lời cùng ngôn ngữ người dùng.
+
+Câu hỏi user:
+${normalizedQuestion}
+
+Đoạn đã có:
+${completedAnswer}
+`.trim();
+      const continuationText = await callGemini({
+        apiKey,
+        prompt: continuationPrompt,
+        temperature: 0.2,
+        maxOutputTokens: 180,
+      });
+      completedAnswer = stitchContinuation(completedAnswer, continuationText);
+    } catch (error) {
+      completedAnswer = `${String(completedAnswer || '').trim()}.\n\nBạn muốn mình hướng dẫn tiếp từng bước luôn không?`.trim();
+    }
+  }
+  if (looksIncompleteAnswer(completedAnswer)) {
+    completedAnswer = `${String(completedAnswer || '').trim()}.\n\nBạn muốn mình đi tiếp phần chi tiết theo từng bước luôn không?`.trim();
+  }
 
   return {
-    answer: finalAnswer,
+    answer: completedAnswer,
     intent,
     properties,
     navigation: {
