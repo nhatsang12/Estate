@@ -13,6 +13,7 @@ const connectDB = require('./config/db');
 const { startTransactionCleanupJob } = require('./jobs/transactionCleanupJob');
 const { startSubscriptionReminderJob } = require('./jobs/subscriptionReminderJob');
 const { initSocketServer } = require('./services/socketService');
+const { isOriginAllowed } = require('./utils/allowedOrigins');
 
 // Load env vars
 dotenv.config({ override: process.env.NODE_ENV !== 'production' });
@@ -24,7 +25,12 @@ let isShuttingDown = false;
 // ─── Security Middleware ─────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true
 }));
 
